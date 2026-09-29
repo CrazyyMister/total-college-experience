@@ -361,6 +361,8 @@ export function npcRomanceFactsOf(
   for (const key of Object.keys(map.rejections).sort()) {
     const [from, to] = key.split('>')
     const rejection = map.rejections[key]
+    // A crush that faded unsaid held nothing anybody was told.
+    if (rejection.quiet) continue
     if (date - rejection.date >= REJECTION_COOLDOWN_DAYS) continue
     if (!here.has(from) && !here.has(to)) continue
     facts.rejections.push({ from, to, date: rejection.date })

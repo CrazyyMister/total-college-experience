@@ -2,7 +2,7 @@ import type { JSX } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'motion/react'
 import { pairKeyOf } from '@shared/npcRelationships'
-import { isRivalGrudge, REJECTION_COOLDOWN_DAYS } from '@shared/npcRomance'
+import { HELD_CRUSH_FADES_DAYS, isRivalGrudge, REJECTION_COOLDOWN_DAYS } from '@shared/npcRomance'
 import { useModalShell } from '../components/useModalShell'
 import { TitleTab } from '../components/TitleTab'
 import { useGameStore } from '../stores/gameStore'
@@ -61,7 +61,11 @@ function sectionsOf(): DebugSection[] {
       rows: Object.entries(crushes).map(([from, crush]) => ({
         key: from,
         who: `${name(from)} has a crush on ${name(crush.to)}`,
-        facts: `since ${dated(crush.since)} · ${game.date - crush.since} days · ${affinity(from, crush.to)}`
+        facts: `since ${dated(crush.since)} · ${game.date - crush.since} days · ${affinity(from, crush.to)}${
+          crush.heldSince !== undefined
+            ? ` · kept unsaid ${game.date - crush.heldSince} of ${HELD_CRUSH_FADES_DAYS} days`
+            : ''
+        }`
       }))
     },
     {
@@ -98,8 +102,12 @@ function sectionsOf(): DebugSection[] {
         const waiting = rejection.date + REJECTION_COOLDOWN_DAYS - game.date
         return {
           key,
-          who: `${name(from)}, turned down by ${name(to)}`,
-          facts: `${dated(rejection.date)} · ${waiting > 0 ? `waits ${waiting} more days` : 'wait over'}`
+          who: rejection.quiet
+            ? `${name(from)}'s crush on ${name(to)}, faded unsaid`
+            : `${name(from)}, turned down by ${name(to)}`,
+          facts: `${dated(rejection.date)}${rejection.quiet ? ', no declaration' : ''} · ${
+            waiting > 0 ? `waits ${waiting} more days` : 'wait over'
+          }`
         }
       })
     },

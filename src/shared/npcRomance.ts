@@ -55,8 +55,14 @@ export const EX_AFFINITY_DROP = 1
 
 /** The reader's lover starts drifting once her affection for him is this low or lower. */
 export const DRIFT_OPENS_AT = -15
-/** A drift ends once her affection climbs above this, unless he betrayed her lately. */
+/** A cold drift ends once her affection climbs above this. */
 export const DRIFT_HOLDS_ABOVE = -10
+/** A recent betrayal opens a drift while her affection is this low or lower. */
+export const BETRAYAL_OPENS_AT = 0
+/** A drift over a betrayal ends once her affection climbs above this: she has forgiven him. */
+export const DRIFT_FORGIVEN_ABOVE = 5
+/** How many days a crush on the reader's lover is kept before it fades away unsaid. */
+export const HELD_CRUSH_FADES_DAYS = 30
 /** How many days a betrayal counts as recent for a drift. */
 export const BETRAYAL_WINDOW_DAYS = 21
 /** The fewest days a drift runs before she may leave the reader. */
@@ -71,6 +77,11 @@ export interface NpcCrush {
   to: string
   /** The date it began. */
   since: number
+  /**
+   * Set while the crush is on the reader's lover: the date its fading clock counts from, moved on
+   * by the days a drift stood, which pause it. Absent otherwise.
+   */
+  heldSince?: number
 }
 
 /** A couple, keyed by `pairKeyOf`. */
@@ -109,6 +120,8 @@ export interface NpcDrift {
 /** A turned-down declaration, keyed by {@link directedKeyOf}. */
 export interface NpcRejection {
   date: number
+  /** A crush that faded unsaid: it holds off a new one for the same wait but nothing was declared. */
+  quiet?: true
 }
 
 /** A crush the reader has found out about, keyed by the charId holding it. */
@@ -159,6 +172,7 @@ export interface NpcRomanceLogEntry {
     | 'drift'
     | 'drift_ended'
     | 'left_reader'
+    | 'crush_faded'
   from: string
   to: string
   /** For a discarded scene event, what it was and why it could not stand. */
@@ -236,6 +250,8 @@ export interface ReaderLoverState {
   harem: boolean
   /** The date she last found out he cheated on her. */
   betrayedOn?: number
+  /** The date she and the reader last became lovers. */
+  datingSince?: number
 }
 
 /** A lover who leaves the reader, and why. */
@@ -301,13 +317,23 @@ export function betrayalIsRecent(betrayedOn: number | undefined, date: number): 
 }
 
 /**
- * Whether the reader's lover is cold enough, or betrayed enough, for a drift: the bar to open one
+ * Whether a recent betrayal stands between the reader and his lover: she is not warm enough to
+ * have forgiven it. The bar to open is lower than the bar to keep, so a lover hovering near it
+ * does not flicker.
+ */
+export function betrayalHolds(state: ReaderLoverState, date: number, running: boolean): boolean {
+  if (!betrayalIsRecent(state.betrayedOn, date)) return false
+  return running ? state.affection <= DRIFT_FORGIVEN_ABOVE : state.affection <= BETRAYAL_OPENS_AT
+}
+
+/**
+ * Whether the reader's lover is cold enough, or hurt enough, for a drift: the bar to open one
  * is lower than the bar to keep one, so a lover hovering near it does not flicker. A lover who
  * shares him never drifts.
  */
 export function driftsFrom(state: ReaderLoverState, date: number, running: boolean): boolean {
   if (state.harem) return false
-  if (betrayalIsRecent(state.betrayedOn, date)) return true
+  if (betrayalHolds(state, date, running)) return true
   return running ? state.affection <= DRIFT_HOLDS_ABOVE : state.affection <= DRIFT_OPENS_AT
 }
 
@@ -564,6 +590,11 @@ export function settleNpcRomance(
     const endDrift = (): void => {
       delete romance.drifts![lover]
       note('system', 'drift_ended', lover, drift.to)
+      // The days it stood do not count against the crush's fading.
+      const crush = romance.crushes[drift.to]
+      if (crush?.heldSince !== undefined) {
+        romance.crushes[drift.to] = { ...crush, heldSince: crush.heldSince + (date - drift.since) }
+      }
     }
     if (!readerLovers.has(lover) || !state || !driftsFrom(state, date, true)) {
       endDrift()
@@ -583,7 +614,7 @@ export function settleNpcRomance(
       readerBreakups.push({
         charId: lover,
         forCharId: running.to,
-        reason: betrayalIsRecent(state.betrayedOn, date) ? 'betrayal' : 'coldness'
+        reason: betrayalHolds(state, date, true) ? 'betrayal' : 'coldness'
       })
       note('system', 'left_reader', lover, running.to)
     }
@@ -604,6 +635,27 @@ export function settleNpcRomance(
     if (suitors.length === 0) continue
     romance.drifts = { ...romance.drifts, [lover]: { to: suitors[0], since: date, signs: 0 } }
     note('system', 'drift', lover, suitors[0])
+  }
+
+  // A crush on the reader's lover is kept unsaid, and fades once it has been kept long enough
+  // with no drift standing: no declaration, no cost, only the wait before it can form again.
+  for (const from of Object.keys(romance.crushes).sort()) {
+    const crush = romance.crushes[from]
+    if (!readerLovers.has(crush.to)) {
+      if (crush.heldSince !== undefined) {
+        const { heldSince: _held, ...rest } = crush
+        romance.crushes[from] = rest
+      }
+      continue
+    }
+    const heldSince =
+      crush.heldSince ?? Math.max(crush.since, loverStates[crush.to]?.datingSince ?? crush.since)
+    if (crush.heldSince === undefined) romance.crushes[from] = { ...crush, heldSince }
+    if (romance.drifts?.[crush.to]?.to === from) continue
+    if (date - heldSince < HELD_CRUSH_FADES_DAYS) continue
+    delete romance.crushes[from]
+    romance.rejections[directedKeyOf(from, crush.to)] = { date, quiet: true }
+    note('system', 'crush_faded', from, crush.to)
   }
 
   // New crushes, off the encounters this slot's affinity settle stamped as positive.

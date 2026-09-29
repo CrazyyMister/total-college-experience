@@ -61,6 +61,14 @@ describe('what the romance section picks', () => {
     expect(npcRomanceFactsOf(map, ['f'], ['lover'], TODAY).jealous).toEqual([])
   })
 
+  it('tells nothing of a crush that faded unsaid, whoever is present', () => {
+    const faded: NpcRomanceMap = {
+      ...emptyNpcRomance(),
+      rejections: { [directedKeyOf('g', 'h')]: { date: TODAY - 1, quiet: true } }
+    }
+    expect(npcRomanceFactsOf(faded, ['g', 'h'], [], TODAY).rejections).toEqual([])
+  })
+
   it('carries nothing from a save without the map', () => {
     expect(npcRomanceFactsOf(undefined, ['a'], [], TODAY)).toEqual({
       couples: [],

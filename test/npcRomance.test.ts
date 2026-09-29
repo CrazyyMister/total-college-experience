@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { pairKeyOf, type NpcEncounterGroup, type NpcRelationshipMap } from '@shared/npcRelationships'
 import {
+  BETRAYAL_OPENS_AT,
   BETRAYAL_WINDOW_DAYS,
   BREAKUP_BELOW,
   DECLARE_AFTER_DAYS,
+  HELD_CRUSH_FADES_DAYS,
+  DRIFT_FORGIVEN_ABOVE,
   DRIFT_HOLDS_ABOVE,
   DRIFT_MIN_DAYS,
   DRIFT_OPENS_AT,
@@ -201,7 +204,7 @@ describe('declarations', () => {
       input({
         characters: charactersById(man('m'), woman('w')),
         relationships: standing(6, ['m', 'w']),
-        romance: romance({ crushes: { m: { to: 'w', since: 0 } } }),
+        romance: romance({ crushes: { m: { to: 'w', since: DAY - DECLARE_AFTER_DAYS } } }),
         groups: together('m', 'w'),
         readerLovers: ['w']
       }),
@@ -209,7 +212,7 @@ describe('declarations', () => {
     )
     expect(out.romance.couples).toEqual({})
     expect(out.romance.rejections).toEqual({})
-    expect(out.romance.crushes.m).toEqual({ to: 'w', since: 0 })
+    expect(out.romance.crushes.m?.to).toBe('w')
     expect(out.tally.declarations).toBe(0)
   })
 
@@ -495,13 +498,43 @@ describe('the reader’s lover drifting away', () => {
     expect(at(DRIFT_HOLDS_ABOVE + 1).romance.drifts).toBeUndefined()
   })
 
-  it('holds a drift over a recent betrayal however warm she is, and lets go once it is old', () => {
-    const warm = (betrayedOn: number) => ({ w: { affection: 30, harem: false, betrayedOn } })
+  it('holds a drift over a recent betrayal while she has not forgiven it, and lets go once it is old', () => {
+    const hurt = (affection: number, betrayedOn: number) => ({
+      w: { affection, harem: false, betrayedOn }
+    })
     const state = romance({ crushes: crushOn, drifts: running })
-    const recent = settle({ romance: state, loverStates: warm(DAY - BETRAYAL_WINDOW_DAYS + 1) })
-    expect(recent.romance.drifts?.w).toBeDefined()
-    const old = settle({ romance: state, loverStates: warm(DAY - BETRAYAL_WINDOW_DAYS) })
+    const recent = DAY - BETRAYAL_WINDOW_DAYS + 1
+    expect(settle({ romance: state, loverStates: hurt(DRIFT_FORGIVEN_ABOVE, recent) }).romance.drifts?.w).toBeDefined()
+    const old = settle({ romance: state, loverStates: hurt(-4, DAY - BETRAYAL_WINDOW_DAYS) })
     expect(old.romance.drifts).toBeUndefined()
+  })
+
+  it('opens over a betrayal only at the low bar and forgives above the high one', () => {
+    const hurt = (affection: number) => ({ w: { affection, harem: false, betrayedOn: DAY - 1 } })
+    expect(settle({ loverStates: hurt(BETRAYAL_OPENS_AT) }).romance.drifts?.w).toBeDefined()
+    // Warmer than the low bar, a betrayal alone opens nothing, even inside the gap.
+    expect(settle({ loverStates: hurt(BETRAYAL_OPENS_AT + 1) }).romance.drifts).toBeUndefined()
+    const state = romance({ crushes: crushOn, drifts: running })
+    // Inside the gap a drift already standing stays; above it she has forgiven him.
+    const between = settle({ romance: state, loverStates: hurt(DRIFT_FORGIVEN_ABOVE) })
+    expect(between.romance.drifts?.w).toBeDefined()
+    const forgiven = settle({ romance: state, loverStates: hurt(DRIFT_FORGIVEN_ABOVE + 1) })
+    expect(forgiven.romance.drifts).toBeUndefined()
+    // The same betrayal does not reopen it while she stays that warm.
+    const again = settle({ romance: forgiven.romance, loverStates: hurt(DRIFT_FORGIVEN_ABOVE + 1) })
+    expect(again.romance.drifts).toBeUndefined()
+  })
+
+  it('leaves the cold drift as it was: opens at -15, ends above -10', () => {
+    const at = (affection: number, drifts?: NpcRomanceMap['drifts']) =>
+      settle({
+        romance: romance({ crushes: crushOn, ...(drifts ? { drifts } : {}) }),
+        loverStates: { w: { affection, harem: false } }
+      }).romance.drifts?.w
+    expect(at(DRIFT_OPENS_AT)).toBeDefined()
+    expect(at(DRIFT_OPENS_AT + 1)).toBeUndefined()
+    expect(at(DRIFT_HOLDS_ABOVE, running)).toBeDefined()
+    expect(at(DRIFT_HOLDS_ABOVE + 1, running)).toBeUndefined()
   })
 
   it('counts at most one sign a day, and only where the drift was already on the map', () => {
@@ -547,6 +580,93 @@ describe('the reader’s lover drifting away', () => {
     })
     expect(free.romance.drifts).toBeUndefined()
     expect(free.readerBreakups).toEqual([])
+  })
+})
+
+describe('a crush kept on the reader’s lover', () => {
+  const characters = charactersById(man('m'), woman('w'))
+  const warm: Record<string, ReaderLoverState> = { w: { affection: 30, harem: false } }
+  const settle = (over: Partial<NpcRomanceInput>) =>
+    settleNpcRomance(
+      input({
+        characters,
+        relationships: standing(6, ['m', 'w']),
+        readerLovers: ['w'],
+        loverStates: warm,
+        ...over
+      }),
+      never
+    )
+  const held = (heldSince: number, over: Partial<NpcRomanceMap> = {}) =>
+    romance({ crushes: { m: { to: 'w', since: 1, heldSince } }, ...over })
+
+  it('starts counting the first time it is seen, from the later of the crush and the dating', () => {
+    const fresh = settle({ romance: romance({ crushes: { m: { to: 'w', since: 1 } } }) })
+    expect(fresh.romance.crushes.m.heldSince).toBe(1)
+    const dated = settle({
+      romance: romance({ crushes: { m: { to: 'w', since: 1 } } }),
+      loverStates: { w: { ...warm.w, datingSince: DAY - 4 } }
+    })
+    expect(dated.romance.crushes.m.heldSince).toBe(DAY - 4)
+    // Not on the reader’s lover: no clock at all.
+    const free = settle({ romance: held(3), readerLovers: [], loverStates: {} })
+    expect(free.romance.crushes.m.heldSince).toBeUndefined()
+  })
+
+  it('fades unsaid after the days, with no cost, no memory of a declaration and the same wait', () => {
+    const before = standing(6, ['m', 'w'])
+    const kept = settle({ romance: held(DAY - HELD_CRUSH_FADES_DAYS + 1) })
+    expect(kept.romance.crushes.m).toBeDefined()
+
+    const out = settle({ romance: held(DAY - HELD_CRUSH_FADES_DAYS), relationships: before })
+    expect(out.romance.crushes).toEqual({})
+    expect(out.romance.rejections[directedKeyOf('m', 'w')]).toEqual({ date: DAY, quiet: true })
+    expect(out.relationships[pairKeyOf('m', 'w')].affinity).toBe(6)
+    expect(out.tally).toEqual({
+      crushes: 0,
+      declarations: 0,
+      accepted: 0,
+      rejected: 0,
+      fights: 0,
+      breakups: 0
+    })
+    // The wait bars the same crush from forming again until it is over.
+    const later = (date: number) =>
+      settleNpcRomance(
+        input({
+          date,
+          characters,
+          relationships: {
+            [pairKeyOf('m', 'w')]: {
+              affinity: 6,
+              encounter: { date, kind: 'hangout', ref: 'cafe', positive: true }
+            }
+          },
+          romance: out.romance,
+          groups: together('m', 'w')
+        }),
+        always
+      )
+    expect(later(DAY + REJECTION_COOLDOWN_DAYS - 1).romance.crushes.m).toBeUndefined()
+    expect(later(DAY + REJECTION_COOLDOWN_DAYS).romance.crushes.m?.to).toBe('w')
+  })
+
+  it('stops its clock while a drift stands and picks it up where it left off', () => {
+    const drift = { w: { to: 'm', since: DAY - 8, signs: 0 } }
+    const cold: Record<string, ReaderLoverState> = { w: { affection: DRIFT_OPENS_AT, harem: false } }
+    // A drift open: past the days, and still there.
+    const paused = settle({
+      romance: held(DAY - HELD_CRUSH_FADES_DAYS - 5, { drifts: drift }),
+      loverStates: cold
+    })
+    expect(paused.romance.crushes.m).toBeDefined()
+    // The drift cancels: its eight days are not counted, so the clock resumes from the day it opened.
+    const resumed = settle({
+      romance: held(DAY - 20, { drifts: drift }),
+      loverStates: warm
+    })
+    expect(resumed.romance.drifts).toBeUndefined()
+    expect(resumed.romance.crushes.m.heldSince).toBe(DAY - 20 + 8)
   })
 })
 

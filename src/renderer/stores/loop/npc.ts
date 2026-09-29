@@ -201,7 +201,8 @@ export function rollNpcRomanceSettle(
     loverStates[charId] = {
       affection: affectionFor(info, game.date, game.characters[charId]),
       harem: info?.flags?.harem === true,
-      ...(info?.betrayedOn !== undefined ? { betrayedOn: info.betrayedOn } : {})
+      ...(info?.betrayedOn !== undefined ? { betrayedOn: info.betrayedOn } : {}),
+      ...(info?.datingSince !== undefined ? { datingSince: info.datingSince } : {})
     }
   }
   return settleNpcRomance({
