@@ -62,6 +62,8 @@ You will need externally kept data for testing:
 - [ ] Attend the scheduled date.
 - [ ] Go to the job shift.
 - [ ] Do a solo scene.
+- [ ] In a dev build (`npm run dev`) with men in the roster, play a few weeks and press F9 now and then: crushes, couples, exes and rejections show up with dates.
+- [ ] Load a save written before roster romance existed and check that it plays on, F9 showing nothing yet.
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 
