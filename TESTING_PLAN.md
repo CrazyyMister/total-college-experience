@@ -64,6 +64,8 @@ You will need externally kept data for testing:
 - [ ] Do a solo scene.
 - [ ] In a dev build (`npm run dev`) with men in the roster, play a few weeks and press F9 now and then: crushes, couples, exes and rejections show up with dates.
 - [ ] Load a save written before roster romance existed and check that it plays on, F9 showing nothing yet.
+- [ ] In a dev build, cast a couple together in a scene, press F9 and check that the romance text sent with the call names them as a couple; a declaration the scene writes that the rules cannot take shows in F9's events as discarded, with the reason.
+- [ ] Load a save from before couples recorded a fight date or the reader could find out about a crush, play a scene and check that it plays on without an error.
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 

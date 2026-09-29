@@ -96,6 +96,9 @@ scripts/                 the release pipeline: the transcode cache, the characte
                          stages each beat of the promotional video off hand-written copy, with no LLM call
   itch-page/             the store page's picture tool: the same staging over the trailer's plumbing, with
                          its own scenes and roster, screenshotting stills and recording the two GIFs
+  sim/                   the hand-run simulations, run by their own vitest config and never by the suite:
+                         the roster's semester played off the test playthrough, reporting and asserting
+                         nothing
 build/                   packaging inputs (the icon, the itch manifest, the release target); the generated
                          asset folders under it are gitignored
   afterSign.mjs          the manifest writer, run as electron-builder's afterSign hook, and the stamp the
@@ -106,9 +109,6 @@ release/                 the two artifacts, gitignored
 data/                    runtime, gitignored: settings.json, grabbags.json, app.log, saves/{playthrough}/,
                          characters/{charId}/, services/, tmp/
 private/                 records that stay in this repo: the supporters ledger; never mirrored, never shipped
-  sim/                   the hand-run simulations, run by their own vitest config and never by the suite:
-                         the roster's semester played off the test playthrough, reporting and asserting
-                         nothing
 testsave/                a Quickstart playthrough a scripted player and a mocked writer played through the
                          semester, saved at its checkpoints, its backup zip, and the harness that made it;
                          regenerated, never hand-edited; never shipped
