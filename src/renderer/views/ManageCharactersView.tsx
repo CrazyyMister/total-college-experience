@@ -360,14 +360,30 @@ export function ManageCharactersView(): JSX.Element {
             key="generate"
             theme={theme}
             onClose={() => setGenerating(false)}
-            onSubmit={(firstName, lastName, prompt, namesAreSuggestions, options, reference) => {
+            onSubmit={(
+              firstName,
+              lastName,
+              prompt,
+              identity,
+              namesAreSuggestions,
+              options,
+              reference
+            ) => {
               setGenerating(false)
               // Not awaited: the pipeline takes minutes and reports itself through the card.
-              void generate(firstName, lastName, prompt, namesAreSuggestions, options, reference)
+              void generate(
+                firstName,
+                lastName,
+                prompt,
+                identity,
+                namesAreSuggestions,
+                options,
+                reference
+              )
             }}
-            onCreateBlank={(firstName, lastName, personality) => {
+            onCreateBlank={(firstName, lastName, identity, personality) => {
               setGenerating(false)
-              void createBlank(firstName, lastName, personality)
+              void createBlank(firstName, lastName, identity, personality)
             }}
           />
         )}

@@ -68,8 +68,8 @@ const api: VenusUniversityApi = {
   },
   chars: {
     list: () => ipcRenderer.invoke('chars:list'),
-    create: (firstName, lastName, brief, reference) =>
-      ipcRenderer.invoke('chars:create', firstName, lastName, brief, reference),
+    create: (firstName, lastName, identity, brief, reference) =>
+      ipcRenderer.invoke('chars:create', firstName, lastName, identity, brief, reference),
     reference: (charId) => ipcRenderer.invoke('chars:reference', charId),
     update: (character) => ipcRenderer.invoke('chars:update', character),
     delete: (charId) => ipcRenderer.invoke('chars:delete', charId),

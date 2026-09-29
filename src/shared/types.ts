@@ -246,9 +246,19 @@ export interface CharacterBrief {
   reference: boolean
 }
 
+/** A man or a woman: a character's own gender, and the one a character is drawn to. */
+export type Gender = 'man' | 'woman'
+
+/** Who a character is and who she is drawn to, as the New Character modal settles it. */
+export interface CharacterIdentity {
+  gender: Gender
+  /** The one gender she can fall for, the reader's or another character's. */
+  attractedTo: Gender
+}
+
 /** On-disk character definition — `/data/characters/{charId}/character.json`. */
-export interface Character {
-  schemaVersion: 3
+export interface Character extends CharacterIdentity {
+  schemaVersion: 4
   /** crypto.randomUUID(); also the folder name under /data/characters. */
   charId: string
   firstName: string

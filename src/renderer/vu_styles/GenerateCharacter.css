@@ -37,6 +37,17 @@
   gap: 14px;
 }
 
+/* Gender and attraction side by side, halving the row as the names do. */
+.vu-generate-identity {
+  display: flex;
+  gap: 14px;
+}
+
+.vu-generate-identity > .vu-field {
+  flex: 1;
+  min-width: 0;
+}
+
 /* The dice sits beside the field, not inside it, so the well keeps its own shape. */
 .vu-generate-name {
   display: flex;

@@ -1,12 +1,14 @@
 import { useRef, useState, type JSX } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'motion/react'
+import { defaultAttractionOf, isGender } from '@shared/characterRules'
 import { EMOTIONS } from '@shared/emotions'
 import { POSITIONS } from '@shared/positions'
 import { ROOM_VARIANTS } from '@shared/room'
 import { sfwWithholds } from '@shared/sfw'
-import type { GenerateOptions, ReferenceImage } from '@shared/types'
+import type { CharacterIdentity, GenerateOptions, Gender, ReferenceImage } from '@shared/types'
 import { CheckField } from '../components/CheckField'
+import { SelectField } from '../components/SelectField'
 import { useModalShell } from '../components/useModalShell'
 import { TitleTab } from '../components/TitleTab'
 import { TextField } from '../components/TextField'
@@ -22,6 +24,7 @@ import {
   quietPress,
   veilIn
 } from './motion'
+import { ATTRACTION_OPTIONS, GENDER_OPTIONS } from './characterFields'
 import { DiceIcon } from './screenIcons'
 import '../vu_styles/GenerateCharacter.css'
 
@@ -30,12 +33,18 @@ export interface GenerateCharacterModalProps {
     firstName: string,
     lastName: string,
     prompt: string,
+    identity: CharacterIdentity,
     namesAreSuggestions: boolean,
     options: GenerateOptions,
     reference?: ReferenceImage
   ) => void
   /** A blank character written from the names and the description alone, with no LLM call. */
-  onCreateBlank: (firstName: string, lastName: string, personality: string) => void
+  onCreateBlank: (
+    firstName: string,
+    lastName: string,
+    identity: CharacterIdentity,
+    personality: string
+  ) => void
   onClose: () => void
   /** Drawn by the screen that opened this — a portal inherits neither palette nor state rules. */
   theme: 'day' | 'night'
@@ -66,6 +75,8 @@ export function GenerateCharacterModal({
   const [lastName, setLastName] = useState('')
   const [prompt, setPrompt] = useState('')
   const [blank, setBlank] = useState(false)
+  const [gender, setGender] = useState<Gender>('woman')
+  const [attractedTo, setAttractedTo] = useState<Gender>(defaultAttractionOf('woman'))
   const [pe, setPe] = useState(false)
   const [swim, setSwim] = useState(false)
   const [nude, setNude] = useState(false)
@@ -123,6 +134,19 @@ export function GenerateCharacterModal({
     setReferenceError('')
   }
 
+  // The suggestion pools are written for women, so a man's blank fields are left to the LLM
+  // to invent, and a blank man, with no LLM to invent his names, waits on both being typed.
+  const man = gender === 'man'
+  const shown = man ? { firstName: '', lastName: '', prompt: '' } : suggestions
+  const namesMissing = man && blank && (!firstName.trim() || !lastName.trim())
+
+  /** A new gender resets the attraction to that gender's default; the player can change it. */
+  const pickGender = (value: string): void => {
+    if (!isGender(value)) return
+    setGender(value)
+    setAttractedTo(defaultAttractionOf(value))
+  }
+
   const { host, overlayProps } = useModalShell(onClose)
   if (!host) return null
 
@@ -157,7 +181,7 @@ export function GenerateCharacterModal({
                 label="First name"
                 value={firstName}
                 onChange={setFirstName}
-                placeholder={suggestions.firstName}
+                placeholder={shown.firstName}
                 maxLength={32}
               />
               <motion.button
@@ -165,7 +189,8 @@ export function GenerateCharacterModal({
                 className="vu-square"
                 type="button"
                 aria-label="Random first name"
-                {...gestures(false, quietLift, quietPress)}
+                disabled={man}
+                {...gestures(man, quietLift, quietPress)}
                 onClick={rollFirstName}
               >
                 <DiceIcon pips={4} />
@@ -177,7 +202,7 @@ export function GenerateCharacterModal({
                 label="Last name"
                 value={lastName}
                 onChange={setLastName}
-                placeholder={suggestions.lastName}
+                placeholder={shown.lastName}
                 maxLength={32}
               />
               <motion.button
@@ -185,12 +210,30 @@ export function GenerateCharacterModal({
                 className="vu-square"
                 type="button"
                 aria-label="Random last name"
-                {...gestures(false, quietLift, quietPress)}
+                disabled={man}
+                {...gestures(man, quietLift, quietPress)}
                 onClick={rollLastName}
               >
                 <DiceIcon pips={2} />
               </motion.button>
             </div>
+          </div>
+
+          <div className="vu-generate-identity">
+            <SelectField
+              id="generate-gender"
+              label="Gender"
+              value={gender}
+              onChange={pickGender}
+              options={GENDER_OPTIONS}
+            />
+            <SelectField
+              id="generate-attracted-to"
+              label="Attracted to"
+              value={attractedTo}
+              onChange={(value) => isGender(value) && setAttractedTo(value)}
+              options={ATTRACTION_OPTIONS}
+            />
           </div>
 
           <div className="vu-generate-brief">
@@ -201,7 +244,7 @@ export function GenerateCharacterModal({
               onChange={setPrompt}
               // The suggestion is what a blank field submits as a brief; a blank character
               // must not get it handed to her as a personality nobody wrote.
-              placeholder={blank ? undefined : suggestions.prompt}
+              placeholder={blank ? undefined : shown.prompt}
               multiline
               rows={4}
             />
@@ -344,20 +387,23 @@ export function GenerateCharacterModal({
               id="generate-submit"
               className="vu-btn vu-btn--primary vu-paper vu-btn--panel"
               type="button"
-              {...gestures(false, lift, press)}
+              disabled={namesMissing}
+              {...gestures(namesMissing, lift, press)}
               onClick={() =>
                 // Names blank still submit the shown suggestion; the description submits
                 // nothing when empty, since a blank character keeps no unwritten personality.
                 blank
                   ? onCreateBlank(
-                      firstName.trim() || suggestions.firstName,
-                      lastName.trim() || suggestions.lastName,
+                      firstName.trim() || shown.firstName,
+                      lastName.trim() || shown.lastName,
+                      { gender, attractedTo },
                       prompt.trim()
                     )
                   : onSubmit(
-                      firstName.trim() || suggestions.firstName,
-                      lastName.trim() || suggestions.lastName,
-                      prompt.trim() || suggestions.prompt,
+                      firstName.trim() || shown.firstName,
+                      lastName.trim() || shown.lastName,
+                      prompt.trim() || shown.prompt,
+                      { gender, attractedTo },
                       !firstName.trim() && !lastName.trim(),
                       { pe, swim, nude, cgs, room },
                       reference ?? undefined

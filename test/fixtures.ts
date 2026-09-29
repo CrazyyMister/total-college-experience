@@ -10,6 +10,7 @@ import type {
   CharInfo,
   CharJob,
   Character,
+  CharacterIdentity,
   CourseEntry,
   Emotion,
   EnrollmentDraft,
@@ -22,14 +23,19 @@ import type { VenusUniversityApi } from '../src/preload/api'
 
 /** Test fixtures. Nothing here is read at runtime — it only feeds the suite. */
 
+/** The identity a new character is created with where a test does not care which. */
+export const WOMAN: CharacterIdentity = { gender: 'woman', attractedTo: 'man' }
+
 /** A complete `Character` so store code that reads `pose` or names finds them. */
 export function character(over: Partial<Character> = {}): Character {
   const expressionTags = {} as Record<Emotion, string[]>
   for (const emotion of EMOTIONS) expressionTags[emotion] = ['smile']
 
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     charId: 'char-1',
+    gender: 'woman',
+    attractedTo: 'man',
     firstName: 'Sarah',
     lastName: 'Rose',
     personality: 'warm',

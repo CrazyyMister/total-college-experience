@@ -1,4 +1,4 @@
-import { SUBJECT_TAGS } from '@shared/characterRules'
+import { drawnToReader, SUBJECT_TAGS, subjectTagsOf } from '@shared/characterRules'
 import { EMOTIONS } from '@shared/emotions'
 import {
   BREAST_SIZES,
@@ -22,6 +22,7 @@ import {
 import type {
   Character,
   CharacterBehavior,
+  CharacterIdentity,
   Emotion,
   PoseManifest,
   ReferenceImage,
@@ -152,6 +153,29 @@ function referenceBlock(reference?: ReferenceImage): string[] {
 }
 
 /**
+ * The character-generation gender instruction: empty for a woman drawn to men, whom the
+ * request is written for, and otherwise who the character is and whom they are drawn to.
+ */
+function identityBlock(identity: CharacterIdentity): string[] {
+  const { gender, attractedTo } = identity
+  if (gender === 'woman' && attractedTo === 'man') return []
+  const lines = ['', 'GENDER AND ATTRACTION']
+  if (gender === 'man') {
+    lines.push(
+      'This character is a man, not a woman. Everything above that says "female", "girl", "gal", "she" or "her" means "male", "guy", "he" and "him" for him.',
+      'Leave breastSize out entirely, skip makeup unless it really suits him, and dress him in menswear.'
+    )
+  }
+  const pronoun = gender === 'man' ? 'He' : 'She'
+  const partners = attractedTo === 'man' ? 'men' : 'women'
+  lines.push(
+    `${pronoun} is attracted to ${partners} only. Write the LOVE LIFE answers and the withCrush and withLover behavior about ${partners}.`,
+    `For ATTRACTION, pick what wins ${gender === 'man' ? 'him' : 'her'} over in a person.`
+  )
+  return lines
+}
+
+/**
  * Builds the character-generation request. `poses` is the available set — those that can
  * actually render.
  */
@@ -159,12 +183,13 @@ export function buildCharacterPrompt(
   firstName: string,
   lastName: string,
   userPrompt: string,
+  identity: CharacterIdentity,
   poses: PoseManifest,
   seedWord: string,
   namesAreSuggestions = false,
   reference?: ReferenceImage
 ): StructuredRequest {
-  const brief = userPrompt.trim() || 'A college girl.'
+  const brief = userPrompt.trim() || (identity.gender === 'man' ? 'A college guy.' : 'A college girl.')
   // Sorted, so the prefix stays identical for prompt caching.
   const poseKeys = poseKeysOf(poses)
   // A half-given name gets its partner matched by culture.
@@ -307,6 +332,7 @@ export function buildCharacterPrompt(
     `Okay, let's do this. Here is your brief, RITA: ${brief}`,
     '',
     nameInstruction,
+    ...identityBlock(identity),
     '',
     ...seedWordBlock(seedWord),
     // Last, so it sits directly above the image part the adapter appends.
@@ -477,7 +503,7 @@ export function draftToCharacter(
 
   // The app supplies the subject tags; the model is never asked for them.
   const baseAppearance = [
-    ...SUBJECT_TAGS,
+    ...subjectTagsOf(base.gender),
     ...cleanTags([
       colorTag(a.hairColor, a.hairShade, 'hair'),
       colorTag(a.eyeColor, a.eyeShade, 'eyes'),
@@ -488,7 +514,10 @@ export function draftToCharacter(
       ...(a.headAccessories ?? []),
       ...(a.makeup ?? []),
       // One each: mutually exclusive descriptions.
-      ...(a.breastSize ?? []).slice(0, 1).map((size) => suffixTag(size, 'breasts')),
+      // A man has no breast size, whatever the draft says.
+      ...(base.gender === 'woman' ? (a.breastSize ?? []) : [])
+        .slice(0, 1)
+        .map((size) => suffixTag(size, 'breasts')),
       ...(a.skin ?? []).slice(0, 1)
     ])
   ]
@@ -560,20 +589,28 @@ function uniqueCategories(values: string[] | undefined): GiftCategory[] {
   return [...new Set((values ?? []).filter(isGiftCategory))]
 }
 
-/** Fields the Generate modal treats as required before a character can render. */
+/** The fields only a character who could fall for the reader is required to have. */
+const ROMANTIC_BEHAVIOR: readonly (keyof CharacterBehavior)[] = ['withCrush', 'withLover']
+
+/**
+ * Fields the Generate modal treats as required before a character can render. A character not
+ * drawn to the reader's gender may leave the romantic ones empty.
+ */
 export function missingRequiredFields(character: Character): string[] {
+  const romantic = drawnToReader(character)
   const missing: string[] = []
   if (!character.firstName) missing.push('first name')
   if (!character.lastName) missing.push('last name')
   if (!character.personality) missing.push('personality')
   for (const key of BEHAVIOR_KEYS) {
+    if (!romantic && ROMANTIC_BEHAVIOR.includes(key)) continue
     if (!character.behavior?.[key]) missing.push(key)
   }
   if (!character.backstory) missing.push('backstory')
   // The three prose fields only: a false `isVirgin` is an ordinary answer.
   if (!character.datingHistory) missing.push('dating history')
   if (!character.datingPreference) missing.push('dating preference')
-  if (!character.kinks) missing.push('kinks')
+  if (romantic && !character.kinks) missing.push('kinks')
   if (character.likes.length === 0) missing.push('likes')
   if (character.dislikes.length === 0) missing.push('dislikes')
   // Only the liked half: an empty `disliked` is an ordinary answer.

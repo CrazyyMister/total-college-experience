@@ -71,15 +71,16 @@ export function checkManifest(manifest: CharacterManifest): CharacterManifest {
 }
 
 /**
- * One parsed manifest, a version-2 one read as this build's, checked and then refused if its
- * `format` says the package is something else's.
+ * One parsed manifest, a version-2 or version-3 one read as this build's, checked and then
+ * refused if its `format` says the package is something else's.
  */
 export function readManifestRecord(parsed: unknown, where: string): CharacterManifest {
-  const older =
-    typeof parsed === 'object' &&
-    parsed !== null &&
-    (parsed as { schemaVersion?: unknown }).schemaVersion === 2
-  const current = older ? { ...parsed, schemaVersion: CHARACTER_SCHEMA_VERSION } : parsed
+  const version =
+    typeof parsed === 'object' && parsed !== null
+      ? (parsed as { schemaVersion?: unknown }).schemaVersion
+      : undefined
+  const older = version === 2 || version === 3
+  const current = older ? { ...(parsed as object), schemaVersion: CHARACTER_SCHEMA_VERSION } : parsed
   return checkManifest(validateRecord<CharacterManifest>(current, where, MANIFEST_READ))
 }
 

@@ -63,6 +63,18 @@ export const PREFERRED_STAT_OPTIONS = STAT_KEYS.map((key) => ({
   label: STAT_LABELS[key]
 }))
 
+/** The two genders as the gender picker's options. */
+export const GENDER_OPTIONS = [
+  { value: 'woman', label: 'Woman' },
+  { value: 'man', label: 'Man' }
+]
+
+/** The two genders as the attraction picker's options, named as the people drawn to. */
+export const ATTRACTION_OPTIONS = [
+  { value: 'man', label: 'Men' },
+  { value: 'woman', label: 'Women' }
+]
+
 /** The gift vocabulary as picker options (`shared/shop.ts`, authoritative). */
 export const GIFT_CATEGORY_OPTIONS = GIFT_CATEGORIES.map((category) => ({
   value: category,

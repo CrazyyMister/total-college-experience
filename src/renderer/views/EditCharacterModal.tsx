@@ -20,6 +20,7 @@ import {
   VOICE_PITCH_MAX,
   VOICE_PITCH_MIN
 } from '@shared/audio'
+import { isGender, withSubjectTags } from '@shared/characterRules'
 import { EMOTIONS } from '@shared/emotions'
 import {
   cgDraft,
@@ -51,6 +52,7 @@ import type {
   CharacterBehavior,
   CustomOutfitSlot,
   Emotion,
+  Gender,
   OutfitSet,
   RegenTarget,
   SetTarget,
@@ -80,7 +82,9 @@ import { renameMentions } from '../stores/renameMentions'
 import { noNsfwImagesOf, useSettingsStore } from '../stores/settingsStore'
 import { useSetupStore } from '../stores/setupStore'
 import {
+  ATTRACTION_OPTIONS,
   BEHAVIOR_FIELDS,
+  GENDER_OPTIONS,
   GIFT_CATEGORY_OPTIONS,
   listText,
   PREFERRED_STAT_OPTIONS,
@@ -185,6 +189,8 @@ interface Form {
   datingPreference: string
   kinks: string
   isVirgin: boolean
+  gender: Gender
+  attractedTo: Gender
   /** Likes and dislikes are edited one per line, so they are text until Save. */
   likes: string
   dislikes: string
@@ -215,6 +221,8 @@ function formOf(character: Character): Form {
     datingPreference: character.datingPreference,
     kinks: character.kinks,
     isVirgin: character.isVirgin,
+    gender: character.gender,
+    attractedTo: character.attractedTo,
     likes: listText(character.likes),
     dislikes: listText(character.dislikes),
     behavior: character.behavior,
@@ -277,6 +285,14 @@ export function EditCharacterModal({
     <K extends keyof Form>(key: K) =>
     (value: Form[K]): void =>
       setForm((prev) => ({ ...prev, [key]: value }))
+
+  // A new gender takes its subject tags with it, so her renders follow the picker.
+  const setGender = (gender: Gender): void =>
+    setForm((prev) => ({
+      ...prev,
+      gender,
+      baseAppearance: withSubjectTags(prev.baseAppearance, gender)
+    }))
 
   const setBehaviorField = (key: keyof CharacterBehavior) => (value: string) =>
     setForm((prev) => ({ ...prev, behavior: { ...prev.behavior, [key]: value } }))
@@ -423,6 +439,8 @@ export function EditCharacterModal({
       datingPreference: form.datingPreference,
       kinks: form.kinks,
       isVirgin: form.isVirgin,
+      gender: form.gender,
+      attractedTo: form.attractedTo,
       likes: textList(form.likes),
       dislikes: textList(form.dislikes),
       behavior: form.behavior,
@@ -1117,6 +1135,22 @@ export function EditCharacterModal({
                       autoGrow
                     />
                   ))}
+
+                  {/* Who she is and whom she can fall for; the gender swaps her subject tags. */}
+                  <SelectField
+                    id="edit-gender"
+                    label="Gender"
+                    value={form.gender}
+                    onChange={(value) => isGender(value) && setGender(value)}
+                    options={GENDER_OPTIONS}
+                  />
+                  <SelectField
+                    id="edit-attracted-to"
+                    label="Attracted to"
+                    value={form.attractedTo}
+                    onChange={(value) => isGender(value) && setField('attractedTo')(value)}
+                    options={ATTRACTION_OPTIONS}
+                  />
 
                   {/* A closed picker over `shared/traits.ts`'s vocabulary. */}
                   <label className="vu-field" htmlFor="edit-traits">

@@ -1,4 +1,4 @@
-import type { ClassEntry, ClassRecord, CourseEntry } from './types'
+import type { ClassEntry, ClassRecord, CourseEntry, Gender } from './types'
 import { MAX_TIER, pointsForTier } from './playerStats'
 import type { StatTier } from './playerStats'
 import { pick } from './shuffle'
@@ -57,7 +57,7 @@ const DIFFICULTIES: readonly ClassDifficulty[] = ['easy', 'medium', 'hard']
 /** Who teaches a course, or runs a PE class — rolled locally off the app's own surname table. */
 export interface Professor {
   lastName: string
-  gender: 'man' | 'woman'
+  gender: Gender
   age: 'older' | 'younger'
   temperament: ProfessorTemperament
 }

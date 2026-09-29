@@ -4,6 +4,7 @@ import type { RoomVariant } from '@shared/room'
 import type {
   Character,
   CharacterBrief,
+  CharacterIdentity,
   ComfyStatus,
   CreatedEnrollment,
   CustomOutfitSlot,
@@ -160,6 +161,7 @@ export interface VenusUniversityApi {
     create: (
       firstName: string,
       lastName: string,
+      identity: CharacterIdentity,
       brief?: CharacterBrief,
       reference?: ReferenceImage
     ) => Promise<Result<Character>>

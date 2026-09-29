@@ -8,7 +8,9 @@ import {
   type Character,
   type CharacterBehavior,
   type CharacterBrief,
-  type Emotion
+  type CharacterIdentity,
+  type Emotion,
+  type Gender
 } from './types'
 import { randomId } from './uuid'
 
@@ -20,10 +22,44 @@ import { randomId } from './uuid'
  */
 
 /** Schema version this build reads and writes. */
-export const CHARACTER_SCHEMA_VERSION = 3
+export const CHARACTER_SCHEMA_VERSION = 4
 
-/** The tags every render opens her appearance with. */
-export const SUBJECT_TAGS: readonly string[] = ['1girl', 'mature_female']
+/** The tags every render of a character of each gender opens the appearance with. */
+const SUBJECT_TAGS_BY_GENDER: Record<Gender, readonly string[]> = {
+  woman: ['1girl', 'mature_female'],
+  man: ['1boy', 'male_focus']
+}
+
+/** Every subject tag of either gender: the renderer's, never the writer's. */
+export const SUBJECT_TAGS: readonly string[] = Object.values(SUBJECT_TAGS_BY_GENDER).flat()
+
+/** The reader's gender; he is always a man. */
+export const READER_GENDER: Gender = 'man'
+
+/** The tags every render of a character of `gender` opens the appearance with. */
+export function subjectTagsOf(gender: Gender): readonly string[] {
+  return SUBJECT_TAGS_BY_GENDER[gender]
+}
+
+/** An appearance led by `gender`'s subject tags, every other subject tag dropped. */
+export function withSubjectTags(appearance: readonly string[], gender: Gender): string[] {
+  return [...subjectTagsOf(gender), ...appearance.filter((tag) => !SUBJECT_TAGS.includes(tag))]
+}
+
+/** Whether `value` is one of the two genders. */
+export function isGender(value: unknown): value is Gender {
+  return value === 'man' || value === 'woman'
+}
+
+/** The gender a character of `gender` is drawn to when nobody has said otherwise. */
+export function defaultAttractionOf(gender: Gender): Gender {
+  return gender === 'woman' ? 'man' : 'woman'
+}
+
+/** Whether a character could be drawn to the reader. */
+export function drawnToReader(character: CharacterIdentity): boolean {
+  return character.attractedTo === READER_GENDER
+}
 
 /** What a character record must carry; where it is kept names her. */
 const CHARACTER_REQUIRED: Record<
@@ -41,6 +77,8 @@ const CHARACTER_REQUIRED: Record<
   true
 > = {
   schemaVersion: true,
+  gender: true,
+  attractedTo: true,
   firstName: true,
   lastName: true,
   personality: true,
@@ -79,25 +117,46 @@ export const CHARACTER_READ: ValidateRecordOptions<Character> = {
 
 /**
  * A version-2 record brought up to version 3, the subject tags it lacks put in front of her
- * appearance; anything else comes back untouched, for the record check to refuse by name.
+ * appearance; anything else comes back untouched.
+ */
+function upgradeFromVersion2(candidate: Record<string, unknown>): Record<string, unknown> {
+  if (candidate.schemaVersion !== 2 || !Array.isArray(candidate.baseAppearance)) return candidate
+  const held = candidate.baseAppearance.map(String)
+  const missing = subjectTagsOf('woman').filter((tag) => !held.includes(tag))
+  return {
+    ...candidate,
+    schemaVersion: 3,
+    baseAppearance: [...missing, ...candidate.baseAppearance]
+  }
+}
+
+/**
+ * A version-3 record brought up to version 4: `1boy` in the appearance makes a man, whose
+ * appearance is then led by a man's subject tags alone, and anyone else a woman; each is drawn
+ * to the other gender. Anything else comes back untouched.
+ */
+function upgradeFromVersion3(candidate: Record<string, unknown>): Record<string, unknown> {
+  if (candidate.schemaVersion !== 3 || !Array.isArray(candidate.baseAppearance)) return candidate
+  const appearance = candidate.baseAppearance.map(String)
+  const gender: Gender = appearance.includes('1boy') ? 'man' : 'woman'
+  return {
+    ...candidate,
+    schemaVersion: 4,
+    gender,
+    attractedTo: defaultAttractionOf(gender),
+    baseAppearance: gender === 'man' ? withSubjectTags(appearance, 'man') : candidate.baseAppearance
+  }
+}
+
+/**
+ * A record from either of the two versions before this one brought up to it, a step at a time;
+ * anything else comes back untouched, for the record check to refuse by name.
  */
 export function upgradeCharacterRecord(parsed: unknown): { record: unknown; upgraded: boolean } {
   if (typeof parsed !== 'object' || parsed === null) return { record: parsed, upgraded: false }
-  const candidate = parsed as { schemaVersion?: unknown; baseAppearance?: unknown }
-  if (candidate.schemaVersion !== 2 || !Array.isArray(candidate.baseAppearance)) {
-    return { record: parsed, upgraded: false }
-  }
-
-  const held = candidate.baseAppearance.map(String)
-  const missing = SUBJECT_TAGS.filter((tag) => !held.includes(tag))
-  return {
-    record: {
-      ...candidate,
-      schemaVersion: 3,
-      baseAppearance: [...missing, ...candidate.baseAppearance]
-    },
-    upgraded: true
-  }
+  const candidate = parsed as Record<string, unknown>
+  const record = upgradeFromVersion3(upgradeFromVersion2(candidate))
+  return { record, upgraded: record !== candidate }
 }
 
 /**
@@ -151,11 +210,14 @@ function emptyBehavior(): CharacterBehavior {
 export function newCharacter(
   firstName: string,
   lastName: string,
+  identity: CharacterIdentity,
   brief?: CharacterBrief
 ): Character {
   return {
     schemaVersion: CHARACTER_SCHEMA_VERSION,
     charId: randomId(),
+    gender: identity.gender,
+    attractedTo: identity.attractedTo,
     firstName,
     lastName,
     personality: '',
@@ -175,7 +237,7 @@ export function newCharacter(
     generationSeed: randomSeed(),
     seedFollowsMain: allFollowMain(),
     setSeeds: {},
-    baseAppearance: [...SUBJECT_TAGS],
+    baseAppearance: [...subjectTagsOf(identity.gender)],
     pose: '',
     outfit: [],
     peOutfit: [],

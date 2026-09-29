@@ -15,6 +15,7 @@ import type {
   AppError,
   Character,
   CharacterBrief,
+  CharacterIdentity,
   ComfyStatus,
   CustomOutfitSlot,
   Emotion,
@@ -520,9 +521,10 @@ export function registerIpcHandlers(): void {
       _event,
       firstName: string,
       lastName: string,
+      identity: CharacterIdentity,
       brief?: CharacterBrief,
       reference?: ReferenceImage
-    ) => createCharacter(firstName, lastName, brief, reference)
+    ) => createCharacter(firstName, lastName, identity, brief, reference)
   )
   // The picture her brief was submitted with, for a resumed write.
   handle('chars:reference', (_event, charId: string) => readReference(charId))

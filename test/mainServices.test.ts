@@ -6,6 +6,7 @@ import { REFERENCE_NAME } from '@shared/characterFiles'
 import { isPermanent } from '@shared/errors'
 import { redactUrl } from '../src/main/services/downloadService'
 import { writeAtomicJson } from '../src/main/services/jsonFile'
+import { WOMAN } from './fixtures'
 
 /**
  * The main-process guards that each hold a whole class of failure shut: an API key echoed into
@@ -195,7 +196,7 @@ describe('the brief a character is created with', () => {
   }
 
   it('lands the picture beside the record and retires it once the sheet is written', async () => {
-    const created = await createCharacter('Sarah', 'Rose', BRIEF, REFERENCE)
+    const created = await createCharacter('Sarah', 'Rose', WOMAN, BRIEF, REFERENCE)
     const at = getCharacterImagePath(created.charId, REFERENCE_NAME)
 
     // The record claims a picture only because the write above already put one there.

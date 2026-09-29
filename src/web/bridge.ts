@@ -210,9 +210,9 @@ export function buildApi(): VenusUniversityApi {
     },
     chars: {
       list: () => result('read the characters', chars.listCharacters),
-      create: (firstName, lastName, brief, reference) =>
+      create: (firstName, lastName, identity, brief, reference) =>
         result('create the character', () =>
-          chars.createCharacter(firstName, lastName, brief, reference)
+          chars.createCharacter(firstName, lastName, identity, brief, reference)
         ),
       reference: (charId) => result('read the reference picture', () => chars.readReference(charId)),
       update: (character) => result('save the character', () => chars.writeCharacter(character)),

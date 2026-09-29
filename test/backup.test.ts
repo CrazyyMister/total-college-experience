@@ -7,7 +7,7 @@ import { EMOTIONS } from '@shared/emotions'
 import type { BackupFile } from '@shared/backup'
 import type { Character, SaveDraft } from '@shared/types'
 import { useGameStore } from '../src/renderer/stores/gameStore'
-import { character as characterFixture, record } from './fixtures'
+import { character as characterFixture, record, WOMAN } from './fixtures'
 
 /**
  * Backing the data folder up and putting it back: a restore writes over every save, setting
@@ -119,7 +119,7 @@ async function seedPlaythrough(): Promise<{ playthroughId: string; saveIds: stri
 
 /** A character on disk with sprites, a CG and a staging tree to leave behind. */
 async function seedCharacter(): Promise<Character> {
-  const created = await createCharacter('Mina', 'Aoki')
+  const created = await createCharacter('Mina', 'Aoki', WOMAN)
   const charId = created.charId
 
   for (const emotion of EMOTIONS) {

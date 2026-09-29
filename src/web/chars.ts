@@ -31,6 +31,7 @@ import type { RoomVariant } from '@shared/room'
 import type {
   Character,
   CharacterBrief,
+  CharacterIdentity,
   CustomOutfitSlot,
   Emotion,
   OutfitSet,
@@ -102,10 +103,11 @@ export async function restoreDefaults(): Promise<void> {
 export async function createCharacter(
   firstName: string,
   lastName: string,
+  identity: CharacterIdentity,
   brief?: CharacterBrief,
   reference?: ReferenceImage
 ): Promise<Character> {
-  const character = newCharacter(firstName, lastName, brief)
+  const character = newCharacter(firstName, lastName, identity, brief)
   if (reference) {
     const bytes = base64ToBytes(reference.data)
     await db.writeFiles(character.charId, [

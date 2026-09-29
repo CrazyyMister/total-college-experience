@@ -21,6 +21,7 @@ import type {
   AppError,
   Character,
   CharacterBrief,
+  CharacterIdentity,
   CgTarget,
   CustomOutfit,
   CustomOutfitSlot,
@@ -245,6 +246,7 @@ interface CharacterStoreState {
     firstName: string,
     lastName: string,
     prompt: string,
+    identity: CharacterIdentity,
     namesAreSuggestions?: boolean,
     options?: GenerateOptions,
     reference?: ReferenceImage
@@ -253,7 +255,12 @@ interface CharacterStoreState {
    * Creates a character straight from the New Character modal's fields, with no LLM call:
    * her sheet is the player's own words, ready to fill in by hand.
    */
-  createBlank: (firstName: string, lastName: string, personality: string) => Promise<void>
+  createBlank: (
+    firstName: string,
+    lastName: string,
+    identity: CharacterIdentity,
+    personality: string
+  ) => Promise<void>
   /**
    * Re-runs a character write that failed or was interrupted, from the brief this session
    * still holds or, failing that, the one on her record.
@@ -476,6 +483,7 @@ export const useCharacterStore = create<CharacterStoreState>((set, get) => ({
     firstName,
     lastName,
     prompt,
+    identity,
     namesAreSuggestions = false,
     options = {},
     reference
@@ -491,6 +499,7 @@ export const useCharacterStore = create<CharacterStoreState>((set, get) => ({
     const created = await window.api.chars.create(
       firstName.trim(),
       lastName.trim(),
+      identity,
       brief,
       reference
     )
@@ -518,7 +527,7 @@ export const useCharacterStore = create<CharacterStoreState>((set, get) => ({
     await runWritePipeline(charId, request, set, get)
   },
 
-  createBlank: async (firstName, lastName, personality) => {
+  createBlank: async (firstName, lastName, identity, personality) => {
     const pose = poseKeysOf(useAssetStore.getState().poses)[0]
     if (pose === undefined) {
       useUiStore.getState().showError(NO_POSES)
@@ -526,7 +535,7 @@ export const useCharacterStore = create<CharacterStoreState>((set, get) => ({
     }
 
     // No brief, no reference: a blank has nothing an interrupted run could resume from.
-    const created = await window.api.chars.create(firstName.trim(), lastName.trim())
+    const created = await window.api.chars.create(firstName.trim(), lastName.trim(), identity)
     if (!created.ok) {
       useUiStore.getState().showError(created.error)
       return
@@ -1545,10 +1554,14 @@ async function runWritePipeline(
     return
   }
 
+  // Her gender and attraction are the record's, settled when the folder was made.
+  const identity = get().characters[charId]
+  if (!identity) return
   const prompt = buildCharacterPrompt(
     request.firstName,
     request.lastName,
     request.prompt,
+    identity,
     poses,
     useGrabBagStore.getState().draw(SEED_WORD_BAG, SEED_WORDS),
     request.namesAreSuggestions,
