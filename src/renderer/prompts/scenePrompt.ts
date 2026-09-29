@@ -25,6 +25,12 @@ import { hasTrait } from '@shared/traits'
 import type { Weather } from '@shared/weather'
 import type { NpcRelationshipMap } from '@shared/npcRelationships'
 import {
+  declarationOutcomeOf,
+  npcPartnerOf,
+  type NpcRomanceKind,
+  type NpcRomanceMap
+} from '@shared/npcRomance'
+import {
   type ActKind,
   allBackgrounds,
   type BackgroundSets,
@@ -73,7 +79,17 @@ import {
 import { farewellNowLines, graduationCastLines } from './graduation'
 import { moodLine } from './moods'
 import { springBreakLines } from './springBreak'
-import { bestFriendLines, npcBehaviorLines, npcPairLines } from './npcRelationship'
+import {
+  bestFriendLines,
+  npcBehaviorLines,
+  npcPairLines,
+  npcRomanceBehaviorLines,
+  npcRomanceFactsOf,
+  npcRomanceLines,
+  npcRomanceSection,
+  npcSceneRomanceLines,
+  readerLoversOf
+} from './npcRelationship'
 import { occasionLoreLines } from './occasions'
 import { milestoneLine, relationshipLines } from './relationship'
 import {
@@ -154,6 +170,8 @@ export interface PromptState {
   charInfo: Record<string, CharInfo>
   /** What the roster thinks of each other, keyed by `pairKeyOf`. */
   npcRelationships: NpcRelationshipMap
+  /** The roster's romances with each other; absent reads as none. */
+  npcRomance?: NpcRomanceMap
   /** Every save character who is *not* in this scene's cast — the lorebook's people. */
   roster: readonly Character[]
   /**
@@ -556,7 +574,8 @@ function castBlock(cast: readonly Character[], state: PromptState): string[] {
         cast,
         state.npcRelationships,
         behaviorLevelOf(flags, affection)
-      )
+      ),
+      ...npcRomanceBehaviorLines(character, cast, state.npcRomance)
     )
 
     // Who she is closest to among the girls who are *not* here.
@@ -609,7 +628,26 @@ function castBlock(cast: readonly Character[], state: PromptState): string[] {
       characters: byCharId([...cast, ...state.roster])
     })
   )
+  lines.push(...castRomanceSection(cast, state))
   return lines
+}
+
+/**
+ * The romance the cast block closes on: what the roster may know of each other's love lives,
+ * what those here keep to themselves, and which couples and confessions this scene can hold.
+ */
+function castRomanceSection(cast: readonly Character[], state: PromptState): string[] {
+  const readerLovers = readerLoversOf(state.charInfo)
+  const present = cast.map((character) => character.charId)
+  const section = npcRomanceSection([
+    ...npcRomanceLines(
+      npcRomanceFactsOf(state.npcRomance, present, readerLovers, state.date),
+      byCharId([...cast, ...state.roster]),
+      state.date
+    ),
+    ...npcSceneRomanceLines(cast, state.npcRomance, readerLovers, state.date)
+  ])
+  return section.length > 0 ? ['', ...section] : []
 }
 
 /** Characters keyed by charId, for the pair lines' `roomOf` lookup. */
@@ -1520,7 +1558,8 @@ function ledgerSchema(
   rosterKeys: readonly string[],
   // Null when the scene was not a class; `factoid` is for a lecture class only.
   classScene: { factoid: boolean } | null,
-  castStats: boolean
+  castStats: boolean,
+  romance: boolean
 ): { name: string; schema: Record<string, unknown> } {
   const charKey = { type: 'string', enum: [...charKeys] }
   // Dropped whole when no plans are asked for: an uninstructed field invites filling.
@@ -1571,7 +1610,8 @@ function ledgerSchema(
       'expelled',
       ...planRequired,
       ...(castStats ? ['stats'] : []),
-      ...classRequired
+      ...classRequired,
+      ...(romance ? ['romance'] : [])
     ],
     {
       spent,
@@ -1616,8 +1656,56 @@ function ledgerSchema(
             chars: { type: 'array', items: charKey }
           }
         }
-      }
+      },
+      // Dropped whole when nobody here could have shown any: an uninstructed field invites filling.
+      ...(romance
+        ? {
+            romance: {
+              type: 'array',
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                required: ['kind', 'from', 'to'],
+                properties: {
+                  kind: { type: 'string', enum: NPC_ROMANCE_GLOSS.map(([kind]) => kind) },
+                  from: { type: 'string', enum: [...rosterKeys] },
+                  to: { type: 'string', enum: [...rosterKeys] }
+                }
+              }
+            }
+          }
+        : {})
     }
+  )
+}
+
+/** The kinds a ledger's `romance` row may carry, with what each means. */
+export const NPC_ROMANCE_GLOSS: ReadonlyArray<readonly [NpcRomanceKind, string]> = [
+  [
+    'declared_accepted',
+    '"from" told "to" they have romantic feelings for them, and "to" said yes: they are a couple now.'
+  ],
+  ['declared_rejected', '"from" told "to" they have romantic feelings for them, and "to" turned them down.'],
+  ['broke_up', '"from" and "to", who were a couple, broke up.'],
+  ['discovered', 'the reader found out that "from" has a secret crush on "to".']
+]
+
+/**
+ * Whether a ledger is asked about romance between characters: when two of the cast could confess,
+ * or somebody here is in a couple or holds a crush.
+ */
+function ledgerAsksRomance(cast: readonly Character[], state: PromptState): boolean {
+  if (cast.length === 0 || !state.npcRomance) return false
+  const map = state.npcRomance
+  const present = cast.map((character) => character.charId)
+  if (present.some((charId) => map.crushes[charId] || npcPartnerOf(map, charId))) return true
+  const context = {
+    date: state.date,
+    characters: Object.fromEntries(cast.map((c) => [c.charId, c])),
+    readerLovers: readerLoversOf(state.charInfo)
+  }
+  return present.some((from) =>
+    present.some((to) => declarationOutcomeOf(map, from, to, context) !== 'impossible')
   )
 }
 
@@ -1671,6 +1759,7 @@ export function buildLedgerPrompt(
   // Classes and shifts are scored by the app; every other hour with
   // company is judged here, one stat's worth.
   const castStats = cast.length > 0 && !classScene && state.jobId === null
+  const romance = ledgerAsksRomance(cast, state)
   // No cast, no plans; a plan settled by phone is the texting ledger's.
   const wantPlans = cast.length > 0
 
@@ -1734,6 +1823,15 @@ export function buildLedgerPrompt(
           ...(castStats ? statsSection(true) : [])
         ]
       : statsSection(false)),
+    ...(romance
+      ? [
+          'ROMANCE BETWEEN CHARACTERS',
+          'Report what this scene showed happening between two characters. The reader is never "from" or "to".',
+          ...NPC_ROMANCE_GLOSS.map(([kind, gloss]) => `- ${kind}: ${gloss}`),
+          'Only what actually happened IN THIS SCENE, and only what the ROMANCE BETWEEN CHARACTERS notes below allow. An empty "romance" list is the ordinary answer.',
+          ''
+        ]
+      : []),
     // The rarer branch sits lower, so the common case shares the longest prefix.
     ...(classScene
       ? [
@@ -1757,6 +1855,7 @@ export function buildLedgerPrompt(
     reader,
     '',
     ...ledgerCastBlock(cast, state),
+    ...(romance ? castRomanceSection(cast, state) : []),
     '',
     ...scheduleBlocks(schedule, wantPlans),
     '',
@@ -1771,7 +1870,7 @@ export function buildLedgerPrompt(
   return {
     system: ledgerPersonaFor(state.lessNsfwText),
     user: `${preamble}\n${rest}`,
-    schema: ledgerSchema(charKeys, rosterKeys, classScene, castStats),
+    schema: ledgerSchema(charKeys, rosterKeys, classScene, castStats, romance),
     // Constant, not the playthrough: nothing above the seam varies by save.
     cacheKey: 'ledger',
     logFrom: preamble.length + 1,

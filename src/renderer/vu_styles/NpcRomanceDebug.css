@@ -1,4 +1,4 @@
-/* The development build's roster-romance read-out: four lists of rows in one scroller.
+/* The development build's roster-romance read-out: its lists of rows in one scroller.
    Imported from the view module, never from index.css.
 
    The veil, the sheet, the rows, the empty line and the foot are base.css's. */
@@ -48,4 +48,8 @@
   color: var(--vu-text-body);
   font: 700 13px var(--font-mono);
   font-variant-numeric: tabular-nums;
+}
+
+.vu-romance-debug-row--wide .vu-romance-debug-who {
+  flex: 1 1 auto;
 }

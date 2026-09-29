@@ -1,6 +1,7 @@
 import { affectionFor, dedupedMemoriesFor, emptyFlags } from '@shared/relationship'
 import { ROOM_LOCATION } from '@shared/locations'
 import type { NpcRelationshipMap } from '@shared/npcRelationships'
+import type { NpcRomanceMap } from '@shared/npcRomance'
 import { pronounsOf } from '@shared/pronouns'
 import {
   type Character,
@@ -37,6 +38,10 @@ import { springBreakLines } from './springBreak'
 import {
   bestFriendLines,
   hauntClause,
+  npcRomanceFactsOf,
+  npcRomanceLines,
+  npcRomanceSection,
+  readerLoversOf,
   whereaboutsLine,
   type NpcCompanions
 } from './npcRelationship'
@@ -82,6 +87,8 @@ export interface TextingPromptState {
    * names and for the standing every lorebook character entry closes with.
    */
   npcRelationships: NpcRelationshipMap
+  /** The roster's romances with each other; absent reads as none. */
+  npcRomance?: NpcRomanceMap
   /** The save's class roster, keyed by class code — names the schedules. */
   classes: Record<string, ClassEntry>
   /** The reader's own timetable, sparse slot → class code. */
@@ -312,6 +319,20 @@ export function buildTextingPrompt(
     ...characterLoreForIds(ambient, state.charInfo, state.date, relations)
   ])
 
+  // The roster's love lives, and what she alone knows of her own.
+  const romance = npcRomanceSection(
+    npcRomanceLines(
+      npcRomanceFactsOf(
+        state.npcRomance,
+        [character.charId],
+        readerLoversOf(state.charInfo),
+        state.date
+      ),
+      Object.fromEntries([character, ...state.roster].map((c) => [c.charId, c])),
+      state.date
+    )
+  )
+
   const characterBlock = [
     'CHARACTER',
     `${name} ${character.lastName}.`,
@@ -342,6 +363,7 @@ export function buildTextingPrompt(
       state.date
     ),
     ...memoryLines(character, dedupedMemoriesFor(info), info?.textMemory),
+    ...(romance.length > 0 ? ['', ...romance] : [])
   ]
 
   const user = [

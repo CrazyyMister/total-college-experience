@@ -62,6 +62,8 @@ export interface NpcCrush {
 /** A couple, keyed by `pairKeyOf`. */
 export interface NpcCouple {
   since: number
+  /** The date of the couple's latest fight; absent when none is recorded. */
+  lastFight?: number
 }
 
 /** A couple that broke up, keyed by `pairKeyOf`; the two never fall for each other again. */
@@ -75,6 +77,13 @@ export interface NpcRejection {
   date: number
 }
 
+/** A crush the reader has found out about, keyed by the charId holding it. */
+export interface NpcDiscovery {
+  to: string
+  /** The date he found out. */
+  date: number
+}
+
 /** The whole of it, on the save beside the pair map. */
 export interface NpcRomanceMap {
   /** Keyed by the charId holding the crush: one crush each at most. */
@@ -82,6 +91,32 @@ export interface NpcRomanceMap {
   couples: Record<string, NpcCouple>
   exes: Record<string, NpcEx>
   rejections: Record<string, NpcRejection>
+  /** Crushes the reader knows of; dropped once the crush it names is gone. Absent means none. */
+  discovered?: Record<string, NpcDiscovery>
+}
+
+/** The kinds of row a scene ledger reports between two roster characters. */
+export type NpcRomanceKind = 'declared_accepted' | 'declared_rejected' | 'broke_up' | 'discovered'
+
+/**
+ * What a finished scene showed between two roster characters, as charIds: a declaration and its
+ * answer, a couple breaking up, or the reader finding out that `from` has a crush on `to`.
+ */
+export type NpcSceneEvent =
+  | { kind: 'declared'; from: string; to: string; accepted: boolean }
+  | { kind: 'broke_up'; from: string; to: string }
+  | { kind: 'discovered'; from: string; to: string }
+
+/** One thing a settle did, for the development build's read-out. Nothing stores it. */
+export interface NpcRomanceLogEntry {
+  date: number
+  /** Whether a scene showed it or the settle rolled it. */
+  source: 'scene' | 'system'
+  kind: 'crush' | 'accepted' | 'rejected' | 'fight' | 'breakup' | 'discovered' | 'discarded'
+  from: string
+  to: string
+  /** For a discarded scene event, what it was and why it could not stand. */
+  note?: string
 }
 
 /** What happened in one settle, for the simulation to count. Nothing stores it. */
@@ -109,6 +144,11 @@ export function isAttractedTo(from: Character | undefined, to: Character | undef
   return from !== undefined && to !== undefined && from.attractedTo === to.gender
 }
 
+/** How many couples stand. */
+export function coupleCountOf(map: NpcRomanceMap): number {
+  return Object.keys(map.couples).length
+}
+
 /** Who `charId` is dating among the roster, or null. */
 export function npcPartnerOf(map: NpcRomanceMap, charId: string): string | null {
   for (const key of Object.keys(map.couples)) {
@@ -134,6 +174,8 @@ export interface NpcRomanceInput {
   /** Whoever is the reader's lover: taken, so never falling for anybody and never saying yes. */
   readerLovers: readonly string[]
   characters: Record<string, Character>
+  /** What the finished scene showed, applied before anything is rolled; absent means nothing. */
+  sceneEvents?: readonly NpcSceneEvent[]
 }
 
 /** What a settle returns: both maps, and what happened. */
@@ -141,6 +183,44 @@ export interface NpcRomanceOutcome {
   relationships: NpcRelationshipMap
   romance: NpcRomanceMap
   tally: NpcRomanceTally
+  log: NpcRomanceLogEntry[]
+}
+
+/** What a declaration between two characters can come to: nothing, only a no, or either answer. */
+export type DeclarationOutcome = 'impossible' | 'refusal_only' | 'open'
+
+/** What {@link declarationOutcomeOf} reads besides the map. */
+export interface DeclarationContext {
+  date: number
+  characters: Record<string, Character>
+  readerLovers: readonly string[]
+}
+
+/**
+ * Whether `from` can declare to `to`, and whether `to` could say yes: never between exes, from or
+ * to the reader's lover, from somebody dating or not attracted, inside the wait after the same
+ * declaration was turned down, or while the couples are at the cap; a yes also needs `to`
+ * attracted back and single.
+ */
+export function declarationOutcomeOf(
+  map: NpcRomanceMap,
+  from: string,
+  to: string,
+  context: DeclarationContext
+): DeclarationOutcome {
+  const { characters, readerLovers, date } = context
+  if (from === to || !characters[from] || !characters[to]) return 'impossible'
+  if (readerLovers.includes(from) || readerLovers.includes(to)) return 'impossible'
+  if (!isAttractedTo(characters[from], characters[to])) return 'impossible'
+  if (npcPartnerOf(map, from) !== null) return 'impossible'
+  if (map.exes[pairKeyOf(from, to)]) return 'impossible'
+  const rejection = map.rejections[directedKeyOf(from, to)]
+  if (rejection && date - rejection.date < REJECTION_COOLDOWN_DAYS) return 'impossible'
+  if (coupleCountOf(map) >= MAX_COUPLES) return 'impossible'
+  if (!isAttractedTo(characters[to], characters[from]) || npcPartnerOf(map, to) !== null) {
+    return 'refusal_only'
+  }
+  return 'open'
 }
 
 /** Holds an affinity inside the pair map's range. */
@@ -194,8 +274,9 @@ function metPairsOf(groups: readonly NpcEncounterGroup[], cast: readonly string[
 }
 
 /**
- * One slot's romance: couples break up or fight, crushes fade, crushes held long enough are
- * declared to someone met this slot and answered, and a positive encounter may start a crush.
+ * One slot's romance: couples break up or fight, crushes fade, what the scene showed lands,
+ * crushes held long enough are declared to someone met this slot and answered, and a positive
+ * encounter may start a crush.
  */
 export function settleNpcRomance(
   input: NpcRomanceInput,
@@ -207,7 +288,8 @@ export function settleNpcRomance(
     crushes: { ...input.romance.crushes },
     couples: { ...input.romance.couples },
     exes: { ...input.romance.exes },
-    rejections: { ...input.romance.rejections }
+    rejections: { ...input.romance.rejections },
+    ...(input.romance.discovered ? { discovered: { ...input.romance.discovered } } : {})
   }
   const tally: NpcRomanceTally = {
     crushes: 0,
@@ -216,6 +298,16 @@ export function settleNpcRomance(
     rejected: 0,
     fights: 0,
     breakups: 0
+  }
+  const log: NpcRomanceLogEntry[] = []
+  const note = (
+    source: NpcRomanceLogEntry['source'],
+    kind: NpcRomanceLogEntry['kind'],
+    from: string,
+    to: string,
+    detail?: string
+  ): void => {
+    log.push({ date, source, kind, from, to, ...(detail ? { note: detail } : {}) })
   }
   const readerLovers = new Set(input.readerLovers)
   const affinityOf = (a: string, b: string): number =>
@@ -226,7 +318,6 @@ export function settleNpcRomance(
     delete romance.couples[key]
     romance.exes[key] = { since: couple.since, ended: date }
     shiftAffinity(relationships, a, b, -EX_AFFINITY_DROP)
-    tally.breakups++
   }
 
   // Couples: the week's fight, then the breakup a sour pair or the reader's lover ends in.
@@ -234,10 +325,14 @@ export function settleNpcRomance(
     const [a, b] = key.split('|')
     if (input.endsWeek && rand() < fightChanceOf(characters[a], characters[b])) {
       shiftAffinity(relationships, a, b, -FIGHT_AFFINITY_DROP)
+      romance.couples[key] = { ...romance.couples[key], lastFight: date }
       tally.fights++
+      note('system', 'fight', a, b)
     }
     if (affinityOf(a, b) < BREAKUP_BELOW || readerLovers.has(a) || readerLovers.has(b)) {
       breakUp(key, a, b)
+      tally.breakups++
+      note('system', 'breakup', a, b)
     }
   }
 
@@ -246,6 +341,59 @@ export function settleNpcRomance(
     const crush = romance.crushes[from]
     if (readerLovers.has(from) || affinityOf(from, crush.to) < CRUSH_FADES_BELOW) {
       delete romance.crushes[from]
+    }
+  }
+
+  const accept = (from: string, to: string): void => {
+    delete romance.crushes[from]
+    delete romance.crushes[to]
+    romance.couples[pairKeyOf(from, to)] = { since: date }
+  }
+  const turnDown = (from: string, to: string): void => {
+    delete romance.crushes[from]
+    romance.rejections[directedKeyOf(from, to)] = { date }
+    shiftAffinity(relationships, from, to, -REJECTION_AFFINITY_DROP)
+  }
+
+  // What the scene showed, each event checked against the map as the ones before it left it.
+  const inScene = new Set(input.cast)
+  const context: DeclarationContext = { date, characters, readerLovers: input.readerLovers }
+  for (const event of input.sceneEvents ?? []) {
+    const { from, to } = event
+    const refuse = (why: string): void => note('scene', 'discarded', from, to, why)
+    if (event.kind === 'declared') {
+      const what = event.accepted ? 'accepted declaration' : 'turned-down declaration'
+      if (!inScene.has(from) || !inScene.has(to)) {
+        refuse(`${what}: not both in the scene`)
+        continue
+      }
+      const outcome = declarationOutcomeOf(romance, from, to, context)
+      if (outcome === 'impossible' || (event.accepted && outcome !== 'open')) {
+        refuse(`${what}: ${outcome === 'impossible' ? 'impossible' : 'only a no was possible'}`)
+        continue
+      }
+      if (event.accepted) accept(from, to)
+      else turnDown(from, to)
+      note('scene', event.accepted ? 'accepted' : 'rejected', from, to)
+    } else if (event.kind === 'broke_up') {
+      const key = pairKeyOf(from, to)
+      if (!romance.couples[key]) {
+        refuse('breakup: not a couple')
+        continue
+      }
+      if (!inScene.has(from) && !inScene.has(to)) {
+        refuse('breakup: neither in the scene')
+        continue
+      }
+      breakUp(key, from, to)
+      note('scene', 'breakup', from, to)
+    } else {
+      if (!inScene.has(from) || romance.crushes[from]?.to !== to) {
+        refuse('discovery: no such crush in the scene')
+        continue
+      }
+      romance.discovered = { ...romance.discovered, [from]: { to, date } }
+      note('scene', 'discovered', from, to)
     }
   }
 
@@ -263,23 +411,22 @@ export function settleNpcRomance(
       const crush = romance.crushes[from]
       if (!crush || crush.to !== to) continue
       if (date - crush.since < DECLARE_AFTER_DAYS) continue
-      if (Object.keys(romance.couples).length >= MAX_COUPLES) continue
+      if (coupleCountOf(romance) >= MAX_COUPLES) continue
       if (rand() >= DECLARE_CHANCE) continue
 
       tally.declarations++
-      delete romance.crushes[from]
       const answersYes =
         !taken(to) &&
         isAttractedTo(characters[to], characters[from]) &&
         (romance.crushes[to]?.to === from || affinityOf(from, to) >= ACCEPT_AFFINITY)
       if (answersYes) {
-        delete romance.crushes[to]
-        romance.couples[pairKeyOf(from, to)] = { since: date }
+        accept(from, to)
         tally.accepted++
+        note('system', 'accepted', from, to)
       } else {
-        romance.rejections[directedKeyOf(from, to)] = { date }
-        shiftAffinity(relationships, from, to, -REJECTION_AFFINITY_DROP)
+        turnDown(from, to)
         tally.rejected++
+        note('system', 'rejected', from, to)
       }
     }
   }
@@ -302,8 +449,16 @@ export function settleNpcRomance(
       if (rand() >= crushChanceOf(characters[from])) continue
       romance.crushes[from] = { to, since: date }
       tally.crushes++
+      note('system', 'crush', from, to)
     }
   }
 
-  return { relationships, romance, tally }
+  // A discovery outlives nothing: once the crush it names is gone, so is it.
+  if (romance.discovered) {
+    for (const [from, found] of Object.entries(romance.discovered)) {
+      if (romance.crushes[from]?.to !== found.to) delete romance.discovered[from]
+    }
+  }
+
+  return { relationships, romance, tally, log }
 }

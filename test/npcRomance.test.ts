@@ -303,3 +303,133 @@ describe('breakups', () => {
     expect(out.romance.couples).toEqual({})
   })
 })
+
+describe('what a scene showed', () => {
+  const characters = charactersById(man('m'), woman('w'), woman('x'), man('n'))
+  const scene = (over: Partial<NpcRomanceInput>): NpcRomanceInput =>
+    input({ characters, relationships: standing(3, ['m', 'w']), cast: ['m', 'w'], ...over })
+
+  it('makes a couple of an accepted declaration and drops both crushes', () => {
+    const out = settleNpcRomance(
+      scene({
+        romance: romance({ crushes: { m: { to: 'w', since: 1 }, w: { to: 'm', since: 2 } } }),
+        sceneEvents: [{ kind: 'declared', from: 'm', to: 'w', accepted: true }]
+      }),
+      never
+    )
+    expect(out.romance.couples[pairKeyOf('m', 'w')]).toEqual({ since: DAY })
+    expect(out.romance.crushes).toEqual({})
+  })
+
+  it('files a turned-down declaration with its cost and its wait', () => {
+    const out = settleNpcRomance(
+      scene({ sceneEvents: [{ kind: 'declared', from: 'm', to: 'w', accepted: false }] }),
+      never
+    )
+    expect(out.romance.couples).toEqual({})
+    expect(out.romance.rejections[directedKeyOf('m', 'w')]).toEqual({ date: DAY })
+    expect(out.relationships[pairKeyOf('m', 'w')].affinity).toBe(3 - REJECTION_AFFINITY_DROP)
+  })
+
+  it('discards a declaration the rules cannot take', () => {
+    const declare = { kind: 'declared', from: 'm', to: 'w', accepted: true } as const
+    const cases: Partial<NpcRomanceInput>[] = [
+      // Not both in the scene.
+      { cast: ['m'] },
+      // The reader's lover, on either side.
+      { readerLovers: ['w'] },
+      // The declarer is dating somebody else.
+      { romance: romance({ couples: { [pairKeyOf('m', 'x')]: { since: 1 } } }) },
+      // Exes.
+      { romance: romance({ exes: { [pairKeyOf('m', 'w')]: { since: 1, ended: 5 } } }) },
+      // Inside the wait after the same declaration was turned down.
+      { romance: romance({ rejections: { [directedKeyOf('m', 'w')]: { date: DAY - 1 } } }) },
+      // The couples at the cap.
+      {
+        romance: romance({
+          couples: Object.fromEntries(
+            Array.from({ length: MAX_COUPLES }, (_, i) => [pairKeyOf(`a${i}`, `b${i}`), { since: 1 }])
+          )
+        })
+      }
+    ]
+    for (const over of cases) {
+      const before = over.romance ?? emptyNpcRomance()
+      const out = settleNpcRomance(scene({ ...over, sceneEvents: [declare] }), never)
+      expect(out.romance.couples).toEqual(before.couples)
+      expect(out.romance.rejections).toEqual(before.rejections)
+      expect(out.log.some((entry) => entry.kind === 'discarded')).toBe(true)
+    }
+  })
+
+  it('takes only a no from somebody not attracted back or already dating', () => {
+    const notDrawn = charactersById(man('m'), woman('w', { attractedTo: 'woman' }))
+    const yes = settleNpcRomance(
+      scene({
+        characters: notDrawn,
+        sceneEvents: [{ kind: 'declared', from: 'm', to: 'w', accepted: true }]
+      }),
+      never
+    )
+    expect(yes.romance.couples).toEqual({})
+    const no = settleNpcRomance(
+      scene({
+        romance: romance({ couples: { [pairKeyOf('w', 'n')]: { since: 1 } } }),
+        sceneEvents: [{ kind: 'declared', from: 'm', to: 'w', accepted: false }]
+      }),
+      never
+    )
+    expect(no.romance.rejections[directedKeyOf('m', 'w')]).toEqual({ date: DAY })
+  })
+
+  it('breaks up a couple only when it is one and one of the two is in the scene', () => {
+    const coupled = romance({ couples: { [pairKeyOf('m', 'w')]: { since: 1 } } })
+    const out = settleNpcRomance(
+      scene({ romance: coupled, cast: ['m'], sceneEvents: [{ kind: 'broke_up', from: 'm', to: 'w' }] }),
+      never
+    )
+    expect(out.romance.couples).toEqual({})
+    expect(out.romance.exes[pairKeyOf('m', 'w')]).toEqual({ since: 1, ended: DAY })
+
+    const absent = settleNpcRomance(
+      scene({ romance: coupled, cast: ['x'], sceneEvents: [{ kind: 'broke_up', from: 'm', to: 'w' }] }),
+      never
+    )
+    expect(absent.romance.couples).toEqual(coupled.couples)
+  })
+
+  it('records a discovery of a crush that exists, and forgets it once the crush is gone', () => {
+    const crushing = romance({ crushes: { m: { to: 'w', since: 1 } } })
+    const out = settleNpcRomance(
+      scene({
+        romance: crushing,
+        cast: ['m'],
+        sceneEvents: [
+          { kind: 'discovered', from: 'm', to: 'w' },
+          { kind: 'discovered', from: 'm', to: 'x' }
+        ]
+      }),
+      never
+    )
+    expect(out.romance.discovered).toEqual({ m: { to: 'w', date: DAY } })
+
+    const faded = settleNpcRomance(
+      scene({ romance: out.romance, relationships: standing(-1, ['m', 'w']), cast: [] }),
+      never
+    )
+    expect(faded.romance.discovered).toEqual({})
+  })
+
+  it('stamps a couple’s fight with its date', () => {
+    const out = settleNpcRomance(
+      input({
+        characters,
+        endsWeek: true,
+        relationships: standing(6, ['m', 'w']),
+        romance: romance({ couples: { [pairKeyOf('m', 'w')]: { since: 1 } } })
+      }),
+      always
+    )
+    expect(out.romance.couples[pairKeyOf('m', 'w')]).toEqual({ since: 1, lastFight: DAY })
+  })
+})

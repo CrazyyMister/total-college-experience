@@ -15,7 +15,11 @@ import {
   type NpcRelationshipMap,
   type NpcSlotOverlay
 } from '@shared/npcRelationships'
-import { settleNpcRomance, type NpcRomanceOutcome } from '@shared/npcRomance'
+import {
+  settleNpcRomance,
+  type NpcRomanceOutcome,
+  type NpcSceneEvent
+} from '@shared/npcRomance'
 import type { CharInfo, Haunt, TimeSlot } from '@shared/types'
 import { globalSlotOf, shiftSlotOf } from '@shared/jobs'
 import { classSlotOf, hauntClosedOn } from '../../prompts/occasions'
@@ -174,14 +178,15 @@ export function rollNpcRelationshipSettle(
 }
 
 /**
- * Rolls the finished slot's romance between the roster off the affinities just settled, and
- * returns both maps, writing nothing. `charInfo` is the ending's projection, so a girl the scene
- * just made the reader's lover counts as taken.
+ * Rolls the finished slot's romance between the roster off the affinities just settled, with
+ * what the scene showed applied first, and returns both maps, writing nothing. `charInfo` is the
+ * ending's projection, so a girl the scene just made the reader's lover counts as taken.
  */
 export function rollNpcRomanceSettle(
   relationships: NpcRelationshipMap,
   groups: readonly NpcEncounterGroup[],
-  charInfo: Readonly<Record<string, CharInfo | undefined>>
+  charInfo: Readonly<Record<string, CharInfo | undefined>>,
+  sceneEvents: readonly NpcSceneEvent[] = []
 ): NpcRomanceOutcome {
   const game = useGameStore.getState()
   return settleNpcRomance({
@@ -193,7 +198,8 @@ export function rollNpcRomanceSettle(
     groups,
     cast: game.cast,
     readerLovers: game.chars.filter((charId) => charInfo[charId]?.flags?.isLover),
-    characters: game.characters
+    characters: game.characters,
+    sceneEvents
   })
 }
 

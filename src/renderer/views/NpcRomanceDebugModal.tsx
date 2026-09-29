@@ -6,6 +6,8 @@ import { REJECTION_COOLDOWN_DAYS } from '@shared/npcRomance'
 import { useModalShell } from '../components/useModalShell'
 import { TitleTab } from '../components/TitleTab'
 import { useGameStore } from '../stores/gameStore'
+import { lastScenePromptText } from '../stores/gameLoop'
+import { romanceEventLog, romanceSectionOf } from '../stores/npcRomanceDebug'
 import { formatShortGameDate } from '../prompts/gameDate'
 import { gestures, lift, panelUnderTab, press, veilIn } from './motion'
 import '../vu_styles/NpcRomanceDebug.css'
@@ -20,6 +22,8 @@ interface DebugRow {
 interface DebugSection {
   title: string
   rows: DebugRow[]
+  /** Rows of one long line each, given the whole width. */
+  wide?: boolean
 }
 
 /** `Jan 28 (day 9)`: the date as the calendar prints it, and the day number the constants count. */
@@ -36,7 +40,7 @@ function sectionsOf(): DebugSection[] {
   }
   const affinity = (a: string, b: string): string =>
     `affinity ${game.npcRelationships[pairKeyOf(a, b)]?.affinity ?? '—'}`
-  const { crushes, couples, exes, rejections } = game.npcRomance
+  const { crushes, couples, exes, rejections, discovered = {} } = game.npcRomance
 
   return [
     {
@@ -46,7 +50,9 @@ function sectionsOf(): DebugSection[] {
         return {
           key,
           who: `${name(a)} & ${name(b)}`,
-          facts: `since ${dated(couple.since)} · ${affinity(a, b)}`
+          facts: `since ${dated(couple.since)} · ${affinity(a, b)}${
+            couple.lastFight !== undefined ? ` · last fight ${dated(couple.lastFight)}` : ''
+          }`
         }
       })
     },
@@ -80,6 +86,33 @@ function sectionsOf(): DebugSection[] {
           facts: `${dated(rejection.date)} · ${waiting > 0 ? `waits ${waiting} more days` : 'wait over'}`
         }
       })
+    },
+    {
+      title: 'Found out by the reader',
+      rows: Object.entries(discovered).map(([from, found]) => ({
+        key: from,
+        who: `${name(from)}'s crush on ${name(found.to)}`,
+        facts: dated(found.date)
+      }))
+    },
+    {
+      title: 'Events, latest first',
+      rows: romanceEventLog()
+        .map((entry, index) => ({
+          key: String(index),
+          who: `[${entry.source}] ${name(entry.from)} → ${name(entry.to)}: ${entry.kind}`,
+          facts: `${dated(entry.date)}${entry.note ? ` · ${entry.note}` : ''}`
+        }))
+        .reverse()
+    },
+    {
+      title: 'Sent with the last scene call',
+      wide: true,
+      rows: romanceSectionOf(lastScenePromptText()).map((line, index) => ({
+        key: String(index),
+        who: line,
+        facts: ''
+      }))
     }
   ]
 }
@@ -130,7 +163,10 @@ export function NpcRomanceDebugModal({
                 ) : (
                   <ul className="vu-rows">
                     {section.rows.map((row) => (
-                      <li key={row.key} className="vu-row vu-romance-debug-row">
+                      <li
+                        key={row.key}
+                        className={`vu-row vu-romance-debug-row${section.wide ? ' vu-romance-debug-row--wide' : ''}`}
+                      >
                         <span className="vu-romance-debug-who">{row.who}</span>
                         <span className="vu-romance-debug-facts">{row.facts}</span>
                       </li>

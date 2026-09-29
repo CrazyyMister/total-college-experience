@@ -38,7 +38,8 @@ import {
   type SceneResponse,
   type SpriteRef
 } from '@shared/types'
-import { ACT_KINDS } from '../prompts/scenePrompt'
+import type { NpcSceneEvent } from '@shared/npcRomance'
+import { ACT_KINDS, NPC_ROMANCE_GLOSS } from '../prompts/scenePrompt'
 import { useAssetStore } from './assetStore'
 import {
   blankCharInfo,
@@ -428,6 +429,35 @@ export function ledgerActs(ledger: LedgerResponse | null, log = true): IntimateA
   }
 
   return [...byPairing.values()]
+}
+
+/**
+ * What the ledger said the scene showed between two roster characters, resolved to charIds: a
+ * row naming nobody the save holds, the same character twice or an unknown kind is dropped.
+ * Whether the game can take it is the romance settle's to judge.
+ */
+export function ledgerNpcRomance(ledger: LedgerResponse | null, log = true): NpcSceneEvent[] {
+  if (!ledger?.romance) return []
+  const { charKeyToId } = useGameStore.getState()
+  const kinds = new Set<string>(NPC_ROMANCE_GLOSS.map(([kind]) => kind))
+  const events: NpcSceneEvent[] = []
+  for (const row of ledger.romance) {
+    const from = charKeyToId[row?.from ?? '']
+    const to = charKeyToId[row?.to ?? '']
+    if (!from || !to || from === to || !kinds.has(row.kind)) {
+      if (log)
+        console.warn(
+          `[ledger] romance row "${String(row?.kind)}" ${row?.from} → ${row?.to} is not valid — dropping it.`
+        )
+      continue
+    }
+    if (row.kind === 'declared_accepted' || row.kind === 'declared_rejected') {
+      events.push({ kind: 'declared', from, to, accepted: row.kind === 'declared_accepted' })
+    } else {
+      events.push({ kind: row.kind, from, to })
+    }
+  }
+  return events
 }
 
 /**

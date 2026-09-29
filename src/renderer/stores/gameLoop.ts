@@ -105,12 +105,14 @@ import {
   applyLedger,
   bondedCharIds,
   ledgerMemories,
+  ledgerNpcRomance,
   memoryStatusLines,
   milestoneReports,
   projectLedger,
   splitOverflow,
   type ProjectedLedger
 } from './sceneSanitizer'
+import { recordRomanceEvents } from './npcRomanceDebug'
 import { retrySilently as silentRetry } from './silentRetry'
 import { boxFits } from '../views/boxRows'
 import { answerCrossing, cancelCrossing, endCrossing, markCrossingWait } from './crossingStore'
@@ -1552,11 +1554,17 @@ async function fetchEndingOpening(
   // what the boundary's fallback would see too.
   const crushes = rollCrushSettle(ledger, seen, stats)
   // The romance pass moves affinities too, so the map banked is the one it returns.
-  const { relationships: npcRelationships, romance: npcRomance } = rollNpcRomanceSettle(
+  const {
+    relationships: npcRelationships,
+    romance: npcRomance,
+    log: romanceLog
+  } = rollNpcRomanceSettle(
     rollNpcRelationshipSettle(bondedCharIds(ledger), groups),
     groups,
-    seen
+    seen,
+    ledgerNpcRomance(ledger)
   )
+  loopState.romanceLog = romanceLog
 
   const view: PostLedgerView = {
     charInfo: withCrushes(seen, crushes),
@@ -2132,6 +2140,7 @@ export function dropEnding(): void {
   loopState.endingAbandoned = false
   loopState.pendingLedgerResult = null
   loopState.bankedOpening = null
+  loopState.romanceLog = []
   loopState.endBase = null
   loopState.endLines = null
   loopState.closingCast = null
@@ -2408,6 +2417,8 @@ async function crossSlotBoundary(): Promise<void> {
     useGameStore.getState().setNpcRelationships(banked.npcRelationships)
     // An opening banked before romance was rolled leaves the map as it stands.
     if (banked.npcRomance) useGameStore.getState().setNpcRomance(banked.npcRomance)
+    recordRomanceEvents(loopState.romanceLog)
+    loopState.romanceLog = []
 
     // The one warning that what gets seen gets told, owed the first time anybody sees him with
     // a girl whose name he knows. Left unsent before BunnyBot has introduced itself, or over a

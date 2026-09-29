@@ -7,7 +7,7 @@ import type { ClassDifficulty, ClassKind, ExamPeriod, Professor } from './academ
 import type { CharacterTrait } from './traits'
 import type { GiftPreferences, GiftReaction } from './shop'
 import type { NpcFriendship, NpcRelationshipMap, NpcSlotOverlay } from './npcRelationships'
-import type { NpcRomanceMap } from './npcRomance'
+import type { NpcRomanceKind, NpcRomanceMap } from './npcRomance'
 import type { PromptKind } from './promptKinds'
 import type { RumorPassOutcome } from './rumors'
 import type { DormId } from './dorms'
@@ -1906,6 +1906,11 @@ export interface LedgerResponse {
    * solo scene, whose schema omits it.
    */
   acts?: Array<{ kind: ActKind; inPublic: boolean; chars: string[] }>
+  /**
+   * What the scene showed between two roster characters, by charKey; absent whenever the schema
+   * did not ask.
+   */
+  romance?: Array<{ kind: NpcRomanceKind; from: string; to: string }>
   /**
    * What this slot's texting left each girl with — one per character, at most. The texting
    * ledger's field, scoped to whoever actually texted this slot.

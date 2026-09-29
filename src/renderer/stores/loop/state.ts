@@ -7,6 +7,7 @@ import type {
   SceneState
 } from '@shared/types'
 import type { JobShift } from '@shared/jobs'
+import type { NpcRomanceLogEntry } from '@shared/npcRomance'
 import type { ExamPeriod } from '@shared/academics'
 import type { HangoutPrefetch } from './hangouts'
 import type { Verdict } from './classify'
@@ -63,6 +64,9 @@ export const loopState = {
 
   /** The next slot's opening, paid for and waiting for the boundary. */
   bankedOpening: null as BankedOpening | null,
+
+  /** What the ending's romance settle did, for the development read-out; never saved. */
+  romanceLog: [] as NpcRomanceLogEntry[],
 
   /** An exam's opening, in flight while the player answers; null after a reload. */
   examOpening: null as Promise<BankedOpening | null> | null,
@@ -285,6 +289,7 @@ export function resetLoopState(): void {
   loopState.modalQueue = Promise.resolve()
   // Whatever save is loaded next brings its own opening off disk.
   loopState.bankedOpening = null
+  loopState.romanceLog = []
   // An in-flight prefetch is simply abandoned; the next armed hangout makes its own call.
   loopState.hangoutPrefetch = null
   // Abandoned the same way; the bytes it holds are released separately, by `dropEndingArt`.
