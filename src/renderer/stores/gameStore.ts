@@ -710,8 +710,11 @@ interface GameStoreState {
    * keeps her entry's identity, for the same reason.
    */
   setJealousyMemories: (charId: string, entries: readonly CharMemory[]) => void
-  /** Dates the day she learned he cheated on her; a no-op on a date she already holds. */
-  setBetrayedOn: (charId: string, date: number) => void
+  /**
+   * Dates the day she learned he cheated on her, or clears it with null; a no-op on what she
+   * already holds.
+   */
+  setBetrayedOn: (charId: string, date: number | null) => void
   /**
    * The lovers who leave the reader at this boundary, through the same fold a reported breakup
    * takes; a lover already gone is left as she is.
@@ -1988,9 +1991,14 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
 
   setBetrayedOn: (charId, date) =>
     set((state) =>
-      patchCharInfo(state, charId, (info = blankCharInfo()) =>
-        info.betrayedOn === date ? null : { ...info, betrayedOn: date }
-      )
+      patchCharInfo(state, charId, (info = blankCharInfo()) => {
+        if (date === null) {
+          if (info.betrayedOn === undefined) return null
+          const { betrayedOn: _cleared, ...rest } = info
+          return rest
+        }
+        return info.betrayedOn === date ? null : { ...info, betrayedOn: date }
+      })
     ),
 
   applyReaderBreakups: (breakups) =>

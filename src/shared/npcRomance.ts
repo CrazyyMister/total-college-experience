@@ -352,7 +352,7 @@ export function isRivalGrudge(ex: NpcEx, date: number): boolean {
 }
 
 /** Holds an affinity inside the pair map's range. */
-function clampAffinity(affinity: number): number {
+export function clampAffinity(affinity: number): number {
   return Math.max(MIN_AFFINITY, Math.min(MAX_AFFINITY, Math.round(affinity)))
 }
 
@@ -361,6 +361,18 @@ function shiftAffinity(map: NpcRelationshipMap, a: string, b: string, delta: num
   const key = pairKeyOf(a, b)
   const current = map[key]
   map[key] = { ...current, affinity: clampAffinity((current?.affinity ?? 0) + delta) }
+}
+
+/** A yes: both crushes are dropped and the two stand as a couple from `date`. Mutates `romance`. */
+export function acceptDeclaration(
+  romance: NpcRomanceMap,
+  from: string,
+  to: string,
+  date: number
+): void {
+  delete romance.crushes[from]
+  delete romance.crushes[to]
+  romance.couples[pairKeyOf(from, to)] = { since: date }
 }
 
 /** Her odds of falling for somebody this encounter, her traits applied. */
@@ -484,11 +496,7 @@ export function settleNpcRomance(
     }
   }
 
-  const accept = (from: string, to: string): void => {
-    delete romance.crushes[from]
-    delete romance.crushes[to]
-    romance.couples[pairKeyOf(from, to)] = { since: date }
-  }
+  const accept = (from: string, to: string): void => acceptDeclaration(romance, from, to, date)
   const turnDown = (from: string, to: string): void => {
     delete romance.crushes[from]
     romance.rejections[directedKeyOf(from, to)] = { date }

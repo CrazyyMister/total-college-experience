@@ -53,3 +53,28 @@
 .vu-romance-debug-row--wide .vu-romance-debug-who {
   flex: 1 1 auto;
 }
+
+/* The test buttons: three pickers side by side, the buttons wrapping under them, and the
+   answer of the last button pressed. */
+.vu-romance-debug-pickers {
+  display: grid;
+  grid-template-columns: 1fr 1fr 110px;
+  gap: 14px;
+}
+
+.vu-romance-debug-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.vu-romance-debug-result {
+  margin: 0;
+  color: var(--vu-text-body);
+  font: 500 14px/1.4 var(--font-body);
+}
+
+.vu-romance-debug-result--refused {
+  color: var(--vu-text-muted);
+  font-style: italic;
+}

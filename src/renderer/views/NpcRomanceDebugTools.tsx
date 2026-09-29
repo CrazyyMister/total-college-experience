@@ -1,0 +1,108 @@
+import { useState, type JSX } from 'react'
+import { motion } from 'motion/react'
+import { SelectField } from '../components/SelectField'
+import { useGameStore } from '../stores/gameStore'
+import {
+  debugAffection,
+  debugAffinity,
+  debugAgeHeld,
+  debugBetrayed,
+  debugCouple,
+  debugCrush,
+  debugDriftBack,
+  debugLover,
+  type DebugResult
+} from '../stores/npcRomanceDebugActions'
+import { gestures, lift, press } from './motion'
+
+/** The development build's test buttons for the roster's romance, under the read-out. */
+
+export interface NpcRomanceDebugToolsProps {
+  /** Called after a button wrote something, so the read-out above redraws. */
+  onChanged: () => void
+}
+
+/** One button and what it does with the pickers' values. */
+interface Tool {
+  label: string
+  run: (x: string, y: string, n: number) => DebugResult
+}
+
+const TOOLS: readonly Tool[] = [
+  { label: 'Crush of X on Y, N days old', run: (x, y, n) => debugCrush(x, y, n) },
+  { label: 'Couple X and Y', run: (x, y) => debugCouple(x, y) },
+  { label: 'Affinity of X and Y = N', run: (x, y, n) => debugAffinity(x, y, n) },
+  { label: 'Affection of X for the reader = N', run: (x, _y, n) => debugAffection(x, n) },
+  { label: 'Make X the reader’s lover', run: (x) => debugLover(x, true) },
+  { label: 'End X’s dating with the reader', run: (x) => debugLover(x, false) },
+  { label: 'X learned today he cheated', run: (x) => debugBetrayed(x, true) },
+  { label: 'Clear X’s betrayal', run: (x) => debugBetrayed(x, false) },
+  { label: 'X’s drift began N days earlier', run: (x, _y, n) => debugDriftBack(x, n) },
+  { label: 'X’s kept crush is N days older', run: (x, _y, n) => debugAgeHeld(x, n) }
+]
+
+/** Pickers for the two characters and the number, and a button for each thing to set up. */
+export function NpcRomanceDebugTools({ onChanged }: NpcRomanceDebugToolsProps): JSX.Element {
+  const { chars, characters } = useGameStore.getState()
+  const options = chars.flatMap((charId) => {
+    const character = characters[charId]
+    return character
+      ? [
+          {
+            value: charId,
+            label: `${character.firstName} ${character.lastName} (${character.gender === 'man' ? 'man' : 'woman'})`
+          }
+        ]
+      : []
+  })
+  const [x, setX] = useState(options[0]?.value ?? '')
+  const [y, setY] = useState(options[1]?.value ?? options[0]?.value ?? '')
+  const [n, setN] = useState('10')
+  const [result, setResult] = useState<DebugResult | null>(null)
+
+  const run = (tool: Tool): void => {
+    setResult(tool.run(x, y, Number(n) || 0))
+    onChanged()
+  }
+
+  return (
+    <section className="vu-romance-debug-section">
+      <h3 className="vu-romance-debug-title">Test buttons</h3>
+      <div className="vu-romance-debug-pickers">
+        <SelectField id="romance-debug-x" label="X" value={x} onChange={setX} options={options} />
+        <SelectField id="romance-debug-y" label="Y" value={y} onChange={setY} options={options} />
+        <label className="vu-field" htmlFor="romance-debug-n">
+          <span className="vu-field-label">N</span>
+          <input
+            id="romance-debug-n"
+            className="vu-input"
+            type="number"
+            value={n}
+            onChange={(e) => setN(e.target.value)}
+          />
+        </label>
+      </div>
+      <div className="vu-romance-debug-tools">
+        {TOOLS.map((tool) => (
+          <motion.button
+            key={tool.label}
+            className="vu-btn vu-paper vu-btn--panel"
+            type="button"
+            {...gestures(false, lift, press)}
+            onClick={() => run(tool)}
+          >
+            {tool.label}
+          </motion.button>
+        ))}
+      </div>
+      {result && (
+        <p
+          className={`vu-romance-debug-result${result.ok ? '' : ' vu-romance-debug-result--refused'}`}
+          role="status"
+        >
+          {result.text}
+        </p>
+      )}
+    </section>
+  )
+}

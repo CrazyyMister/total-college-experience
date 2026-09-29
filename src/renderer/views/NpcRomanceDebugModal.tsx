@@ -1,4 +1,4 @@
-import type { JSX } from 'react'
+import { lazy, Suspense, useState, type JSX } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'motion/react'
 import { pairKeyOf } from '@shared/npcRelationships'
@@ -11,6 +11,13 @@ import { romanceEventLog, romanceSectionOf } from '../stores/npcRomanceDebug'
 import { formatShortGameDate } from '../prompts/gameDate'
 import { gestures, lift, panelUnderTab, press, veilIn } from './motion'
 import '../vu_styles/NpcRomanceDebug.css'
+
+/** The test buttons, loaded only in the development build so the build that ships holds none. */
+const Tools = import.meta.env.DEV
+  ? lazy(() =>
+      import('./NpcRomanceDebugTools').then((module) => ({ default: module.NpcRomanceDebugTools }))
+    )
+  : null
 
 /** One row of the panel: who, and the facts beside them. */
 interface DebugRow {
@@ -153,6 +160,8 @@ export function NpcRomanceDebugModal({
   onClose
 }: NpcRomanceDebugModalProps): JSX.Element | null {
   const { host, overlayProps } = useModalShell(onClose)
+  // Redrawn after a test button wrote something.
+  const [, redraw] = useState(0)
   if (!host) return null
   const today = useGameStore.getState().date
 
@@ -199,6 +208,11 @@ export function NpcRomanceDebugModal({
                 )}
               </section>
             ))}
+            {Tools && (
+              <Suspense fallback={null}>
+                <Tools onChanged={() => redraw((tick) => tick + 1)} />
+              </Suspense>
+            )}
           </div>
           <div className="vu-scroll-fade" />
         </div>
