@@ -37,6 +37,14 @@ const NEGATIVE_TAGS: readonly string[] = [
 /** The CG negative: quality tags only. */
 const CG_NEGATIVE_TAGS: readonly string[] = ['worst_quality', 'bad_quality', 'lowres']
 
+/** What every render of a man steers away from, the model leaning to women as it does. */
+const MAN_NEGATIVE_TAGS: readonly string[] = ['1girl', 'female', 'breasts', 'cleavage', 'lipstick']
+
+/** The negatives a character's gender adds to every render of them. */
+function genderNegativeOf(character: Character): readonly string[] {
+  return character.gender === 'man' ? MAN_NEGATIVE_TAGS : []
+}
+
 /** Splits one of the comma-joined tag lists `positions.ts` holds back into its tags. */
 function tagsOf(list: string): string[] {
   return list.split(', ')
@@ -91,10 +99,11 @@ export function spriteDraft(
     appearance: [...character.baseAppearance],
     outfit: set === null ? [...character.outfit] : [...outfitTagsFor(character, set)],
     pose: [...poseTags],
-    // Her own negatives come last, after the shared ones and the set's own.
+    // Her own negatives come last, after the shared ones, the set's own and her gender's.
     negative: [
       ...NEGATIVE_TAGS,
       ...(set ? negativeTagsFor(set) : []),
+      ...genderNegativeOf(character),
       ...(character.negativeTags ?? [])
     ]
   }
@@ -120,7 +129,11 @@ export function cgSetDraft(character: Character): Extract<PromptEdit, { kind: 'c
     kind: 'cgs',
     base: [...QUALITY_TAGS, ...tagsOf(CG_BASE_PROMPT)],
     appearance: [...character.baseAppearance],
-    negative: [...CG_NEGATIVE_TAGS, ...(character.negativeTags ?? [])]
+    negative: [
+      ...CG_NEGATIVE_TAGS,
+      ...genderNegativeOf(character),
+      ...(character.negativeTags ?? [])
+    ]
   }
 }
 

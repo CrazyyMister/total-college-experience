@@ -26,7 +26,7 @@ export function validatePoseManifest(parsed: unknown, where: string): PoseManife
       console.warn(`[assets] pose "${key}" is not an entry object — ignoring it.`)
       continue
     }
-    const { tags, description } = entry
+    const { tags, description, men } = entry
     if (!Array.isArray(tags) || tags.some((tag) => typeof tag !== 'string')) {
       console.warn(`[assets] pose "${key}" has no list of tag strings — ignoring it.`)
       continue
@@ -37,7 +37,8 @@ export function validatePoseManifest(parsed: unknown, where: string): PoseManife
     }
     manifest[key] = {
       tags,
-      description: typeof description === 'string' ? description.trim() : ''
+      description: typeof description === 'string' ? description.trim() : '',
+      ...(men === true ? { men: true } : {})
     }
   }
 

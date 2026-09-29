@@ -108,6 +108,22 @@ describe('draftToCharacter', () => {
     const filled = flatten({ giftPreferences: { liked: ['cozy'], disliked: ['cozy', 'edgy'] } })
     expect(filled.giftPreferences).toEqual({ liked: ['cozy'], disliked: ['edgy'] })
   })
+
+  /** A man in a pose not marked for men renders as a woman; the pick is not trusted. */
+  it('stands a man only in a pose marked for men', () => {
+    const poses: PoseManifest = {
+      arm_under_chest: { tags: ['arm_under_breasts'], description: '' },
+      crossed_arms: { tags: ['crossed_arms'], description: '', men: true }
+    }
+    const man = character({ gender: 'man', attractedTo: 'woman' })
+
+    expect(draftToCharacter(man, draft({ pose: 'arm_under_chest' }), poses).pose).toBe(
+      'crossed_arms'
+    )
+    expect(draftToCharacter(character(), draft({ pose: 'arm_under_chest' }), poses).pose).toBe(
+      'arm_under_chest'
+    )
+  })
 })
 
 describe('missingRequiredFields', () => {

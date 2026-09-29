@@ -3,7 +3,8 @@
     "tags": [
       "arms_at_sides"
     ],
-    "description": "Arms hanging loose at her sides. Relaxed, open, or maybe just spaced out."
+    "description": "Arms hanging loose at her sides. Relaxed, open, or maybe just spaced out.",
+    "men": true
   },
   "folded_hands": {
     "tags": [
@@ -22,13 +23,15 @@
     "tags": [
       "hands_on_own_hips"
     ],
-    "description": "Both hands planted on her hips, elbows out. Bold, commanding, or maybe just silly."
+    "description": "Both hands planted on her hips, elbows out. Bold, commanding, or maybe just silly.",
+    "men": true
   },
   "crossed_arms": {
     "tags": [
       "crossed_arms"
     ],
-    "description": "Arms folded across her chest. Closed off, defensive, or maybe just confident."
+    "description": "Arms folded across her chest. Closed off, defensive, or maybe just confident.",
+    "men": true
   },
   "clutching_arm": {
     "tags": [
@@ -55,7 +58,8 @@
       "legs_apart",
       "arms_at_sides"
     ],
-    "description": "Standing with legs apart and arms at her sides. Assertive, poised, or maybe just rude."
+    "description": "Standing with legs apart and arms at her sides. Assertive, poised, or maybe just rude.",
+    "men": true
   },
   "hands_behind_back": {
     "tags": [

@@ -10,7 +10,8 @@ import {
   type CharacterBrief,
   type CharacterIdentity,
   type Emotion,
-  type Gender
+  type Gender,
+  type PoseManifest
 } from './types'
 import { randomId } from './uuid'
 
@@ -27,7 +28,7 @@ export const CHARACTER_SCHEMA_VERSION = 4
 /** The tags every render of a character of each gender opens the appearance with. */
 const SUBJECT_TAGS_BY_GENDER: Record<Gender, readonly string[]> = {
   woman: ['1girl', 'mature_female'],
-  man: ['1boy', 'male_focus']
+  man: ['1boy', 'male_focus', 'mature_male', 'handsome']
 }
 
 /** Every subject tag of either gender: the renderer's, never the writer's. */
@@ -54,6 +55,13 @@ export function isGender(value: unknown): value is Gender {
 /** The gender a character of `gender` is drawn to when nobody has said otherwise. */
 export function defaultAttractionOf(gender: Gender): Gender {
   return gender === 'woman' ? 'man' : 'woman'
+}
+
+/** The pose keys a character of `gender` may stand in, sorted: a man only in those marked for men. */
+export function poseKeysFor(poses: PoseManifest, gender: Gender): string[] {
+  return Object.keys(poses)
+    .filter((key) => gender === 'woman' || poses[key]?.men === true)
+    .sort()
 }
 
 /** Whether a character could be drawn to the reader. */
@@ -130,10 +138,13 @@ function upgradeFromVersion2(candidate: Record<string, unknown>): Record<string,
   }
 }
 
+/** The subject tags a version-4 man was written with, which his upgrade leads with. */
+const VERSION_4_MAN_TAGS = ['1boy', 'male_focus']
+
 /**
  * A version-3 record brought up to version 4: `1boy` in the appearance makes a man, whose
- * appearance is then led by a man's subject tags alone, and anyone else a woman; each is drawn
- * to the other gender. Anything else comes back untouched.
+ * appearance then leads with the version's own two tags for a man and drops a woman's, and
+ * anyone else a woman; each is drawn to the other gender. Anything else comes back untouched.
  */
 function upgradeFromVersion3(candidate: Record<string, unknown>): Record<string, unknown> {
   if (candidate.schemaVersion !== 3 || !Array.isArray(candidate.baseAppearance)) return candidate
@@ -144,7 +155,15 @@ function upgradeFromVersion3(candidate: Record<string, unknown>): Record<string,
     schemaVersion: 4,
     gender,
     attractedTo: defaultAttractionOf(gender),
-    baseAppearance: gender === 'man' ? withSubjectTags(appearance, 'man') : candidate.baseAppearance
+    baseAppearance:
+      gender === 'man'
+        ? [
+            ...VERSION_4_MAN_TAGS,
+            ...appearance.filter(
+              (tag) => !VERSION_4_MAN_TAGS.includes(tag) && !subjectTagsOf('woman').includes(tag)
+            )
+          ]
+        : candidate.baseAppearance
   }
 }
 
@@ -232,8 +251,8 @@ export function newCharacter(
     giftPreferences: { liked: [], disliked: [] },
     traits: [],
     preferredStat: 'heart',
-    // The tagless default; the write pipeline sets the real one from her build.
-    height: defaultSpriteScale([]),
+    // The default for her subject tags alone; the write pipeline sets the real one from her build.
+    height: defaultSpriteScale(subjectTagsOf(identity.gender)),
     generationSeed: randomSeed(),
     seedFollowsMain: allFollowMain(),
     setSeeds: {},

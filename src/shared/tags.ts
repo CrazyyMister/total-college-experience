@@ -130,12 +130,46 @@ export const BREAST_SIZES = ['small', 'big'] as const
 /** Skin — pick 0–1. */
 export const SKIN_TAGS = ['tan', 'dark-skinned_female', 'freckles'] as const
 
+/** A man's skin — pick 0–1. */
+export const MALE_SKIN_TAGS = ['tan', 'dark-skinned_male', 'freckles'] as const
+
+/** A man's build — pick 1–3. */
+export const MALE_PHYSIQUE_TAGS = [
+  'muscular_male',
+  'toned_male',
+  'broad_shoulders',
+  'pectorals',
+  'tall',
+  'slender'
+] as const
+
+/** A man's facial hair — pick 0–1. */
+export const FACIAL_HAIR_TAGS = [
+  'stubble',
+  'beard',
+  'short_beard',
+  'goatee',
+  'mustache',
+  'sideburns'
+] as const
+
+/** A man's face — pick 0–2. */
+export const MALE_FACE_TAGS = [
+  'thick_eyebrows',
+  'tsurime',
+  'tareme',
+  'mole_under_eye',
+  'scar_on_face'
+] as const
+
 /** The skin tags read back as prose; no tag means fair skin, which is never written out. */
 export type SkinTone = 'tan' | 'dark' | 'freckled'
 
 /** The bare skin tone off a character's `baseAppearance`, or null for fair skin. */
 export function skinToneOf(baseAppearance: readonly string[]): SkinTone | null {
-  if (baseAppearance.includes('dark-skinned_female')) return 'dark'
+  if (baseAppearance.includes('dark-skinned_female') || baseAppearance.includes('dark-skinned_male')) {
+    return 'dark'
+  }
   if (baseAppearance.includes('tan')) return 'tan'
   if (baseAppearance.includes('freckles')) return 'freckled'
   return null
@@ -159,6 +193,9 @@ export const HEAD_ACCESSORIES = [
   'earrings',
   'ear_piercing'
 ] as const
+
+/** A man's head accessories — optional, any number. */
+export const MALE_HEAD_ACCESSORIES = ['glasses', 'earrings', 'ear_piercing', 'headband'] as const
 
 /** Hair length — pick 1; `draftToCharacter` suffixes the pick into `{length}_hair`. */
 export const HAIR_LENGTHS = ['very_short', 'short', 'medium', 'long'] as const
@@ -184,6 +221,18 @@ export const HAIR_STYLES = [
   'drill_hair'
 ] as const
 
+/** A man's hair style — pick 1 or more. */
+export const MALE_HAIR_STYLES = [
+  'hair_slicked_back',
+  'undercut',
+  'buzz_cut',
+  'spiked_hair',
+  'crew_cut',
+  'short_ponytail',
+  'hair_bun',
+  'mohawk'
+] as const
+
 /** Bangs — pick 1 or more. */
 export const HAIR_BANGS = [
   'blunt_bangs',
@@ -194,6 +243,14 @@ export const HAIR_BANGS = [
   'hair_over_one_eye',
   'sidelocks',
   'long sidelocks'
+] as const
+
+/** A man's bangs — pick 1 or more. */
+export const MALE_HAIR_BANGS = [
+  'swept_bangs',
+  'parted_bangs',
+  'hair_between_eyes',
+  'hair_over_one_eye'
 ] as const
 
 /** Hair texture — pick 1; `draftToCharacter` suffixes the pick into `{texture}_hair`. */
@@ -212,3 +269,5 @@ export const OUTFIT_SKIN_EXPOSURE = [
   'clothing_cutout',
 ] as const
 
+/** A man's skin exposure — pick any. */
+export const MALE_OUTFIT_SKIN_EXPOSURE = ['navel', 'bare_legs', 'collarbone', 'pectorals'] as const

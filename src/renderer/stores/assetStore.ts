@@ -50,8 +50,3 @@ export const useAssetStore = create<AssetStoreState>((set, get) => ({
     return result.data
   }
 }))
-
-/** Pose keys in a stable order, for prompt enums and UI lists. */
-export function poseKeysOf(poses: PoseManifest): string[] {
-  return Object.keys(poses).sort()
-}

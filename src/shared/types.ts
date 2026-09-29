@@ -1966,6 +1966,8 @@ export interface PoseEntry {
   tags: string[]
   /** Plain-language gist of the pose, so the LLM's pick is informed. */
   description: string
+  /** True where a man may stand in it; a man stands in no other pose. */
+  men?: boolean
 }
 
 /** Pose manifest  — `/assets/pose.json`. */

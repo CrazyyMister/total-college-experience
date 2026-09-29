@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { profileRel, roomRel, spriteRel } from '@shared/characterFiles'
-import { blankSheet, isWritten } from '@shared/characterRules'
+import { blankSheet, isWritten, poseKeysFor } from '@shared/characterRules'
 import { EMOTIONS } from '@shared/emotions'
 import type { PromptEdit } from '@shared/imagePrompt'
 import {
@@ -53,7 +53,7 @@ import {
   type CharacterDraft
 } from '../prompts/characterPrompt'
 import { SEED_WORD_BAG, SEED_WORDS } from '../prompts/seedWords'
-import { poseKeysOf, useAssetStore } from './assetStore'
+import { useAssetStore } from './assetStore'
 import { useGrabBagStore } from './grabBagStore'
 import { useJobStore } from './jobStore'
 import { imageUrl } from './imageUrl'
@@ -528,7 +528,7 @@ export const useCharacterStore = create<CharacterStoreState>((set, get) => ({
   },
 
   createBlank: async (firstName, lastName, identity, personality) => {
-    const pose = poseKeysOf(useAssetStore.getState().poses)[0]
+    const pose = poseKeysFor(useAssetStore.getState().poses, identity.gender)[0]
     if (pose === undefined) {
       useUiStore.getState().showError(NO_POSES)
       return

@@ -1,4 +1,4 @@
-import { drawnToReader, SUBJECT_TAGS, subjectTagsOf } from '@shared/characterRules'
+import { drawnToReader, poseKeysFor, SUBJECT_TAGS, subjectTagsOf } from '@shared/characterRules'
 import { EMOTIONS } from '@shared/emotions'
 import {
   BREAST_SIZES,
@@ -8,6 +8,7 @@ import {
   EXPRESSION_MOUTH,
   EXPRESSION_OTHER,
   EYE_COLORS,
+  FACIAL_HAIR_TAGS,
   HAIR_BANGS,
   HAIR_COLORS,
   HAIR_LENGTHS,
@@ -15,6 +16,13 @@ import {
   HAIR_TEXTURES,
   HEAD_ACCESSORIES,
   MAKEUP_TAGS,
+  MALE_FACE_TAGS,
+  MALE_HAIR_BANGS,
+  MALE_HAIR_STYLES,
+  MALE_HEAD_ACCESSORIES,
+  MALE_OUTFIT_SKIN_EXPOSURE,
+  MALE_PHYSIQUE_TAGS,
+  MALE_SKIN_TAGS,
   OUTFIT_SKIN_EXPOSURE,
   SHADES,
   SKIN_TAGS
@@ -24,6 +32,7 @@ import type {
   CharacterBehavior,
   CharacterIdentity,
   Emotion,
+  Gender,
   PoseManifest,
   ReferenceImage,
   StructuredRequest
@@ -40,7 +49,6 @@ import {
   type GiftCategory,
   type GiftPreferences
 } from '@shared/shop'
-import { poseKeysOf } from '../stores/assetStore'
 import { objectSchema } from './schema'
 import { seedWordBlock } from './seedWords'
 
@@ -87,8 +95,13 @@ export interface CharacterDraft {
     hairStyle: string[]
     hairBangs: string[]
     headAccessories: string[]
-    makeup: string[]
-    breastSize: string[]
+    /** A woman's alone. */
+    makeup?: string[]
+    breastSize?: string[]
+    /** A man's alone. */
+    physique?: string[]
+    facialHair?: string[]
+    face?: string[]
     skin: string[]
   }
   outfit: string[]
@@ -163,7 +176,7 @@ function identityBlock(identity: CharacterIdentity): string[] {
   if (gender === 'man') {
     lines.push(
       'This character is a man, not a woman. Everything above that says "female", "girl", "gal", "she" or "her" means "male", "guy", "he" and "him" for him.',
-      'Leave breastSize out entirely, skip makeup unless it really suits him, and dress him in menswear.'
+      'Every appearance and outfit pick has to read as a man\'s: dress him in menswear.'
     )
   }
   const pronoun = gender === 'man' ? 'He' : 'She'
@@ -173,6 +186,78 @@ function identityBlock(identity: CharacterIdentity): string[] {
     `For ATTRACTION, pick what wins ${gender === 'man' ? 'him' : 'her'} over in a person.`
   )
   return lines
+}
+
+/** The APPEARANCE section's categories, a man's drawn from his own lists. */
+function appearanceLines(gender: Gender): string[] {
+  const colors = [
+    `hairColor/eyeColor: ${EYE_COLORS.join(', ')} (blonde for hairColor)`,
+    `For hairShade/eyeShade, you can optionally pick (0-1): ${SHADES.join(', ')}.`,
+    `hairLength: ${HAIR_LENGTHS.join(', ')}`,
+    `hairTexture: ${HAIR_TEXTURES.join(', ')}`
+  ]
+  if (gender === 'man') {
+    return [
+      'What does he look like? Interesting answers only, and every pick masculine. Form your answer from these categories below:',
+      ...colors,
+      `hairStyle (pick 1 or more): ${MALE_HAIR_STYLES.join(', ')}`,
+      `hairBangs (pick 0 or more): ${MALE_HAIR_BANGS.join(', ')}`,
+      `headAccessories (pick 0 or more, and specify the color or material): ${MALE_HEAD_ACCESSORIES.join(', ')}`,
+      `physique (pick 1-3): ${MALE_PHYSIQUE_TAGS.join(', ')}`,
+      `facialHair (pick 0-1): ${FACIAL_HAIR_TAGS.join(', ')}`,
+      `face (pick 0-2): ${MALE_FACE_TAGS.join(', ')}`,
+      `skin (pick 1, omit for fair skin): ${MALE_SKIN_TAGS.join(', ')}`
+    ]
+  }
+  return [
+    'What does she look like? Interesting answers only. Form your answer from these categories below:',
+    ...colors,
+    `hairStyle (pick 1 or more): ${HAIR_STYLES.join(', ')}`,
+    `hairBangs (pick 1 or more): ${HAIR_BANGS.join(', ')}`,
+    `headAccessories (pick 1 or more, and specify the color or material): ${HEAD_ACCESSORIES.join(', ')}`,
+    `makeup (pick 0-2, specify color for eyeshadow): ${MAKEUP_TAGS.join(', ')}`,
+    `breastSize (pick 1, omit for medium size): ${BREAST_SIZES.join(', ')}`,
+    `skin (pick 1, omit for fair skin): ${SKIN_TAGS.join(', ')}`
+  ]
+}
+
+/** The appearance object the schema asks for, a man's own fields in place of a woman's. */
+function appearanceSchema(gender: Gender): Record<string, unknown> {
+  const properties: Record<string, unknown> = {
+    hairColor: enumField(HAIR_COLORS),
+    eyeColor: enumField(EYE_COLORS),
+    // Arrays because the pick is 0–1 and the strict subset has no optional key.
+    hairShade: enumArray(SHADES),
+    eyeShade: enumArray(SHADES),
+    hairLength: enumField(HAIR_LENGTHS),
+    hairTexture: enumField(HAIR_TEXTURES),
+    ...(gender === 'man'
+      ? {
+          hairStyle: enumArray(MALE_HAIR_STYLES),
+          hairBangs: enumArray(MALE_HAIR_BANGS),
+          // Free-form so a pick can carry the colour or material the prompt asks for.
+          headAccessories: stringArray(),
+          physique: enumArray(MALE_PHYSIQUE_TAGS),
+          facialHair: enumArray(FACIAL_HAIR_TAGS),
+          face: enumArray(MALE_FACE_TAGS),
+          skin: enumArray(MALE_SKIN_TAGS)
+        }
+      : {
+          hairStyle: enumArray(HAIR_STYLES),
+          hairBangs: enumArray(HAIR_BANGS),
+          // Free-form so a pick can carry the colour or material the prompt asks for.
+          headAccessories: stringArray(),
+          makeup: stringArray(),
+          breastSize: enumArray(BREAST_SIZES),
+          skin: enumArray(SKIN_TAGS)
+        })
+  }
+  return {
+    type: 'object',
+    additionalProperties: false,
+    required: Object.keys(properties),
+    properties
+  }
 }
 
 /**
@@ -190,8 +275,9 @@ export function buildCharacterPrompt(
   reference?: ReferenceImage
 ): StructuredRequest {
   const brief = userPrompt.trim() || (identity.gender === 'man' ? 'A college guy.' : 'A college girl.')
-  // Sorted, so the prefix stays identical for prompt caching.
-  const poseKeys = poseKeysOf(poses)
+  // Sorted, so the prefix stays identical for prompt caching; a man is offered his poses alone.
+  const poseKeys = poseKeysFor(poses, identity.gender)
+  const man = identity.gender === 'man'
   // A half-given name gets its partner matched by culture.
   const first = firstName.trim()
   const last = lastName.trim()
@@ -266,23 +352,15 @@ export function buildCharacterPrompt(
     `How high is her vocal pitch? Pick one of: ${VOICE_TIERS.join(', ')}.`,
     '',
     'APPEARANCE',
-    'What does she look like? Interesting answers only. Form your answer from these categories below:',
-    `hairColor/eyeColor: ${EYE_COLORS.join(', ')} (blonde for hairColor)`,
-    `For hairShade/eyeShade, you can optionally pick (0-1): ${SHADES.join(', ')}.`,
-    `hairLength: ${HAIR_LENGTHS.join(', ')}`,
-    `hairTexture: ${HAIR_TEXTURES.join(', ')}`,
-    `hairStyle (pick 1 or more): ${HAIR_STYLES.join(', ')}`,
-    `hairBangs (pick 1 or more): ${HAIR_BANGS.join(', ')}`,
-    `headAccessories (pick 1 or more, and specify the color or material): ${HEAD_ACCESSORIES.join(', ')}`,
-    `makeup (pick 0-2, specify color for eyeshadow): ${MAKEUP_TAGS.join(', ')}`,
-    `breastSize (pick 1, omit for medium size): ${BREAST_SIZES.join(', ')}`,
-    `skin (pick 1, omit for fair skin): ${SKIN_TAGS.join(', ')}`,
+    ...appearanceLines(identity.gender),
     '',
     'OUTFIT',
     'What outfit does she rock? Time to go shopping, RITA! Pick out a wardrobe and describe it in booru-style comma separated tags.',
     'Be specific! Every clothing item must ALSO name at least one colour or material inside the tag.',
-    `Lock in the exact characteristics of the outfit by naming what skin is exposed using these tags: ${OUTFIT_SKIN_EXPOSURE.join(', ')}`,
-    'bare_legs is only for fully bare legs, use "thighs" if you want to describe the bit of skin showing above thighhighs or socks.',
+    `Lock in the exact characteristics of the outfit by naming what skin is exposed using these tags: ${(man ? MALE_OUTFIT_SKIN_EXPOSURE : OUTFIT_SKIN_EXPOSURE).join(', ')}`,
+    man
+      ? 'bare_legs is only for fully bare legs.'
+      : 'bare_legs is only for fully bare legs, use "thighs" if you want to describe the bit of skin showing above thighhighs or socks.',
     'Pick as many items as you want, just keep in mind: Fashionable characters ONLY!',
     'Just because she\'s shy or silly doesn\'t mean she\'s allowed to be frumpy. Everyone has to SLAY with a cute, hot, or sexy fit',
     'Try layering, accessorizing, or skin exposure. You can even combine all three if it makes sense.',
@@ -398,40 +476,7 @@ export function buildCharacterPrompt(
       traits: enumArray(CHARACTER_TRAITS),
       // Closed and single-valued: she is drawn to exactly one.
       preferredStat: enumField(STAT_KEYS),
-      appearance: {
-        type: 'object',
-        additionalProperties: false,
-        required: [
-          'hairColor',
-          'eyeColor',
-          'hairShade',
-          'eyeShade',
-          'hairLength',
-          'hairTexture',
-          'hairStyle',
-          'hairBangs',
-          'headAccessories',
-          'makeup',
-          'breastSize',
-          'skin'
-        ],
-        properties: {
-          hairColor: enumField(HAIR_COLORS),
-          eyeColor: enumField(EYE_COLORS),
-          // Arrays because the pick is 0–1 and the strict subset has no optional key.
-          hairShade: enumArray(SHADES),
-          eyeShade: enumArray(SHADES),
-          hairLength: enumField(HAIR_LENGTHS),
-          hairTexture: enumField(HAIR_TEXTURES),
-          hairStyle: enumArray(HAIR_STYLES),
-          hairBangs: enumArray(HAIR_BANGS),
-          // Free-form so a pick can carry the colour or material the prompt asks for.
-          headAccessories: stringArray(),
-          makeup: stringArray(),
-          breastSize: enumArray(BREAST_SIZES),
-          skin: enumArray(SKIN_TAGS)
-        }
-      },
+      appearance: appearanceSchema(identity.gender),
       // Free-form: the wardrobe is open.
       outfit: stringArray(),
       peOutfit: stringArray(),
@@ -498,8 +543,10 @@ export function draftToCharacter(
   draft: CharacterDraft,
   poses: PoseManifest
 ): Character {
-  const poseKeys = poseKeysOf(poses)
+  // A man stands only in a pose marked for men, whatever the draft picked.
+  const poseKeys = poseKeysFor(poses, base.gender)
   const a = draft.appearance ?? ({} as CharacterDraft['appearance'])
+  const man = base.gender === 'man'
 
   // The app supplies the subject tags; the model is never asked for them.
   const baseAppearance = [
@@ -512,10 +559,13 @@ export function draftToCharacter(
       ...(a.hairStyle ?? []),
       ...(a.hairBangs ?? []),
       ...(a.headAccessories ?? []),
-      ...(a.makeup ?? []),
+      // Each gender keeps only its own categories, whatever the draft says.
+      ...(man ? [] : (a.makeup ?? [])),
+      ...(man ? (a.physique ?? []) : []),
+      ...(man ? (a.face ?? []).slice(0, 2) : []),
       // One each: mutually exclusive descriptions.
-      // A man has no breast size, whatever the draft says.
-      ...(base.gender === 'woman' ? (a.breastSize ?? []) : [])
+      ...(man ? (a.facialHair ?? []).slice(0, 1) : []),
+      ...(man ? [] : (a.breastSize ?? []))
         .slice(0, 1)
         .map((size) => suffixTag(size, 'breasts')),
       ...(a.skin ?? []).slice(0, 1)

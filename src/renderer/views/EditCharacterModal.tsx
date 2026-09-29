@@ -20,7 +20,7 @@ import {
   VOICE_PITCH_MAX,
   VOICE_PITCH_MIN
 } from '@shared/audio'
-import { isGender, withSubjectTags } from '@shared/characterRules'
+import { isGender, poseKeysFor, withSubjectTags } from '@shared/characterRules'
 import { EMOTIONS } from '@shared/emotions'
 import {
   cgDraft,
@@ -58,7 +58,7 @@ import type {
   SetTarget,
   WardrobeLayer
 } from '@shared/types'
-import { poseKeysOf, useAssetStore } from '../stores/assetStore'
+import { useAssetStore } from '../stores/assetStore'
 import { useAudioStore } from '../stores/audioStore'
 import {
   cgTargetFor,
@@ -358,9 +358,9 @@ export function EditCharacterModal({
   const advancedShut = comfyMissing && !webBuild
   const keyNote = picturesReady ? null : customWriter ? 'Requires Gemini key' : 'Requires API key'
 
-  // Her own pose first, if this install's manifest carries no skeleton for it — otherwise the
-  // select would show blank for a record saved somewhere that had one.
-  const poseKeys = poseKeysOf(poses)
+  // Her own pose first, if this install's manifest carries no skeleton for it or her gender may
+  // not stand in it — otherwise the select would show blank, or change it unasked.
+  const poseKeys = poseKeysFor(poses, form.gender)
   const poseOptions = [
     ...(form.pose && !poseKeys.includes(form.pose) ? [{ value: form.pose, label: form.pose }] : []),
     ...poseKeys.map((key) => ({ value: key, label: key }))

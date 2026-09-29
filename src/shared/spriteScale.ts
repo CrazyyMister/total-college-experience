@@ -7,10 +7,11 @@ export const SPRITE_SCALE_MAX = 1
 export const SPRITE_SCALE_STEP = 0.01
 
 /**
- * The scale a character is given before the player touches anything, by breast tag;
- * `small` wins when freehand tags carry both.
+ * The scale a character is given before the player touches anything: a man at the maximum,
+ * anyone else by breast tag, `small` winning when freehand tags carry both.
  */
 export function defaultSpriteScale(baseAppearance: readonly string[]): number {
+  if (baseAppearance.includes('1boy')) return SPRITE_SCALE_MAX
   if (baseAppearance.includes('small_breasts')) return 0.94
   if (baseAppearance.includes('big_breasts')) return SPRITE_SCALE_MAX
   return 0.97
