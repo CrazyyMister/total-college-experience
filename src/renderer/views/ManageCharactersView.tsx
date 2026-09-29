@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type JSX } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { pictureKeySet } from '@shared/settingsRules'
 import { fullNameOf, type Character } from '@shared/types'
+import { pronounsOf } from '@shared/pronouns'
 import { CharacterJobCard } from '../components/CharacterJobCard'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { DeadNote } from '../components/DeadNote'
@@ -432,7 +433,7 @@ export function ManageCharactersView(): JSX.Element {
             message={
               deletingIsShipped
                 ? `You can restore ${nameOf(deletingCharacter)} later with the Restore Default Characters button.`
-                : `${nameOf(deletingCharacter)} and all generated sprites will be permanently deleted. All playthroughs including her will become unloadable.`
+                : `${nameOf(deletingCharacter)} and all generated sprites will be permanently deleted. All playthroughs including ${pronounsOf(deletingCharacter?.gender ?? 'woman').object} will become unloadable.`
             }
             onCancel={() => setDeleting(null)}
             onConfirm={() => {

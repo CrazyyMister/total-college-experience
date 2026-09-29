@@ -236,15 +236,15 @@ function askerBlock(input: SlotIntroInput): string[] {
 
   return [
     'ASKING TO HANG OUT',
-    'Each of these characters is texting the reader right now to ask him to spend this part of the day with her. Write one entry in "hangouts" for each, and nothing for anyone else. They are described under LOREBOOK.',
+    'Each of these characters is texting the reader right now to ask him to spend this part of the day with them. Write one entry in "hangouts" for each, and nothing for anyone else. They are described under LOREBOOK.',
     ...(anyPlans(input)
       ? [
-          'Where a plan is listed beside a character, she is not inviting the reader out of nowhere: the two of them agreed to this already, and she is writing about that plan, for everyone going. Her message reads as a reminder or a "still on?", not as a new idea.'
+          'Where a plan is listed beside a character, they are not inviting the reader out of nowhere: the two of them agreed to this already, and they are writing about that plan, for everyone going. Their message reads as a reminder or a "still on?", not as a new idea.'
         ]
       : []),
     ...(anyOccasions(input)
       ? [
-          'Where an occasion is listed beside a character, her text is about going to that occasion together — it is described under WHAT\'S GOING ON. She says what she wants to do or see there and asks him to come with her, and her "description" names it, like "Going to the Winter Gala with Sarah".'
+          'Where an occasion is listed beside a character, their text is about going to that occasion together — it is described under WHAT\'S GOING ON. They say what they want to do or see there and ask him to come with them, and their "description" names it, like "Going to the Winter Gala with Sarah".'
         ]
       : []),
     ...input.askers.map(({ charKey, plan, occasion }) =>
@@ -252,7 +252,7 @@ function askerBlock(input: SlotIntroInput): string[] {
       plan
         ? `- ${charKey} — already planned for this part of the day: ${plan.description}`
         : occasion
-          ? `- ${charKey} — asking him to come to ${occasion.title} with her`
+          ? `- ${charKey} — asking him to come to ${occasion.title} together`
           : `- ${charKey}`
     )
   ]
@@ -299,7 +299,7 @@ function characterBlock(input: SlotIntroInput): string[] {
       ...(whereabouts
         ? [
             whereaboutsLine(
-              character.firstName,
+              character,
               whereabouts.location,
               whereabouts.companions,
               whereabouts.haunt,
@@ -309,7 +309,7 @@ function characterBlock(input: SlotIntroInput): string[] {
         : []),
       // What she is doing with the break: a girl off campus has no location to report.
       ...springBreakLines(
-        character.firstName,
+        character,
         info.springBreakPlans,
         input.springBreakAway,
         character.charId,
@@ -385,19 +385,19 @@ export function buildSlotIntroPrompt(
     ...(input.askers.length > 0
       ? [
           '',
-          'Then fill "hangouts", one entry per character under ASKING TO HANG OUT. "char" is her key exactly as written there. "text" is the message she sends, in her own texting voice — lowercase, slang, typos and emoji are all fine if that is how she types — and it is ONLY about meeting up: what she wants to do and where, asked as a question' +
+          'Then fill "hangouts", one entry per character under ASKING TO HANG OUT. "char" is their key exactly as written there. "text" is the message they send, in their own texting voice — lowercase, slang, typos and emoji are all fine if that is how they type — and it is ONLY about meeting up: what they want to do and where, asked as a question' +
             (planned
-              ? ' — or, where she has a plan listed, that plan, asked as a "we\'re still on, right?"'
+              ? ' — or, where they have a plan listed, that plan, asked as a "we\'re still on, right?"'
               : '') +
             (occasioned
-              ? ' — or, where she has an occasion listed, going to that occasion with her, asked as an invitation to come along'
+              ? ' — or, where they have an occasion listed, going to that occasion with them, asked as an invitation to come along'
               : '') +
             '. No narration, no stage directions, no other conversation. "description" is the plan in a few plain words, like "Getting dinner with Sarah at the Mockingbird" or "Studying with Chloe in the library".' +
             (planned
-              ? ' If she has a hangout scheduled with the reader listed under her name, use that one.'
+              ? ' If they have a hangout scheduled with the reader listed under their name, use that one.'
               : '') +
             (occasioned
-              ? ' If she has an occasion listed under her name, her "description" names that occasion.'
+              ? ' If they have an occasion listed under their name, their "description" names that occasion.'
               : ''),
           'The narration in "lines" must not mention these messages or these characters at all — the reader has not opened his phone yet.'
         ]
@@ -409,7 +409,7 @@ export function buildSlotIntroPrompt(
     ...(input.breakups.length > 0
       ? [
           '',
-          'Then fill "breakups", one entry per character under BREAKING UP. "char" is her key exactly as written there. "texts" is two to four short messages she sends one after another, in her own texting voice — lowercase, slang, typos and emoji are all fine if that is how she types — breaking up with the reader because he started dating the girl named beside her: how she found out, how she feels about it, and that it is over. No narration, no stage directions, no reply from the reader.',
+          'Then fill "breakups", one entry per character under BREAKING UP. "char" is their key exactly as written there. "texts" is two to four short messages they send one after another, in their own texting voice — lowercase, slang, typos and emoji are all fine if that is how they type — breaking up with the reader because he started dating the character named beside them: how they found out, how they feel about it, and that it is over. No narration, no stage directions, no reply from the reader.',
           'The narration in "lines" must not mention these messages or these characters at all — the reader has not opened his phone yet.'
         ]
       : [
@@ -420,7 +420,7 @@ export function buildSlotIntroPrompt(
     ...(input.posters.length > 0
       ? [
           '',
-          'Then fill "posts", one entry per character under STATUS UPDATES. "char" is her key exactly as written there. "text" is the post itself: one or two short lines in her own voice, the way she would actually type it — lowercase, slang and emoji are fine if that is how she writes. It is a post to nobody in particular, about her hour: what she is doing, where she is, what kind of mood she is in, something small she noticed. She is NOT writing to the reader and must not address him, mention him, or refer to meeting anyone. No narration and no stage directions.',
+          'Then fill "posts", one entry per character under STATUS UPDATES. "char" is their key exactly as written there. "text" is the post itself: one or two short lines in their own voice, the way they would actually type it — lowercase, slang and emoji are fine if that is how they write. It is a post to nobody in particular, about their hour: what they are doing, where they are, what kind of mood they are in, something small they noticed. They are NOT writing to the reader and must not address him, mention him, or refer to meeting anyone. No narration and no stage directions.',
           'The narration in "lines" must not mention these posts — the reader has not opened his phone yet.'
         ]
       : [

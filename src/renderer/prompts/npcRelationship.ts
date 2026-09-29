@@ -8,13 +8,15 @@ import {
   type NpcRelationshipMap
 } from '@shared/npcRelationships'
 import {
-  fullNameOf,
   type Character,
   type CharacterBehavior,
   type ClassEntry,
+  fullNameOf,
+  type Gender,
   type Haunt,
   type TimeSlot
 } from '@shared/types'
+import { pronounsOf } from '@shared/pronouns'
 import { formatWeekday } from './gameDate'
 
 /**
@@ -49,7 +51,7 @@ function whereClause(
   }
   if (encounter.ref === ROOM_LOCATION) {
     const host = encounter.roomOf ? characters[encounter.roomOf] : undefined
-    return host ? `in ${host.firstName}'s room` : 'in her room'
+    return host ? `in ${host.firstName}'s room` : 'in their room'
   }
   return `at ${locationLabel(encounter.ref)}`
 }
@@ -173,11 +175,14 @@ export function hauntActivity(
 export function hauntClause(
   location: string,
   haunt: Haunt | null | undefined,
-  time: TimeSlot
+  time: TimeSlot,
+  gender: Gender
 ): string {
   return (
     hauntActivity(location, haunt, time) ??
-    (location === ROOM_LOCATION ? 'in her room' : `at ${locationLabel(location)}`)
+    (location === ROOM_LOCATION
+      ? `in ${pronounsOf(gender).possessive} room`
+      : `at ${locationLabel(location)}`)
   )
 }
 
@@ -186,7 +191,7 @@ export function hauntClause(
  * companions included — shared by texts and invitations.
  */
 export function whereaboutsLine(
-  firstName: string,
+  character: Pick<Character, 'firstName' | 'gender'>,
   location: string,
   companions: NpcCompanions,
   haunt?: Haunt | null,
@@ -194,7 +199,7 @@ export function whereaboutsLine(
 ): string {
   const withWhom = companionClause(companions)
   const tail = withWhom ? ` ${withWhom}` : ''
-  return `${firstName} is ${hauntClause(location, haunt, time)}${tail} right now.`
+  return `${character.firstName} is ${hauntClause(location, haunt, time, character.gender)}${tail} right now.`
 }
 
 /** What the pair lines need, which is a slice of `ScenePromptState`. */

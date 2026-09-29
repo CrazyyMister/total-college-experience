@@ -1,5 +1,6 @@
 import { describeReaderToPlayer, statsMaxed, type PlayerStats } from '@shared/playerStats'
-import type { SceneLine, TimeSlot } from '@shared/types'
+import type { Character, SceneLine, TimeSlot } from '@shared/types'
+import { pronounsOf } from '@shared/pronouns'
 import { formatDatePart } from './gameDate'
 
 /**
@@ -88,8 +89,10 @@ export const ORIENTATION_PREMISE =
   'The reader is standing with his orientation group in the Venus Quad. One of the other freshmen stands out to him. Neither of them knows anybody here yet and neither knows whether this is the start of anything at all — write the scene with that feeling: first day, everything still ahead, nothing decided.'
 
 /** The same scene when the roster has no freshmen: she is the upperclassman leading the group. */
-export function orientationLeaderPremise(firstName: string): string {
-  return `The reader's orientation group is short of half its people. ${firstName}, the upperclassman leading the group, introduces herself to him, and the two of them talk while the stragglers turn up. She already knows her way around and is in no hurry; he knows nobody at all. Write the scene with that first-day feeling: an easy, unhurried conversation between two people who have just met, and the open question of whether it leads anywhere.`
+export function orientationLeaderPremise(character: Character | undefined): string {
+  const firstName = character?.firstName ?? 'The group leader'
+  const p = pronounsOf(character?.gender ?? 'woman')
+  return `The reader's orientation group is short of half its people. ${firstName}, the upperclassman leading the group, introduces ${p.reflexive} to him, and the two of them talk while the stragglers turn up. ${p.Subject} already knows ${p.possessive} way around and is in no hurry; he knows nobody at all. Write the scene with that first-day feeling: an easy, unhurried conversation between two people who have just met, and the open question of whether it leads anywhere.`
 }
 
 /**

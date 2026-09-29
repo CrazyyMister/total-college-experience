@@ -44,6 +44,7 @@ import type {
   WardrobeLayer,
   WardrobeTarget
 } from '@shared/types'
+import { pronounsOf } from '@shared/pronouns'
 import { blobOf, imageBlob } from './blob'
 import * as db from './db/chars'
 import { imageBytes, imageRels } from './files'
@@ -64,7 +65,7 @@ function assertEditableChar(charId: string): void {
   throw appError(
     'CHARACTER_READ_ONLY',
     'Default characters cannot be edited.',
-    `Duplicate her first; the copy is editable. (${charId})`
+    `Duplicate ${pronounsOf(shippedCharacter(charId).gender).object} first; the copy is editable. (${charId})`
   )
 }
 

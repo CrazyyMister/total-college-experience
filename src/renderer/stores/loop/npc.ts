@@ -65,7 +65,11 @@ export function rollNpcOverlayNow(
       haunt: charStandingHauntAt(charId, date, time)?.location ?? null,
       // Off campus takes her out of all three passes at once.
       busy: charUnavailableNow(charId, date, time),
-      moodHomebound: isMoodHomebound(date, game.charInfo[charId]?.moodCycleOffset ?? 0),
+      moodHomebound: isMoodHomebound(
+        date,
+        game.charInfo[charId]?.moodCycleOffset ?? 0,
+        game.characters[charId]?.gender ?? 'woman'
+      ),
       // Each window reads only its own record, off the arguments rather than the clock, which
       // at an ending names the slot before the one being rolled.
       wentOutRecently:
@@ -215,7 +219,11 @@ export function npcWhereaboutsFor(
     ? (stamped.groups.find((g) => g.members.includes(charId)) ?? null)
     : charOverlayGroupNow(charId, date, time)
 
-  const homebound = isMoodHomebound(date, charInfo[charId]?.moodCycleOffset ?? 0)
+  const homebound = isMoodHomebound(
+    date,
+    charInfo[charId]?.moodCycleOffset ?? 0,
+    game.characters[charId]?.gender ?? 'woman'
+  )
   const standing = charStandingHauntAt(charId, date, time)
   const location = homebound ? ROOM_LOCATION : (group?.location ?? standing?.location)
   if (!location) return null

@@ -19,7 +19,8 @@ import {
   MEMORY_CAP
 } from '@shared/relationship'
 import { isCharacterTrait } from '@shared/traits'
-import { fullNameOf, type CharMemory, type StockOutfitSet } from '@shared/types'
+import { type CharMemory, fullNameOf, type Gender, type StockOutfitSet } from '@shared/types'
+import { kindOf, pronounsOf } from '@shared/pronouns'
 import { formatShortGameDate } from '../prompts/gameDate'
 import { useBunnyboardStore } from '../stores/bunnyboardStore'
 import { profileUrl, spriteUrl, useSpriteVersion } from '../stores/characterStore'
@@ -213,10 +214,11 @@ export function ContactPage({
                 )}
 
                 {/* Undiscovered is drawn, never hidden: the slot says what would open it (D4). */}
-                <Field label="Her type">
+                <Field label={`${pronounsOf(character.gender).Possessive} type`}>
                   {showPreferred ? (
                     <p className="vu-contact-text">
-                      {character.firstName} likes guys with {STAT_ATTRACTIONS[character.preferredStat]}.
+                      {character.firstName} likes {kindOf(character.attractedTo, true)} with{' '}
+                      {STAT_ATTRACTIONS[character.preferredStat]}.
                     </p>
                   ) : (
                     <Locked>??? — Unlocked at Friends</Locked>
@@ -295,7 +297,7 @@ export function ContactPage({
                 </Field>
               </>
             ) : (
-              <StrangerProfile />
+              <StrangerProfile gender={character.gender} />
             )}
           </Card>
 
@@ -508,7 +510,7 @@ function Card({
  * with what unlocks it named, never omitted — an absence here would tell the reader something
  * he has no way of knowing.
  */
-function StrangerProfile(): JSX.Element {
+function StrangerProfile({ gender }: { gender: Gender }): JSX.Element {
   return (
     <>
       <Field label="Likes">
@@ -520,7 +522,7 @@ function StrangerProfile(): JSX.Element {
       <Field label="Traits">
         <Locked>??? — Unlocked at Friends</Locked>
       </Field>
-      <Field label="Her type">
+      <Field label={`${pronounsOf(gender).Possessive} type`}>
         <Locked>??? — Unlocked at Best Friends</Locked>
       </Field>
       <Field label="Backstory">

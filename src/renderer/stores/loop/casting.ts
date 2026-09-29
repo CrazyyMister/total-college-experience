@@ -267,7 +267,7 @@ export function localsAtLocation(location: string): string[] {
  */
 export function workingHereNote(charId: string, jobId: string): string {
   const employer = jobDefOf(jobId)?.employer ?? 'work'
-  const who = nameIsKnown(charId) ? firstNameOf(charId) : "A girl they don't know"
+  const who = nameIsKnown(charId) ? firstNameOf(charId) : "Someone they don't know"
   return `${who} is here, working a shift at ${employer}.`
 }
 

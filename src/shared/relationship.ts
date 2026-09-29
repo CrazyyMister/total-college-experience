@@ -10,6 +10,7 @@ import {
   type StatKey,
   type StatTier
 } from './playerStats'
+import { pronounsOf } from './pronouns'
 import { secondPerson } from './readerVoice'
 import { markedLine } from './statusMark'
 import { hasTrait } from './traits'
@@ -21,6 +22,7 @@ import type {
   CharMemory,
   CrushHint,
   Emotion,
+  Gender,
   MemoryType,
   RelationshipEvent,
   SceneLine,
@@ -490,8 +492,10 @@ export function applyEvent(flags: CharFlags, event: RelationshipEvent): CharFlag
 export function foldRelationshipEvents(
   info: CharInfo,
   events: readonly RelationshipEvent[],
-  date: number
+  date: number,
+  gender: Gender
 ): CharInfo {
+  const them = pronounsOf(gender).object
   const before = info.flags ?? emptyFlags()
   let flags = before
   for (const event of events) flags = applyEvent(flags, event)
@@ -499,14 +503,14 @@ export function foldRelationshipEvents(
   // The milestones' own memories, stacked with whatever the ledger wrote about the scene.
   const milestones: CharMemory[] = []
   if (!before.hasKissed && flags.hasKissed) {
-    milestones.push({ date, type: 'loved', desc: 'the reader kissed her for the first time' })
+    milestones.push({ date, type: 'loved', desc: `the reader kissed ${them} for the first time` })
   }
   if (!before.hadSex && flags.hadSex) {
-    milestones.push({ date, type: 'loved', desc: 'the reader slept with her for the first time' })
+    milestones.push({ date, type: 'loved', desc: `the reader slept with ${them} for the first time` })
   }
   // Keyed on the count, so a second breakup writes a second memory.
   if (flags.brokenUp > before.brokenUp) {
-    milestones.push({ date, type: 'hated', desc: 'things ended between the reader and her' })
+    milestones.push({ date, type: 'hated', desc: `things ended between the reader and ${them}` })
   }
 
   const folded: CharInfo = {
@@ -531,11 +535,16 @@ export function foldRelationshipEvents(
  * Every word said to the player about a milestone, one line per milestone the scene actually
  * reached.
  */
-export function milestoneStatusLines(name: string, before: CharFlags, after: CharFlags): string[] {
+export function milestoneStatusLines(
+  name: string,
+  gender: Gender,
+  before: CharFlags,
+  after: CharFlags
+): string[] {
   const lines: string[] = []
   // A fixed order: escalating first, then the ways it goes wrong.
   if (!before.gaveContactInfo && after.gaveContactInfo)
-    lines.push(`${name} gave you her contact info.`)
+    lines.push(`${name} gave you ${pronounsOf(gender).possessive} contact info.`)
   if (!before.hasKissed && after.hasKissed) lines.push(`You and ${name} kissed for the first time.`)
   if (!before.hadSex && after.hadSex)
     lines.push(`You and ${name} slept together for the first time.`)
@@ -555,6 +564,7 @@ export function milestoneStatusLines(name: string, before: CharFlags, after: Cha
  */
 const MILESTONE_PHRASES: readonly { phrase: string; loss: boolean }[] = [
   { phrase: 'gave you her contact info', loss: false },
+  { phrase: 'gave you his contact info', loss: false },
   { phrase: 'kissed', loss: false },
   { phrase: 'slept together', loss: false },
   { phrase: 'became lovers', loss: false },

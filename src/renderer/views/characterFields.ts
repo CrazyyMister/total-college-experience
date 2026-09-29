@@ -1,7 +1,8 @@
 import { STAT_KEYS, STAT_LABELS } from '@shared/playerStats'
 import { GIFT_CATEGORIES } from '@shared/shop'
 import { CHARACTER_TRAITS } from '@shared/traits'
-import type { CharacterBehavior, OutfitSet, SetTarget } from '@shared/types'
+import { pronounsOf } from '@shared/pronouns'
+import type { CharacterBehavior, Gender, OutfitSet, SetTarget } from '@shared/types'
 
 /**
  * What a character panel shows, and in what order — shared by the editor and the read-only
@@ -9,20 +10,23 @@ import type { CharacterBehavior, OutfitSet, SetTarget } from '@shared/types'
  */
 
 /**
- * The behaviour fields under "More settings", in relationship order. `around` is the noun each
- * field's placeholder addresses her by.
+ * The behaviour fields under "More settings", in relationship order, in the pronoun of a
+ * character of `gender`. `around` is the noun each field's placeholder addresses her by.
  */
-export const BEHAVIOR_FIELDS: ReadonlyArray<{
+export function behaviorFieldsFor(gender: Gender): ReadonlyArray<{
   key: keyof CharacterBehavior
   label: string
   around: string
-}> = [
-  { key: 'withStrangers', label: 'With strangers', around: 'strangers' },
-  { key: 'withFriends', label: 'With friends', around: 'friends' },
-  { key: 'withCrush', label: 'With a crush', around: 'a crush' },
-  { key: 'withLover', label: 'With a lover', around: 'a lover' },
-  { key: 'withEnemy', label: 'With someone she dislikes', around: 'someone she dislikes' }
-]
+}> {
+  const dislikes = `someone ${pronounsOf(gender).subject} dislikes`
+  return [
+    { key: 'withStrangers', label: 'With strangers', around: 'strangers' },
+    { key: 'withFriends', label: 'With friends', around: 'friends' },
+    { key: 'withCrush', label: 'With a crush', around: 'a crush' },
+    { key: 'withLover', label: 'With a lover', around: 'a lover' },
+    { key: 'withEnemy', label: `With ${dislikes}`, around: dislikes }
+  ]
+}
 
 /**
  * The character's tag lists, in the order the wardrobes above them are shown. Each is a
@@ -93,8 +97,14 @@ export function textList(value: string): string[] {
     .filter((entry) => entry.length > 0)
 }
 
-/** What an empty field of the sheet shows: the shape its prose wants, told about her by name. */
-export function sheetPlaceholders(name: string): {
+/**
+ * What an empty field of the sheet shows: the shape its prose wants, told about her by name and
+ * in her pronouns.
+ */
+export function sheetPlaceholders(
+  name: string,
+  gender: Gender
+): {
   personality: string
   backstory: string
   datingHistory: string
@@ -104,10 +114,11 @@ export function sheetPlaceholders(name: string): {
   dislikes: string
   behavior: (around: string) => string
 } {
+  const p = pronounsOf(gender)
   return {
-    personality: `${name} presents herself as... but actually she's... She wants..., but... keeps her from getting it. She has a habit of...`,
-    backstory: `${name} grew up... As a result, she...`,
-    datingHistory: `${name} hasn't dated/has dated before... As a result, she...`,
+    personality: `${name} presents ${p.reflexive} as... but actually ${p.subject}'s... ${p.Subject} wants..., but... keeps ${p.object} from getting it. ${p.Subject} has a habit of...`,
+    backstory: `${name} grew up... As a result, ${p.subject}...`,
+    datingHistory: `${name} hasn't dated/has dated before... As a result, ${p.subject}...`,
     datingPreference: `${name} prefers hookups/long term relationships...`,
     kinks: `${name} has a thing for...`,
     likes: 'favorite foods\nfavorite beverages\nactivities\nentertainment preferences',

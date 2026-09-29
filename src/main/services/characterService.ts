@@ -45,6 +45,7 @@ import type {
   WardrobeLayer,
   WardrobeTarget
 } from '@shared/types'
+import { pronounsOf } from '@shared/pronouns'
 import {
   isPregenChar,
   listPregenCharIds,
@@ -80,10 +81,11 @@ export async function assertEditableChar(charId: string): Promise<void> {
   assertSafeCharId(charId)
   if (!isPregenChar(charId)) return
   if ((await getSettings()).editPregens === true) return
+  const gender = (await getCharacter(charId).catch(() => null))?.gender ?? 'woman'
   throw appError(
     'CHARACTER_READ_ONLY',
     'Default characters cannot be edited.',
-    `Duplicate her first; the copy is editable. (${charId})`
+    `Duplicate ${pronounsOf(gender).object} first; the copy is editable. (${charId})`
   )
 }
 

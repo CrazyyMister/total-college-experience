@@ -37,6 +37,7 @@ function run(
     before,
     after,
     firstNames: NAMES,
+    genders: {},
     npcRelationships: {},
     date: DATE,
     ...over

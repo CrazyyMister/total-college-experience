@@ -8,6 +8,7 @@ import {
   withMemoryReplaced
 } from '@shared/relationship'
 import { escapeRegExp } from '@shared/sentences'
+import { pronounsOf } from '@shared/pronouns'
 import { displaySlotsOf, retireCgs } from './stageDisplay'
 import {
   chargeAbsences,
@@ -60,52 +61,53 @@ import type {
   NpcSlotOverlay
 } from '@shared/npcRelationships'
 import {
-  charKeyOf,
-  DEFAULT_PLAYER_FIRST_NAME,
-  DEFAULT_PLAYER_LAST_NAME,
-  emptyBunnyboard,
-  READER_SPEAKER,
+  type AddedClass,
   type AppError,
+  type BankedTextLedger,
   type BunnyboardState,
+  type BunnybotHandover,
   type CalendarEvent,
-  type CharMemory,
-  type CrushHint,
-  type ChatMessage,
-  type RelationshipEvent,
-  type Suspicion,
   type Character,
   type CharInfo,
+  charKeyOf,
+  type CharMemory,
   type CharProfile,
   type CharState,
+  type ChatMessage,
   type ClassEntry,
   type ClassMeetingRecord,
-  type FeedExtras,
-  type SocialPost,
   type ClassRecord,
-  type AddedClass,
-  type BankedTextLedger,
-  type BunnybotHandover,
-  type DroppedClass,
-  type ExamRecord,
-  type QuizState,
   type Conversation,
+  type CrushHint,
+  DEFAULT_PLAYER_FIRST_NAME,
+  DEFAULT_PLAYER_LAST_NAME,
+  type DroppedClass,
+  emptyBunnyboard,
+  type ExamRecord,
+  type FeedExtras,
   type GameHistory,
   type GameSave,
+  type Gender,
   type IntimateAct,
-  type PlaythroughRecord,
   type JobState,
   type Occasion,
-  type OwnedItem,
-  type SceneGift,
-  type ShiftSlot,
   type OutfitLock,
   type OutfitSet,
+  type OwnedItem,
+  type PlaythroughRecord,
   type Position,
+  type QuizState,
+  READER_SPEAKER,
+  type RelationshipEvent,
+  type SceneGift,
   type SceneLine,
-  type SpriteRef,
   type SceneState,
   type SceneSummaryMark,
+  type ShiftSlot,
   type SlotRumor,
+  type SocialPost,
+  type SpriteRef,
+  type Suspicion,
   type TimeSlot
 } from '@shared/types'
 
@@ -1715,7 +1717,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
         .filter((event) => event.date === date && event.time === time && event.noShow?.length)
         .map((event) => {
           const names = (event.noShow ?? []).map(
-            (charId) => state.characters[charId]?.firstName ?? 'her'
+            (charId) => state.characters[charId]?.firstName ?? 'them'
           )
           return `The reader didn't show up for ${event.title} with ${names.join(', ')}.`
         })
@@ -1906,7 +1908,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
             item && (reaction === 'loved' || reaction === 'liked')
               ? withGiftMemory(
                   existing.giftMemories ?? [],
-                  { date: state.date, type: reaction, desc: giftMemoryDesc(item) },
+                  { date: state.date, type: reaction, desc: giftMemoryDesc(item, character?.gender ?? 'woman') },
                   giftMemoryCapFor(character)
                 )
               : existing.giftMemories
@@ -1981,7 +1983,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
   applyRelationshipEvents: (charId, events) =>
     set((state) =>
       patchCharInfo(state, charId, (info = blankCharInfo()) =>
-        foldRelationshipEvents(info, events, state.date)
+        foldRelationshipEvents(info, events, state.date, state.characters[charId]?.gender ?? 'woman')
       )
     ),
 
@@ -2004,7 +2006,14 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
           ...existing,
           flags: { ...flags, hasMet: true },
           // Oldest thing she knows about the reader, so it goes in front.
-          memories: [firstImpression(existing.memories, state.date), ...existing.memories]
+          memories: [
+            firstImpression(
+              existing.memories,
+              state.date,
+              state.characters[charId]?.gender ?? 'woman'
+            ),
+            ...existing.memories
+          ]
         }
       }
       return { charInfo }
@@ -2630,11 +2639,16 @@ function conversationWith(bunnyboard: BunnyboardState, charId: string): Conversa
 }
 
 /** The memory written the first time a character meets the reader; it dates the meeting. */
-function firstImpression(memories: readonly CharMemory[], date: number): CharMemory {
+function firstImpression(
+  memories: readonly CharMemory[],
+  date: number,
+  gender: Gender
+): CharMemory {
   const bad = memories[0]?.type === 'disliked' || memories[0]?.type === 'hated'
+  const them = pronounsOf(gender).object
   return bad
-    ? { date, type: 'disliked', desc: 'the reader made a bad first impression on her' }
-    : { date, type: 'liked', desc: 'the reader made a good first impression on her' }
+    ? { date, type: 'disliked', desc: `the reader made a bad first impression on ${them}` }
+    : { date, type: 'liked', desc: `the reader made a good first impression on ${them}` }
 }
 
 /**

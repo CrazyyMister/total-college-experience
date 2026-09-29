@@ -5,6 +5,7 @@ import {
   isNegative,
   isPositive
 } from '@shared/relationship'
+import { pronounsOf } from '@shared/pronouns'
 import { missingCrushStatOf } from '@shared/relationship'
 import {
   DEFAULT_PLAYER_STATS,
@@ -12,7 +13,7 @@ import {
   type PlayerStats
 } from '@shared/playerStats'
 import { hasTrait } from '@shared/traits'
-import type { CharFlags, Character } from '@shared/types'
+import type { CharFlags, Character, Gender } from '@shared/types'
 import { isMoodLustful } from './moods'
 
 /** Renders a character's relationship with the reader for the cast block. */
@@ -34,11 +35,13 @@ const IN_PERSON: RelationshipMedium = { texting: false, texted: false }
 /** Status lines, most specific first — only the first match is emitted; the chain is lossy. */
 function statusLine(
   name: string,
+  gender: Gender,
   flags: CharFlags,
   affection: number,
   medium: RelationshipMedium
 ): string | null {
   const disposition = dispositionOf(affection)
+  const p = pronounsOf(gender)
 
   // `hasMet` records a shared scene, so an unmet girl can still be a correspondent.
   if (!flags.hasMet) {
@@ -62,13 +65,13 @@ function statusLine(
 
   if (flags.benefits) {
     if (flags.hasCrush && flags.friendZoned) {
-      return `${name} and the reader are friends with benefits. She wants to be his girlfriend, but the reader has friendzoned her.`
+      return `${name} and the reader are friends with benefits. ${p.Subject} wants to be his ${gender === 'man' ? 'boyfriend' : 'girlfriend'}, but the reader has friendzoned ${p.object}.`
     }
     if (flags.hasCrush) {
-      return `${name} and the reader are friends with benefits, but she wants to make things official.`
+      return `${name} and the reader are friends with benefits, but ${p.subject} wants to make things official.`
     }
     if (flags.friendZoned || flags.friendZonedBy) {
-      return `${name} and the reader are friends with benefits, and she's okay with that.`
+      return `${name} and the reader are friends with benefits, and ${p.subject}'s okay with that.`
     }
     return isNegative(affection)
       ? `${name} and the reader have an enemies with benefits relationship.`
@@ -174,13 +177,13 @@ export function relationshipLines(
     const lustful =
       mood !== undefined &&
       hasTrait(character, 'Promiscuous') &&
-      isMoodLustful(mood.date, mood.offset, hasTrait(character, 'Mood-swings'))
+      isMoodLustful(mood.date, mood.offset, hasTrait(character, 'Mood-swings'), character.gender)
     // A Promiscuous girl on a lustful day is DTF whether or not he has cleared her bar; otherwise the
     // refusal only stands while he is short, since once he clears it the crush roll is live.
     if (lustful) {
       lines.push(
         missingStat
-          ? `${name} isn't usually attracted to the reader, but she's down to fuck today.`
+          ? `${name} isn't usually attracted to the reader, but ${pronounsOf(character.gender).subject}'s down to fuck today.`
           : `${name} is down to fuck today.`
       )
     } else if (missingStat) {
@@ -190,14 +193,14 @@ export function relationshipLines(
     }
   }
 
-  const status = statusLine(name, flags, affection, medium)
+  const status = statusLine(name, character.gender, flags, affection, medium)
   if (status) lines.push(status)
 
   // Outside the lossy status chain, so it stands beside whatever they are.
   if (flags.harem && (flags.isLover || flags.hasCrush || flags.benefits)) {
     lines.push(
       hasTrait(character, 'Promiscuous')
-        ? `${name} is promiscuous and won't get jealous about other girls.`
+        ? `${name} is promiscuous and won't get jealous about other people.`
         : `${name} has agreed to share the reader with others and won't get jealous.`
     )
   }
@@ -205,7 +208,7 @@ export function relationshipLines(
   // `nameKnown` is not `hasMet`; dropped once named, else RITA introduces her twice.
   if (!nameKnown) {
     lines.push(
-      `The reader doesn't know ${name}'s name yet. Don't use her name in narration or dialogue until it's been revealed in the scene.`
+      `The reader doesn't know ${name}'s name yet. Don't use ${pronounsOf(character.gender).possessive} name in narration or dialogue until it's been revealed in the scene.`
     )
   }
 

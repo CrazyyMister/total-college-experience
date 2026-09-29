@@ -458,7 +458,7 @@ async function startOrientationScene(): Promise<void> {
   const cast = picked ? [picked] : []
   const action =
     picked && freshmen.length === 0
-      ? orientationLeaderPremise(game.characters[picked]?.firstName ?? 'she')
+      ? orientationLeaderPremise(game.characters[picked])
       : ORIENTATION_PREMISE
 
   const snapshot: TurnSnapshot = { scene: game.captureScene(), action, intro: true }
@@ -1955,6 +1955,7 @@ export function advance(): void {
       game.appendPendingLines([
         farewellStatusLine(
           game.characters[farewell]?.firstName ?? '',
+          game.characters[farewell]?.gender ?? 'woman',
           farewellDisposition(farewell)
         )
       ])

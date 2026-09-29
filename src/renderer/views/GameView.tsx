@@ -1974,7 +1974,7 @@ export function GameView(): JSX.Element {
           <GiftMessageModal
             key="giftMessage"
             theme={half}
-            firstName={characters[panel.charId]?.firstName ?? 'her'}
+            firstName={characters[panel.charId]?.firstName ?? 'them'}
             onClose={closePanel}
             onSend={(message) => {
               const { itemId, charId } = panel

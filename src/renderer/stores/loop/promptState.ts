@@ -261,6 +261,7 @@ export function promptState(): PromptState {
       conversation,
       game.charInfo[charId]?.ignoredInvitation === true,
       character.firstName,
+      character.gender,
       { date: game.date, time: game.time },
       game.charInfo[charId]?.flags?.blocked === true
     )

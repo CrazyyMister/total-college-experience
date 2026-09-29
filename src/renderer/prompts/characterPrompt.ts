@@ -41,6 +41,7 @@ import { isVoiceTier, VOICE_TIERS, voicePitchOfTier } from '@shared/audio'
 import { ROOM_PROMPT_PREFIX } from '@shared/room'
 import { defaultSpriteScale } from '@shared/spriteScale'
 import { isStatKey, STAT_ATTRACTIONS, STAT_KEYS } from '@shared/playerStats'
+import { kindOf, pronounsOf, type Pronouns } from '@shared/pronouns'
 import { CHARACTER_TRAITS, isCharacterTrait, TRAIT_DESCRIPTIONS } from '@shared/traits'
 import {
   GIFT_CATEGORIES,
@@ -155,13 +156,13 @@ const SYSTEM = [
 ].join(' ')
 
 /** The character-generation reference-image instruction, empty when no image was attached. */
-function referenceBlock(reference?: ReferenceImage): string[] {
+function referenceBlock(p: Pronouns, reference?: ReferenceImage): string[] {
   if (!reference) return []
   return [
     '',
     'REFERENCE IMAGE',
-    'A picture of the character is attached. Use it as inspiration for her appearance and her default outfit, noting the colors and vibe.',
-    'Don\'t copy the image exactly, try and imagine how she\'d look as a university student in our world.',
+    `A picture of the character is attached. Use it as inspiration for ${p.possessive} appearance and ${p.possessive} default outfit, noting the colors and vibe.`,
+    `Don't copy the image exactly, try and imagine how ${p.subject}'d look as a university student in our world.`,
   ]
 }
 
@@ -173,17 +174,13 @@ function identityBlock(identity: CharacterIdentity): string[] {
   const { gender, attractedTo } = identity
   if (gender === 'woman' && attractedTo === 'man') return []
   const lines = ['', 'GENDER AND ATTRACTION']
+  const p = pronounsOf(gender)
   if (gender === 'man') {
-    lines.push(
-      'This character is a man, not a woman. Everything above that says "female", "girl", "gal", "she" or "her" means "male", "guy", "he" and "him" for him.',
-      'Every appearance and outfit pick has to read as a man\'s: dress him in menswear.'
-    )
+    lines.push('This character is a man. Every appearance and outfit pick has to read as a man\'s.')
   }
-  const pronoun = gender === 'man' ? 'He' : 'She'
   const partners = attractedTo === 'man' ? 'men' : 'women'
   lines.push(
-    `${pronoun} is attracted to ${partners} only. Write the LOVE LIFE answers and the withCrush and withLover behavior about ${partners}.`,
-    `For ATTRACTION, pick what wins ${gender === 'man' ? 'him' : 'her'} over in a person.`
+    `${p.Subject} is attracted to ${partners} only. Write the LOVE LIFE answers and the withCrush and withLover behavior about ${partners}.`
   )
   return lines
 }
@@ -293,96 +290,99 @@ export function buildCharacterPrompt(
           ? `The reader says "${last}" has to be the last name, so pick a fitting first name that's vaguely from the same culture and would still be common in the USA.`
           : 'Invent a fitting first and last name.'
 
-  // Invariant tag lists lead so prompt caching can reuse the bulky prefix.
+  // Invariant tag lists lead so prompt caching can reuse the bulky prefix; it is written in the
+  // character's own pronouns, so each gender and attraction caches its own.
+  const p = pronounsOf(identity.gender)
   const preamble = [
-    'Alright, RITA! Let\'s create a complex female character design. Consider the following:',
+    `Alright, RITA! Let's create a complex ${man ? 'male' : 'female'} character design. Consider the following:`,
     '',
     'PERSONALITY',
     'Concoct an interesting mix of answers to the below questions, then weave them into a single colorful paragraph:',
-    '- What is her archetype? Begin with <Name> is a gamer/med student/serial flirt/immortal demigod, etc.',
-    '- How does she choose to present herself to others?',
-    '- Who is she really, when her guard drops?',
-    '- What does she actually need/desire from other people, even if she doesn\'t know it?',
-    '- What flaw of hers pushes others away and keeps her from getting what she wants?',
-    '- Optional: Verbal tics, habits, or other quirks that make her unique.',
+    `- What is ${p.possessive} archetype? Begin with <Name> is a gamer/med student/serial flirt/immortal demigod, etc.`,
+    `- How does ${p.subject} choose to present ${p.reflexive} to others?`,
+    `- Who is ${p.subject} really, when ${p.possessive} guard drops?`,
+    `- What does ${p.subject} actually need/desire from other people, even if ${p.subject} doesn't know it?`,
+    `- What flaw of ${p.possessiveAlone} pushes others away and keeps ${p.object} from getting what ${p.subject} wants?`,
+    `- Optional: Verbal tics, habits, or other quirks that make ${p.object} unique.`,
     '',
     'BEHAVIOR',
-    'How does she treat other people? Check out the five categories below and describe her behavior.',
-    'Write them in the third person, use her name, and name the stage inside the sentence, like: "Around friends, Sarah drops the polite voice and gets loud, and she..."',
+    `How does ${p.subject} treat other people? Check out the five categories below and describe ${p.possessive} behavior.`,
+    `Write them in the third person, use ${p.possessive} name, and name the stage inside the sentence, like: "Around friends, ${man ? 'Sam' : 'Sarah'} drops the polite voice and gets loud, and ${p.subject}..."`,
     'Remember! Real people are inconsistent and contradictory. Make sure you figure out something different for all five categories.',
     '- withStrangers: strangers and passing acquaintances.',
-    '- withFriends: people she trusts.',
-    '- withCrush: someone she has unspoken romantic feelings for.',
-    '- withLover: someone she is actually with.',
-    '- withEnemy: someone she dislikes.',
+    `- withFriends: people ${p.subject} trusts.`,
+    `- withCrush: someone ${p.subject} has unspoken romantic feelings for.`,
+    `- withLover: someone ${p.subject} is actually with.`,
+    `- withEnemy: someone ${p.subject} dislikes.`,
     '',
     'BACKSTORY',
-    'What\'s something in her past that still affects the way she acts?',
-    'It can be positive or negative, like inspiring her to become a firefighter or making her afraid of loud places.',
-    'Try and tell us something that isn\'t already in her personality description.',
+    `What's something in ${p.possessive} past that still affects the way ${p.subject} acts?`,
+    `It can be positive or negative, like inspiring ${p.object} to become a firefighter or making ${p.object} afraid of loud places.`,
+    `Try and tell us something that isn't already in ${p.possessive} personality description.`,
     '',
     'LOVE LIFE',
     'Four separate answers here, and keep them from bleeding into each other:',
-    '- datingHistory: Who has she been with, and how did it go? Exes, flings, crushes that went nowhere, or nobody at all.',
-    '- datingPreference: Is she after something casual or something long term? Say plainly whether she sleeps with people casually.',
-    '- kinks: What does she fantasize about? Name a specific kink or fetish of hers, giving or receiving.',
-    '- isVirgin: true if she has never had sex, false if she has.',
-    'Keep each one to a sentence or two, and make the four of them add up to a person: her history shapes what she wants, and what she wants is often not what she does.',
+    `- datingHistory: Who has ${p.subject} been with, and how did it go? Exes, flings, crushes that went nowhere, or nobody at all.`,
+    `- datingPreference: Is ${p.subject} after something casual or something long term? Say plainly whether ${p.subject} sleeps with people casually.`,
+    `- kinks: What does ${p.subject} fantasize about? Name a specific kink or fetish of ${p.possessiveAlone}, giving or receiving.`,
+    `- isVirgin: true if ${p.subject} has never had sex, false if ${p.subject} has.`,
+    `Keep each one to a sentence or two, and make the four of them add up to a person: ${p.possessive} history shapes what ${p.subject} wants, and what ${p.subject} wants is often not what ${p.subject} does.`,
     '',
     'LIKES AND DISLIKES',
     'Give us a handful of likes and a handful of dislikes. Concrete things, and don\'t be too specific: "pizza" over "cold pizza for breakfast".',
-    'Fill them with her tastes in food, drink, media and entertainment, plus any pet peeves. No need to cover every category.',
+    `Fill them with ${p.possessive} tastes in food, drink, media and entertainment, plus any pet peeves. No need to cover every category.`,
     '',
     'GIFT PREFERENCES',
-    'What kinds of gifts does she like, and what kinds wouldn\'t impress her?',
+    `What kinds of gifts does ${p.subject} like, and what kinds wouldn't impress ${p.object}?`,
     'Pick from the categories below:',
     ...GIFT_CATEGORIES.map((cat) => `- ${cat}: ${GIFT_CATEGORY_DESCRIPTIONS[cat]}.`),
-    'Simply don\'t mention any categories that she\'s neutral on.',
+    `Simply don't mention any categories that ${p.subject}'s neutral on.`,
     '',
     'TRAITS',
     'Below is a short list of traits. Fill the traits array with every one that genuinely fits the character you just wrote:',
     ...CHARACTER_TRAITS.map((trait) => `- ${trait}: ${TRAIT_DESCRIPTIONS[trait]}.`),
-    'Only pick a trait if it\'s really true of her. If none of them fit, return an empty array. Most characters get none.',
+    `Only pick a trait if it's really true of ${p.object}. If none of them fit, return an empty array. Most characters get none.`,
     '',
     'ATTRACTION',
-    'What kind of guys does she like? Pick one:',
-    ...STAT_KEYS.map((key) => `- ${key}: she goes for ${STAT_ATTRACTIONS[key]}.`),
+    `What kind of ${kindOf(identity.attractedTo, true)} does ${p.subject} like? Pick one:`,
+    ...STAT_KEYS.map((key) => `- ${key}: ${p.subject} goes for ${STAT_ATTRACTIONS[key]}.`),
     '',
     'VOICE',
-    `How high is her vocal pitch? Pick one of: ${VOICE_TIERS.join(', ')}.`,
+    `How high is ${p.possessive} vocal pitch? Pick one of: ${VOICE_TIERS.join(', ')}.`,
     '',
     'APPEARANCE',
     ...appearanceLines(identity.gender),
     '',
     'OUTFIT',
-    'What outfit does she rock? Time to go shopping, RITA! Pick out a wardrobe and describe it in booru-style comma separated tags.',
+    `What outfit does ${p.subject} rock? Time to go shopping, RITA! Pick out a wardrobe and describe it in booru-style comma separated tags.`,
     'Be specific! Every clothing item must ALSO name at least one colour or material inside the tag.',
     `Lock in the exact characteristics of the outfit by naming what skin is exposed using these tags: ${(man ? MALE_OUTFIT_SKIN_EXPOSURE : OUTFIT_SKIN_EXPOSURE).join(', ')}`,
     man
       ? 'bare_legs is only for fully bare legs.'
       : 'bare_legs is only for fully bare legs, use "thighs" if you want to describe the bit of skin showing above thighhighs or socks.',
     'Pick as many items as you want, just keep in mind: Fashionable characters ONLY!',
-    'Just because she\'s shy or silly doesn\'t mean she\'s allowed to be frumpy. Everyone has to SLAY with a cute, hot, or sexy fit',
+    `Just because ${p.subject}'s shy or silly doesn't mean ${p.subject}'s allowed to be frumpy. Everyone has to SLAY with a cute, hot, or sexy fit`,
     'Try layering, accessorizing, or skin exposure. You can even combine all three if it makes sense.',
     'Take inspiration from modern Asian fashion and anime character design.',
-    'Oh, and this is her casual, everyday outfit: NOT a costume. She can wear a fancy dress if that\'s who she is, but no tutus for ballet dancers or scrubs for med students. Her interests and activities do not dress her.',
-    'And do NOT make her carry anything: no handbags, backpacks, totes, umbrellas, phones. Her hands are empty.',
-    'Nothing on her head or ears, either: no hats or cat ears. Accessories like earrings go in headAccessories above.',
+    `Oh, and this is ${p.possessive} casual, everyday outfit: NOT a costume. ${p.Subject} can wear ${man ? 'a sharp suit' : 'a fancy dress'} if that's who ${p.subject} is, but no tutus for ballet dancers or scrubs for med students. ${p.Possessive} interests and activities do not dress ${p.object}.`,
+    `And do NOT make ${p.object} carry anything: no handbags, backpacks, totes, umbrellas, phones. ${p.Possessive} hands are empty.`,
+    `Nothing on ${p.possessive} head or ears, either: no hats or cat ears. Accessories like earrings go in headAccessories above.`,
+    ...(man ? ['Menswear only: no skirts, dresses, heels, crop tops or thighhighs.'] : []),
     '',
     'PE OUTFIT',
-    'Pick out something for her that she\'ll change into for gym class or workouts. Make sure to include skin exposure tags.',
+    `Pick out something for ${p.object} that ${p.subject}'ll change into for gym class or workouts. Make sure to include skin exposure tags.`,
     '',
     'SWIMSUIT',
     'And something for the pool or the beach. You\'ll probably use most of the skin exposure tags here.',
     '',
     'ROOM',
-    'And just for fun, what does her room look like? We\'ll feed an image model a prompt that starts exactly like this:',
+    `And just for fun, what does ${p.possessive} room look like? We'll feed an image model a prompt that starts exactly like this:`,
     `"${ROOM_PROMPT_PREFIX}..."`,
     'Write ONLY the continuation of that sentence as roomPrompt. Include furnishings, the color palette, the general mood and lighting.',
     '',
     'POSE',
-    'How does she usually stand? That tells us a lot about her.',
-    'Read the options below carefully, then pick the one that suits her best.',
+    `How does ${p.subject} usually stand? That tells us a lot about ${p.object}.`,
+    `Read the options below carefully, then pick the one that suits ${p.object} best.`,
     ...poseKeys.map((key) => {
       const description = poses[key]?.description
       return description ? `- ${key}: ${description}` : `- ${key}`
@@ -398,7 +398,7 @@ export function buildCharacterPrompt(
     `other: ${EXPRESSION_OTHER.join(', ')}`,
     'Skip any group that has nothing fitting. Not every emotion needs a general tag.',
     'Some tags carry a weight, like (sad:0.7). That number is a LOWER BOUND, not a fixed value.',
-    'For expressive gals, you can raise the weight up anywhere to a max of 0.9 and return the tag with your number in it, like (sad:0.9).',
+    `For expressive ${man ? 'guys' : 'gals'}, you can raise the weight up anywhere to a max of 0.9 and return the tag with your number in it, like (sad:0.9).`,
     '',
     '---',
     ''
@@ -414,7 +414,7 @@ export function buildCharacterPrompt(
     '',
     ...seedWordBlock(seedWord),
     // Last, so it sits directly above the image part the adapter appends.
-    ...referenceBlock(reference)
+    ...referenceBlock(p, reference)
   ].join('\n')
 
   const schema = objectSchema(

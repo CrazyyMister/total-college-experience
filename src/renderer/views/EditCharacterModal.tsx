@@ -21,6 +21,7 @@ import {
   VOICE_PITCH_MIN
 } from '@shared/audio'
 import { isGender, poseKeysFor, withSubjectTags } from '@shared/characterRules'
+import { pronounsOf } from '@shared/pronouns'
 import { EMOTIONS } from '@shared/emotions'
 import {
   cgDraft,
@@ -83,7 +84,7 @@ import { noNsfwImagesOf, useSettingsStore } from '../stores/settingsStore'
 import { useSetupStore } from '../stores/setupStore'
 import {
   ATTRACTION_OPTIONS,
-  BEHAVIOR_FIELDS,
+  behaviorFieldsFor,
   GENDER_OPTIONS,
   GIFT_CATEGORY_OPTIONS,
   listText,
@@ -298,7 +299,10 @@ export function EditCharacterModal({
     setForm((prev) => ({ ...prev, behavior: { ...prev.behavior, [key]: value } }))
 
   // What each prose field shows while it is empty, told about her by name.
-  const placeholders = sheetPlaceholders(form.firstName.trim() || 'She')
+  const placeholders = sheetPlaceholders(
+    form.firstName.trim() || pronounsOf(form.gender).Subject,
+    form.gender
+  )
 
   // The voice the last preview played, seeded with the one she has: a release that left the
   // slider where it was — tabbing onto it, closing the modal off it — plays nothing.
@@ -1122,7 +1126,7 @@ export function EditCharacterModal({
                     autoGrow
                   />
 
-                  {BEHAVIOR_FIELDS.map(({ key, label, around }) => (
+                  {behaviorFieldsFor(form.gender).map(({ key, label, around }) => (
                     <TextField
                       key={key}
                       id={`edit-${key}`}

@@ -1,6 +1,7 @@
 import type { Disposition } from '@shared/relationship'
 import { markedLine } from '@shared/statusMark'
-import type { SceneLine, TimeSlot } from '@shared/types'
+import type { Gender, SceneLine, TimeSlot } from '@shared/types'
+import { pronounsOf } from '@shared/pronouns'
 import { formatDatePart, formatGameDate } from './gameDate'
 import { FINALS_WEEK, GRADUATION_DATE, SUMMER_VACATION } from './occasions'
 
@@ -122,12 +123,17 @@ export function farewellNowLines(firstName: string, senior: boolean): string[] {
  * scene gets in place of the ledger's. How she took it is the coloured run, and the line rings
  * positive whichever tier she is on.
  */
-export function farewellStatusLine(firstName: string, disposition: Disposition): SceneLine {
+export function farewellStatusLine(
+  firstName: string,
+  gender: Gender,
+  disposition: Disposition
+): SceneLine {
+  const p = pronounsOf(gender)
   if (disposition === 'devoted') {
     return markedLine(
       `${firstName} will `,
       'remember the memories you made together forever.',
-      ' She can\'t wait to see you again.',
+      ` ${p.Subject} can't wait to see you again.`,
       'gain'
     )
   }
@@ -141,7 +147,7 @@ export function farewellStatusLine(firstName: string, disposition: Disposition):
   }
   return markedLine(
     `${firstName} seems `,
-    'glad she got to know you',
+    `glad ${p.subject} got to know you`,
     ', and will miss you.',
     'gain'
   )

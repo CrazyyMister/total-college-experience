@@ -28,15 +28,15 @@ export const TEXT_EVENT_GLOSS: ReadonlyArray<readonly [string, string]> = [
   ['broke_up', 'their relationship ended in these texts'],
   [
     'friendzoned_by_reader',
-    'the reader turned her down in these texts or made it clear they\'re just friends'
+    'the reader turned the character down in these texts or made it clear they\'re just friends'
   ],
   [
     'friendzoned_reader',
-    'she turned the reader down in these texts or made it clear they\'re just friends'
+    'the character turned the reader down in these texts or made it clear they\'re just friends'
   ],
   [
     'agreed_to_harem',
-    'she agreed in these texts to an open relationship and/or to share the reader with other girls, and not to be jealous about them'
+    'the character agreed in these texts to an open relationship and/or to share the reader with other people, and not to be jealous about them'
   ]
 ]
 
@@ -103,10 +103,10 @@ export function buildTextLedgerPrompt(
     'A milestone that did not happen in these messages is simply left out. If one happened again — they broke up again — report it again; the app knows which time it was.',
     '',
     'TEXT MEMORIES',
-    'For each girl the reader texted, write at most ONE memory of what the texting left her with, in "textMemories".',
-    'Each desc completes the sentence "<Name> <type> that ...", in the past tense, e.g. "the reader asked how her recital went".',
-    'Call the reader "the reader" every time, never "you", "he" or "him": "the reader lent her the reader\'s notes", not "he lent her his notes".',
-    'Small talk that left her feeling nothing gets no entry. Give a girl nothing rather than something invented.',
+    'For each character the reader texted, write at most ONE memory of what the texting left them with, in "textMemories".',
+    'Each desc completes the sentence "<Name> <type> that ...", in the past tense, e.g. "the reader asked how their recital went".',
+    'Call the reader "the reader" every time, never "you", "he" or "him": "the reader lent them the reader\'s notes", not "he lent them his notes".',
+    'Small talk that left them feeling nothing gets no entry. Give a character nothing rather than something invented.',
     '',
     ...TEXT_PLANS_INSTRUCTIONS,
     ''

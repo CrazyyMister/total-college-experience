@@ -19,7 +19,7 @@ import {
   useSpriteVersion
 } from '../stores/characterStore'
 import { noNsfwImagesOf, useSettingsStore } from '../stores/settingsStore'
-import { BEHAVIOR_FIELDS, TAG_FIELDS, WARDROBES } from './characterFields'
+import { behaviorFieldsFor, TAG_FIELDS, WARDROBES } from './characterFields'
 import { DuplicateIcon, FolderIcon } from './characterIcons'
 import { ImageGalleryModal } from './ImageGalleryModal'
 import {
@@ -316,7 +316,7 @@ export function CharacterModal({
                     <Lines label="Likes" values={character.likes} />
                     <Lines label="Dislikes" values={character.dislikes} />
 
-                    {BEHAVIOR_FIELDS.map(({ key, label }) => (
+                    {behaviorFieldsFor(character.gender).map(({ key, label }) => (
                       <Prose key={key} label={label} value={character.behavior[key]} />
                     ))}
 

@@ -4,6 +4,8 @@
  */
 
 import { locationDefOf, LOWRISE_LOCATION } from './locations'
+import { pronounsOf } from './pronouns'
+import type { Gender } from './types'
 
 /** Every dorm id the profile call may assign, sorted for a stable schema enum. */
 export const DORM_IDS = [
@@ -50,13 +52,13 @@ export function dormGroupBlurb(dorm: DormId): string {
 }
 
 /** The ` Dorm: …` tail of a cast block's labeled facts line. */
-export function dormClause(dorm: DormId): string {
-  return ` | She has a single room at ${dormLabel(dorm)}.`
+export function dormClause(dorm: DormId, gender: Gender): string {
+  return ` | ${pronounsOf(gender).Subject} has a single room at ${dormLabel(dorm)}.`
 }
 
 /** The same fact as lorebook prose. */
-export function dormSentence(dorm: DormId): string {
-  return ` She lives in ${dormLabel(dorm)}.`
+export function dormSentence(dorm: DormId, gender: Gender): string {
+  return ` ${pronounsOf(gender).Subject} lives in ${dormLabel(dorm)}.`
 }
 
 /** Which of the two buildings a room is in: the five Lowrises are one of them. */

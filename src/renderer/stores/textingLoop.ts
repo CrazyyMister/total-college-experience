@@ -4,8 +4,9 @@
  * turns an agreed hangout into a real scene.
  */
 
+import { pronounsOf } from '@shared/pronouns'
 import { formatDateBanner, prevSlot } from '../prompts/gameDate'
-import type { CalendarEvent, CharInfo, EventCancellation, Occasion } from '@shared/types'
+import type { CalendarEvent, CharInfo, EventCancellation, Gender, Occasion } from '@shared/types'
 import { affectionFor, dispositionOf, emptyFlags, isPositive } from '@shared/relationship'
 import { requestAcceptChance } from '@shared/feed'
 import {
@@ -639,8 +640,9 @@ export function dismissFailedMessage(charId: string): void {
   failedTurns.delete(charId)
   useBunnyboardStore.getState().setTextFailed(charId, false)
 
-  const name = useGameStore.getState().characters[charId]?.firstName ?? 'her'
-  deliver(charId, chatMessage('system', `Failed to receive ${name}'s message.`, true))
+  const name = useGameStore.getState().characters[charId]?.firstName
+  const whose = name ? `${name}'s` : 'their'
+  deliver(charId, chatMessage('system', `Failed to receive ${whose} message.`, true))
 }
 
 /** What the hangout classifier's failure modal is waiting on, while a turn sits inside it. */
@@ -768,7 +770,7 @@ export function answerHangout(charId: string, yes: boolean): void {
         charId,
         chatMessage(
           'system',
-          `${character?.firstName ?? 'She'} is away for spring break and can't meet up.`
+          `${character?.firstName ?? 'They'} ${character ? 'is' : 'are'} away for spring break and can't meet up.`
         )
       )
       return
@@ -823,7 +825,7 @@ export function addContact(
   // Also guards re-adding somebody who has him blocked: a block masks `gaveContactInfo`.
   if (game.charInfo[charId]?.flags?.gaveContactInfo) return
 
-  const name = game.characters[charId]?.firstName ?? 'She'
+  const name = game.characters[charId]?.firstName ?? 'They'
   game.resolveRequest(charId)
   game.setGaveContactInfo(charId)
   useGameStore.getState().appendChatMessage(charId, chatMessage('system', messageOf(name)), unread)
@@ -851,7 +853,7 @@ export function unblockContact(charId: string, unread = 1): void {
   const game = useGameStore.getState()
   if (!game.charInfo[charId]?.flags?.blocked) return
 
-  const name = game.characters[charId]?.firstName ?? 'She'
+  const name = game.characters[charId]?.firstName ?? 'They'
   game.setBlocked(charId, false)
   useGameStore
     .getState()
@@ -906,13 +908,17 @@ export function cancelAllTexts(): void {
  * What an unanswered invitation costs her, in the reader's voice: completes
  * "{Name} disliked that ..." in the memory and in the ending's status line alike.
  */
-export const IGNORED_TEXT_DESC = 'the reader ignored her text'
+export function ignoredTextDesc(gender: Gender): string {
+  return `the reader ignored ${pronounsOf(gender).possessive} text`
+}
 
 /**
  * What answering an invitation with a no costs a lover, in the same voice: completes
  * "{Name} disliked that ..." in the memory and in the ending's status line alike.
  */
-export const TURNED_DOWN_DESC = 'the reader turned down her request to hang out'
+export function turnedDownDesc(gender: Gender): string {
+  return `the reader turned down ${pronounsOf(gender).possessive} request to hang out`
+}
 
 /**
  * Every plan the reader is standing up, every invitation he never answered and every one he
@@ -942,7 +948,7 @@ export function expireHangoutInvitations(
       live.recordMemory(charId, {
         date: live.date,
         type: 'hated',
-        desc: `the reader ghosted her and didn't show up for ${event.title}`
+        desc: `the reader ghosted ${pronounsOf(live.characters[charId]?.gender ?? 'woman').object} and didn't show up for ${event.title}`
       })
     }
 
@@ -964,7 +970,7 @@ export function expireHangoutInvitations(
     live.recordMemory(conversation.charId, {
       date: live.date,
       type: 'disliked',
-      desc: IGNORED_TEXT_DESC
+      desc: ignoredTextDesc(live.characters[conversation.charId]?.gender ?? 'woman')
     })
     // Silence counts against her next ask exactly as a spoken no does.
     live.bumpDeclined(conversation.charId)
@@ -983,7 +989,7 @@ export function expireHangoutInvitations(
     live.recordMemory(conversation.charId, {
       date: live.date,
       type: 'disliked',
-      desc: TURNED_DOWN_DESC
+      desc: turnedDownDesc(live.characters[conversation.charId]?.gender ?? 'woman')
     })
     turnedDown.push(conversation.charId)
   }
@@ -1117,7 +1123,9 @@ function askChanceFor(
   // Blocked settles this ahead of any disposition band.
   if (!info || !flags.gaveContactInfo || flags.blocked) return 0
   // One of the days she stays in: a plan already made still stands, but she starts nothing.
-  if (isMoodHomebound(date, info.moodCycleOffset ?? 0)) return 0
+  if (isMoodHomebound(date, info.moodCycleOffset ?? 0, game.characters[charId]?.gender ?? 'woman')) {
+    return 0
+  }
 
   return askChanceOf(
     {
@@ -1296,7 +1304,8 @@ export function addPlanContacts(events: readonly CalendarEvent[]): void {
       addContact(
         charId,
         1,
-        (name) => `${name} gave you her contact info so you can coordinate your plans.`
+        (name) =>
+          `${name} gave you ${pronounsOf(useGameStore.getState().characters[charId]?.gender ?? 'woman').possessive} contact info so you can coordinate your plans.`
       )
     }
   }
@@ -1315,14 +1324,15 @@ export function deliverEventCancellations(
     // A stranger dropped from a plan gets no text naming her.
     if (!useGameStore.getState().charInfo[charId]?.flags?.gaveContactInfo) continue
     const employer = reason === 'shift' && jobId ? jobDefOf(jobId)?.employer : null
+    const { subject: they } = pronounsOf(character.gender)
     const because =
       reason === 'away'
-        ? 'she is away for spring break'
+        ? `${they} is away for spring break`
         : reason === 'class'
-          ? 'she remembered she had class'
+          ? `${they} remembered ${they} had class`
           : employer
-            ? `she has a shift at ${employer} then`
-            : 'she remembered she had a shift'
+            ? `${they} has a shift at ${employer} then`
+            : `${they} remembered ${they} had a shift`
     deliver(
       charId,
       chatMessage(

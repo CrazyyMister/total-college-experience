@@ -1,3 +1,6 @@
+import { pronounsOf } from '@shared/pronouns'
+import type { Gender } from '@shared/types'
+
 /**
  * The mood cycle: what kind of day a character is having, on a fixed thirty-day loop she
  * is somewhere inside of. Only the per-character offset is save data, on {@link CharInfo}; the
@@ -127,8 +130,8 @@ const MOOD_CYCLE: readonly MoodDay[] = [
     moodSwings: '{name} woke up feeling stressed and overwhelmed today.'
   },
   {
-    normal: '{name} is feeling down on herself today.',
-    moodSwings: '{name} had bad sleep and is feeling bad about herself today.'
+    normal: '{name} is feeling down on {self} today.',
+    moodSwings: '{name} had bad sleep and is feeling bad about {self} today.'
   },
   {
     normal: '{name} is feeling a bit bloated today.',
@@ -143,6 +146,12 @@ const MOOD_CYCLE: readonly MoodDay[] = [
 /** How many days the cycle runs — the range every offset is drawn from. */
 export const MOOD_CYCLE_LENGTH = MOOD_CYCLE.length
 
+/**
+ * The days whose mood is the menstrual cycle's own — the period, the run around ovulation and
+ * the last two days before the next — as indices into `MOOD_CYCLE`. A man has no mood on them.
+ */
+const CYCLE_DAYS: ReadonlySet<number> = new Set([0, 1, 2, 3, 11, 12, 13, 14, 15, 28, 29])
+
 /** The ovulation-adjacent days counted lustful, as indices into `MOOD_CYCLE`, by column. */
 const LUST_DAYS = { normal: [13, 14], moodSwings: [12, 15] } as const
 
@@ -151,29 +160,47 @@ export function moodIndexOf(date: number, offset: number): number {
   return (((date + offset) % MOOD_CYCLE_LENGTH) + MOOD_CYCLE_LENGTH) % MOOD_CYCLE_LENGTH
 }
 
-/** Whether this is a day she stays in: the first three days of the cycle and the last. */
-export function isMoodHomebound(date: number, offset: number): boolean {
+/**
+ * Whether this is a day she stays in: the first three days of the cycle and the last. A man
+ * has no cycle, so never.
+ */
+export function isMoodHomebound(date: number, offset: number, gender: Gender): boolean {
+  if (gender === 'man') return false
   const index = moodIndexOf(date, offset)
   return index <= 2 || index === MOOD_CYCLE_LENGTH - 1
 }
 
-/** Whether this is a day she is down to fuck: the run of days around ovulation, by column. */
-export function isMoodLustful(date: number, offset: number, moodSwings: boolean): boolean {
+/**
+ * Whether this is a day she is down to fuck: the run of days around ovulation, by column. A
+ * man has no cycle, so never.
+ */
+export function isMoodLustful(
+  date: number,
+  offset: number,
+  moodSwings: boolean,
+  gender: Gender
+): boolean {
+  if (gender === 'man') return false
   const [first, last] = moodSwings ? LUST_DAYS.moodSwings : LUST_DAYS.normal
   const index = moodIndexOf(date, offset)
   return index >= first && index <= last
 }
 
 /**
- * The one line said about a character's mood on a day, filled with her name.
- * `moodSwings` picks the harder-felt column.
+ * The one line said about a character's mood on a day, filled with her name and pronouns;
+ * empty for a man on a day whose mood is the cycle's. `moodSwings` picks the harder-felt column.
  */
 export function moodLine(
   firstName: string,
+  gender: Gender,
   date: number,
   offset: number,
   moodSwings: boolean
 ): string {
-  const day = MOOD_CYCLE[moodIndexOf(date, offset)]
-  return (moodSwings ? day.moodSwings : day.normal).replace('{name}', firstName)
+  const index = moodIndexOf(date, offset)
+  if (gender === 'man' && CYCLE_DAYS.has(index)) return ''
+  const day = MOOD_CYCLE[index]
+  return (moodSwings ? day.moodSwings : day.normal)
+    .replace('{name}', firstName)
+    .replace('{self}', pronounsOf(gender).reflexive)
 }

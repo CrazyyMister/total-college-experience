@@ -1,8 +1,9 @@
 import { areNpcFriends, type NpcRelationshipMap } from './npcRelationships'
+import { pronounsOf } from './pronouns'
 import { applyEvent } from './relationship'
 import { upsertJealousyMemory } from './rumors'
 import { andList } from './sentences'
-import type { CharFlags, CharInfo } from './types'
+import type { CharFlags, CharInfo, Gender } from './types'
 
 /**
  * What starting to date somebody does to everybody else: a lover who has agreed to share
@@ -31,6 +32,8 @@ export interface DatingPassInput {
   /** The same entries with `foldRelationshipEvents` already applied. */
   after: Readonly<Record<string, CharInfo>>
   firstNames: Readonly<Record<string, string>>
+  /** Each roster member's gender, for the pronouns their memories are written in. */
+  genders: Readonly<Record<string, Gender>>
   npcRelationships: NpcRelationshipMap
   date: number
 }
@@ -49,6 +52,7 @@ export interface DatingPassOutcome {
  */
 export function settleDating(input: DatingPassInput): DatingPassOutcome {
   const { roster, before, after, firstNames, npcRelationships, date } = input
+  const pronounsFor = (charId: string) => pronounsOf(input.genders[charId] ?? 'woman')
   const touched: Record<string, CharInfo> = {}
   const breakups: { charId: string; forCharId: string }[] = []
 
@@ -115,7 +119,7 @@ export function settleDating(input: DatingPassInput): DatingPassOutcome {
     remember(
       charId,
       'hated',
-      `the reader broke her heart by starting to date ${startedNames} instead`
+      `the reader broke ${pronounsFor(charId).possessive} heart by starting to date ${startedNames} instead`
     )
     breakups.push({ charId, forCharId: leftFor })
   }
@@ -128,7 +132,7 @@ export function settleDating(input: DatingPassInput): DatingPassOutcome {
       remember(
         charId,
         'hated',
-        `the reader started dating ${startedNames} when she had a crush on the reader`
+        `the reader started dating ${startedNames} when ${pronounsFor(charId).subject} had a crush on the reader`
       )
       continue
     }

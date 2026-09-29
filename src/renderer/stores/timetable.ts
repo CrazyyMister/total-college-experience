@@ -139,7 +139,8 @@ export function charHiddenLocationNow(
   if (charBusyNow(charId, on, half)) return null
   // Before the homebound branch, load-bearing: a girl abroad is not in her dorm room.
   if (charAwayNow(charId, on)) return null
-  if (isMoodHomebound(on, game.charInfo[charId]?.moodCycleOffset ?? 0)) return ROOM_LOCATION
+  const gender = game.characters[charId]?.gender ?? 'woman'
+  if (isMoodHomebound(on, game.charInfo[charId]?.moodCycleOffset ?? 0, gender)) return ROOM_LOCATION
   return (
     charOverlayGroupNow(charId, on, half)?.location ??
     charStandingHauntAt(charId, on, half)?.location ??

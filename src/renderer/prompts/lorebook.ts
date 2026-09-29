@@ -11,6 +11,7 @@ import { affectionFor } from '@shared/relationship'
 import { escapeRegExp, splitSentences } from '@shared/sentences'
 import { eyeColorOf, hairColorOf, skinToneOf } from '@shared/tags'
 import { fullNameOf, type CharInfo, type Character } from '@shared/types'
+import { pronounsOf } from '@shared/pronouns'
 import { npcStandingLine } from './npcRelationship'
 import { readerStandingLine } from './relationship'
 
@@ -247,8 +248,8 @@ function matchLore(scanned: string): LoreEntry[] {
 }
 
 /** The sentence that says a described character is not here. */
-function absentNote(firstName: string): string {
-  return `${firstName} is NOT here and is background information only — do not have her appear, speak, be shown, or send messages.`
+function absentNote(character: Character): string {
+  return `${character.firstName} is NOT here and is background information only — do not have ${pronounsOf(character.gender).object} appear, speak, be shown, or send messages.`
 }
 
 /**
@@ -337,7 +338,7 @@ function appearanceSentence(character: Character): string {
     parts.length === 1
       ? parts[0]
       : `${parts.slice(0, -1).join(', ')}${parts.length > 2 ? ',' : ''} and ${parts[parts.length - 1]}`
-  return ` She has ${list}.`
+  return ` ${pronounsOf(character.gender).Subject} has ${list}.`
 }
 
 /** The paragraph itself, shared by both entry points so they cannot drift. */
@@ -358,9 +359,9 @@ function characterParagraphs(
     lines.push(
       `${fullNameOf(character)} is a ${yearLabel(info.year).toLowerCase()} majoring in ${info.major}.` +
         appearanceSentence(character) +
-        dormSentence(info.dorm) +
-        `${employer ? ` She works part-time at ${employer}.` : ''}` +
-        ` ${character.personality} ${absentNote(character.firstName)}` +
+        dormSentence(info.dorm, character.gender) +
+        `${employer ? ` ${pronounsOf(character.gender).Subject} works part-time at ${employer}.` : ''}` +
+        ` ${character.personality} ${absentNote(character)}` +
         standingSentences(character, relations) +
         `${reader ? ` ${reader}` : ''}`
     )

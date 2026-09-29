@@ -1,7 +1,8 @@
 import { formatMoney } from './money'
+import { pronounsOf } from './pronouns'
 import { markedLine } from './statusMark'
 import { hasTrait } from './traits'
-import type { Character, CharMemory, SceneLine } from './types'
+import type { Character, CharMemory, Gender, SceneLine } from './types'
 
 /**
  * The gift vocabulary: the shops the reader can buy from, every item in them, every
@@ -1108,7 +1109,7 @@ function giftReactionLine(firstName: string, reaction: GiftReaction): string {
     case 'liked':
       return `${firstName} likes it.`
     case 'neutral':
-      return `It's not ${firstName}'s usual thing, but she still appreciates it.`
+      return `It's not ${firstName}'s usual thing, but ${firstName} still appreciates it.`
     case 'unimpressed':
       return `${firstName} isn't very impressed...`
   }
@@ -1146,8 +1147,8 @@ export function giftMemoryCapFor(character: Character | undefined): number {
 }
 
 /** What a gift she kept is remembered as — the `desc` grammar every memory uses. */
-export function giftMemoryDesc(item: ItemDef): string {
-  return `the reader gave her the ${item.name}`
+export function giftMemoryDesc(item: ItemDef, gender: Gender): string {
+  return `the reader gave ${pronounsOf(gender).object} the ${item.name}`
 }
 
 /** File one gift memory, evicting to stay inside the cap. */

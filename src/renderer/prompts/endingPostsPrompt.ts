@@ -7,6 +7,7 @@ import {
   type StructuredRequest,
   type TimeSlot
 } from '@shared/types'
+import { pronounsOf } from '@shared/pronouns'
 import { formatGameDate } from './gameDate'
 import { GRADUATION_DATE } from './occasions'
 import { relationshipLines } from './relationship'
@@ -76,7 +77,7 @@ function postingLine(poster: EndingPoster): string {
   const where = poster.senior
     ? 'has graduated and is moving on from Venus University'
     : 'is home for the summer and back in the fall'
-  return `${poster.character.firstName} is posting ${days} after graduation, in the ${half}; she ${where}.`
+  return `${poster.character.firstName} is posting ${days} after graduation, in the ${half}; ${pronounsOf(poster.character.gender).subject} ${where}.`
 }
 
 /** Everybody the call names, described once each. */
@@ -130,10 +131,10 @@ export function buildEndingPostsPrompt(
     ...spaced(posterBlock(input)),
     'YOUR TURN',
     'Hey RITA, the semester is over and everybody is scattering. Write what each of them posts about it.',
-    'Fill "posts", one entry per character under STATUS UPDATES. "char" is her key exactly as written there.',
-    '"text" is the post itself: one or two short lines in her own voice, the way she would actually type it — lowercase, slang and emoji are fine if that is how she writes. It is about how the days after graduation are going for her: what she is doing, where she is, what kind of mood she is in, something small she noticed. Looking back on the semester is welcome.',
-    'Even though the semester is over, she still hasn\'t gone home yet.',
-    'She is NOT writing to the reader and must not address him, mention him, or refer to meeting anyone. No narration and no stage directions.'
+    'Fill "posts", one entry per character under STATUS UPDATES. "char" is their key exactly as written there.',
+    '"text" is the post itself: one or two short lines in their own voice, the way they would actually type it — lowercase, slang and emoji are fine if that is how they write. It is about how the days after graduation are going for them: what they are doing, where they are, what kind of mood they are in, something small they noticed. Looking back on the semester is welcome.',
+    'Even though the semester is over, they still haven\'t gone home yet.',
+    'They are NOT writing to the reader and must not address him, mention him, or refer to meeting anyone. No narration and no stage directions.'
   ].join('\n')
 
   return {

@@ -102,7 +102,7 @@ export function readerize(text: string): string {
   // The reflexive turns first, so the verb rule sees "you himself were" and lands the reader's
   // verb behind it.
   return text
-    .replace(/\bthe two of you broke up\b/gi, (m) => matchCase(m, 'she and the reader broke up'))
+    .replace(/\bthe two of you broke up\b/gi, (m) => matchCase(m, 'the two of them broke up'))
     .replace(/\byourself\b/gi, (m) => matchCase(m, 'himself'))
     .replace(/\byours?\b/gi, (m) => matchCase(m, "the reader's"))
     .replace(/\byou['’](re|ve|ll|d)\b/gi, (m, tail: string) =>

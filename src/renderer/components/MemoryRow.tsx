@@ -52,7 +52,7 @@ export function MemoryRow({
         <select
           id={`${id}-type`}
           className="vu-input vu-select"
-          aria-label="How she remembers it"
+          aria-label={`How ${name} remembers it`}
           value={type}
           onChange={(e) => {
             const picked = MEMORY_TYPES.find((memoryType) => memoryType === e.target.value)
@@ -71,7 +71,7 @@ export function MemoryRow({
         id={`${id}-desc`}
         className="vu-input vu-input--multiline vu-memrow-desc"
         rows={3}
-        aria-label="What she remembers"
+        aria-label={`What ${name} remembers`}
         value={desc}
         maxLength={MEMORY_DESC_MAX}
         autoFocus={autoFocus}

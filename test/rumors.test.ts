@@ -58,6 +58,7 @@ function passInput(over: Partial<RumorPassInput> = {}): RumorPassInput {
     groupmates: {},
     loose: [],
     firstNames: NAMES,
+    genders: {},
     ...over
   }
 }

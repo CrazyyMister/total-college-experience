@@ -1,8 +1,9 @@
 import { areNpcFriends, npcFriendsOf, type NpcRelationshipMap } from './npcRelationships'
+import { pronounsOf } from './pronouns'
 import { readerize } from './readerVoice'
 import { andList } from './sentences'
 import { shuffle } from './shuffle'
-import type { CharInfo, CharMemory, IntimateAct, Suspicion } from './types'
+import type { CharInfo, CharMemory, Gender, IntimateAct, Suspicion } from './types'
 
 /**
  * Who saw the reader with whom and who they told: the suspicion one girl carries about one
@@ -67,6 +68,8 @@ export interface RumorPassInput {
   /** Available, placed nowhere and not in the scene: who can walk past. */
   loose: readonly string[]
   firstNames: Readonly<Record<string, string>>
+  /** Each roster member's gender, for the pronouns their memories are written in. */
+  genders: Readonly<Record<string, Gender>>
 }
 
 /**
@@ -150,21 +153,22 @@ export function rumorPass(
       const teller = from === null ? '' : nameOf(from)
       let type: CharMemory['type'] = 'disliked'
       let desc: string
+      const p = pronounsOf(input.genders[w] ?? 'woman')
       if (stake.kind === 'lover') {
         if (saw) type = 'hated'
         desc = saw
-          ? `she saw the reader cheating on her with ${named}`
-          : `she heard from ${teller} that the reader cheated on her with ${named}`
+          ? `${p.subject} saw the reader cheating on ${p.object} with ${named}`
+          : `${p.subject} heard from ${teller} that the reader cheated on ${p.object} with ${named}`
       } else if (stake.kind === 'crush') {
         if (saw) type = 'hated'
         desc = saw
-          ? `she saw the reader with ${named}`
-          : `she heard from ${teller} that the reader was with ${named}`
+          ? `${p.subject} saw the reader with ${named}`
+          : `${p.subject} heard from ${teller} that the reader was with ${named}`
       } else {
         const jilted = andList(stake.jilted.map(nameOf))
         desc = saw
-          ? `she saw the reader cheating on ${jilted} with ${named}`
-          : `she heard from ${teller} that the reader cheated on ${jilted} with ${named}`
+          ? `${p.subject} saw the reader cheating on ${jilted} with ${named}`
+          : `${p.subject} heard from ${teller} that the reader cheated on ${jilted} with ${named}`
       }
       const key = `${w}|${desc}`
       if (written.has(key)) return

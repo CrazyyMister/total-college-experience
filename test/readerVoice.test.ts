@@ -76,7 +76,7 @@ describe('readerize turns a second-person memory into the reader’s voice', () 
     ['you never were on time', 'the reader never was on time'],
     ['you yourself were late', 'the reader himself was late'],
     ['the girls with you were loud', 'the girls with the reader were loud'],
-    ['the two of you broke up', 'she and the reader broke up'],
+    ['the two of you broke up', 'the two of them broke up'],
     ['you walked her home', 'the reader walked her home'],
     ['young love', 'young love']
   ])('%s → %s', (text, expected) => {

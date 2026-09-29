@@ -1186,7 +1186,7 @@ describe('the shop and gifting', () => {
     })
     useGameStore.getState().recordGifts()
     expect(useGameStore.getState().charInfo.a.giftMemories).toEqual([
-      { date: 12, type: 'loved', desc: giftMemoryDesc(itemDefOf(ROSE)!) }
+      { date: 12, type: 'loved', desc: giftMemoryDesc(itemDefOf(ROSE)!, 'woman') }
     ])
     // Nobody resents a present that missed — he still went and chose something.
     expect(useGameStore.getState().charInfo.b.giftMemories).toBeUndefined()

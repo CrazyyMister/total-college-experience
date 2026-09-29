@@ -7,6 +7,7 @@ import { DEFAULT_PLAYER_STATS, STAT_KEYS, type PlayerStats } from '@shared/playe
 import { fullDescriptionOf, kindSentenceOf, projectStandingLine } from '@shared/academics'
 import type { ClassKind, ProjectProgress } from '@shared/academics'
 import { isPosition, POSITIONS } from '@shared/positions'
+import { pronounsOf } from '@shared/pronouns'
 import { readerize } from '@shared/readerVoice'
 import { cgAction, showAction, spriteAction } from '@shared/sceneActions'
 import { andList } from '@shared/sentences'
@@ -19,30 +20,31 @@ import {
   MEMORY_CAP,
   overTextDesc
 } from '@shared/relationship'
-import { OUTFIT_SKIN_EXPOSURE } from '@shared/tags'
+import { MALE_OUTFIT_SKIN_EXPOSURE, OUTFIT_SKIN_EXPOSURE } from '@shared/tags'
 import { hasTrait } from '@shared/traits'
 import type { Weather } from '@shared/weather'
 import type { NpcRelationshipMap } from '@shared/npcRelationships'
 import {
-  allBackgrounds,
-  charKeyOf,
-  fullNameOf,
-  READER_SPEAKER,
-  roomBgIdOf,
   type ActKind,
+  allBackgrounds,
   type BackgroundSets,
   type Character,
   type CharFlags,
   type CharInfo,
   type CharJob,
+  charKeyOf,
   type CharMemory,
   type ClassEntry,
   type ClassSlot,
+  fullNameOf,
+  type Gender,
   type JobState,
   MEMORY_TYPES,
   type Occasion,
   type OutfitSet,
   type ProjectSession,
+  READER_SPEAKER,
+  roomBgIdOf,
   type SceneLine,
   type ShiftSlot,
   type SpriteRef,
@@ -309,7 +311,7 @@ const PERSONA_LINES = [
   'You generally make the reader a silent protagonist, though you occasionally describe things he does and says.',
   'You\'ve got sexy nerd energy and have been on a hundred dates, and you use that experience to make your writing shockingly realistic.',
   'You include all cast members in the scene and have them bond, fight... maybe even flirt, keeping their personalities and memories in mind as you write.',
-  'You don\'t jump to having everyone fuck, you make the women play hard to get, making everything a slow burn.',
+  'You don\'t jump to having everyone fuck, you make the characters play hard to get, making everything a slow burn.',
   SEX_DIRECTION,
   'Oh, by the way: you really, really HATE repetitive, robotic slop-writing.',
   'You dig messy, sparse prose that\'s rich with subtext. You never have characters blurt out what\'s on their mind, instead showing how they feel via actions and body language.',
@@ -359,7 +361,7 @@ function ledgerPersonaFor(lessNsfwText: boolean): string {
 
 /** What each outfit suffix means, in RITA's terms. */
 const OUTFIT_SUFFIX_GLOSS: Record<StockOutfitSet, string> = {
-  pe: 'if she\'s in her PE clothes',
+  pe: 'if they\'re in their PE clothes',
   swim: 'for swimwear',
   nude: "if her breasts or genitals have been exposed."
 }
@@ -408,7 +410,7 @@ function jsonRules(
       ? [
           `Suffix the emotion with ${andList(
             outfitSets.map((set) => `"_${set}" ${OUTFIT_SUFFIX_GLOSS[set]}`)
-          )}. An unsuffixed emotion puts her back in her main outfit. Don't remove the suffix unless the character's changed back into her default clothes.`
+          )}. An unsuffixed emotion puts them back in their main outfit. Don't remove the suffix unless the character's changed back into their default clothes.`
         ]
       : []),
     'Every "show:" must be paired with a "sprite:" in the same actions array. Afterwards, change a character\'s sprite whenever it makes sense.',
@@ -427,7 +429,7 @@ function jsonRules(
           'NEVER use a cg if the characters aren\'t actively having sex on screen.'
         ]
       : []),
-    ...bgLines(backgrounds, 'Set "bg" whenever the location changes. Pick only from the backgrounds below OR a character\'s own room (listed under her character info):')
+    ...bgLines(backgrounds, 'Set "bg" whenever the location changes. Pick only from the backgrounds below OR a character\'s own room (listed under their character info):')
   ]
 }
 
@@ -467,7 +469,7 @@ function tagProse(tags: readonly string[]): string {
   return tags.join(', ').replace(/_/g, ' ')
 }
 
-const SKIN_EXPOSURE = new Set<string>(OUTFIT_SKIN_EXPOSURE)
+const SKIN_EXPOSURE = new Set<string>([...OUTFIT_SKIN_EXPOSURE, ...MALE_OUTFIT_SKIN_EXPOSURE])
 
 /** An outfit list as prose, minus the skin-exposure tags the render alone needs. */
 function wardrobeProse(tags: readonly string[]): string {
@@ -493,7 +495,7 @@ function castBlock(cast: readonly Character[], state: PromptState): string[] {
     lines.push('', `${key} — ${fullNameOf(character)}.`)
 
     if (info?.major) {
-      lines.push(yearMajorLine(info))
+      lines.push(yearMajorLine(info, character.gender))
     }
 
     // Appearance and main outfit as their booru tags.
@@ -515,7 +517,7 @@ function castBlock(cast: readonly Character[], state: PromptState): string[] {
 
     // Her room bg, offered only when both of its images exist; scene calls only.
     if (state.roomReady[character.charId]) {
-      lines.push(`The bg for her room is ${roomBgIdOf(character)}.`)
+      lines.push(`The bg for ${pronounsOf(character.gender).possessive} room is ${roomBgIdOf(character)}.`)
     }
 
     const flags = info?.flags ?? emptyFlags()
@@ -525,6 +527,7 @@ function castBlock(cast: readonly Character[], state: PromptState): string[] {
     // What kind of day she is having.
     const mood = moodLine(
       character.firstName,
+      character.gender,
       state.date,
       info?.moodCycleOffset ?? 0,
       hasTrait(character, 'Mood-swings')
@@ -571,7 +574,7 @@ function castBlock(cast: readonly Character[], state: PromptState): string[] {
     // Where she is spending the break, from the notice through to the week after.
     lines.push(
       ...springBreakLines(
-        character.firstName,
+        character,
         info?.springBreakPlans,
         state.springBreakAway,
         character.charId,
@@ -582,7 +585,7 @@ function castBlock(cast: readonly Character[], state: PromptState): string[] {
     lines.push(...graduationCastLines(character.firstName, state.date))
     lines.push(...newJobLine(character.firstName, info?.job, state.date))
     lines.push(
-      ...droppedClassLines(character.firstName, info?.schedule, state.droppedNotices ?? [])
+      ...droppedClassLines(character, info?.schedule, state.droppedNotices ?? [])
     )
 
     // Memory budget by cast size, never by who is on screen.
@@ -651,13 +654,15 @@ export function spaced(lines: readonly string[]): string[] {
 }
 
 /** Her year and major, with the dorm clause where she has one. */
-export function yearMajorLine(info: CharInfo): string {
-  return `Year: ${yearLabel(info.year)} | Major: ${info.major}.${dormClause(info.dorm)}`
+export function yearMajorLine(info: CharInfo, gender: Gender): string {
+  return `Year: ${yearLabel(info.year)} | Major: ${info.major}.${dormClause(info.dorm, gender)}`
 }
 
 /** Everything written about who a character *is*, shared by the cast block and the phone. */
 export function profileLines(character: Character, flags: CharFlags, castSize = 1): string[] {
-  const lines: string[] = []
+  const p = pronounsOf(character.gender)
+  // The writer is never shown the subject tags, so the gender is said outright.
+  const lines: string[] = [`Gender: ${character.gender} (${p.subject}/${p.object}).`]
   if (character.personality) lines.push(character.personality)
   // A crowd of three or more gets the personality paragraph and nothing else.
   if (castSize < 3) {
@@ -739,13 +744,14 @@ export function dropsKnownTo(
 
 /** The one sentence each of those drops gets. */
 function droppedClassLines(
-  firstName: string,
+  character: Character,
   schedule: Record<number, string> | undefined,
   notices: readonly DroppedNotice[]
 ): string[] {
+  const p = pronounsOf(character.gender)
   return dropsKnownTo(schedule, notices).map(
     (notice) =>
-      `${firstName} found out you dropped ${notice.name} when she didn\'t see you on ${notice.day}.`
+      `${character.firstName} found out you dropped ${notice.name} when ${p.subject} didn't see you on ${notice.day}.`
   )
 }
 
@@ -1488,19 +1494,19 @@ export const ACT_KINDS: ReadonlyArray<readonly [ActKind, string]> = [
 const EVENT_GLOSS: ReadonlyArray<readonly [string, string]> = [
   ['became_lovers', 'they agreed to be a couple in this scene'],
   ['broke_up', 'their relationship ended in this scene'],
-  ['friendzoned_by_reader', 'the reader turned her confession down or made it clear they\'re just friends'],
-  ['friendzoned_reader', 'she turned the reader\'s confession down or made it clear they\'re just friends'],
+  ['friendzoned_by_reader', 'the reader turned the character\'s confession down or made it clear they\'re just friends'],
+  ['friendzoned_reader', 'the character turned the reader\'s confession down or made it clear they\'re just friends'],
   [
     'gave_contact_info',
-    'she gave the reader a way to reach her later or the reader gave his contact info: a phone number, email, Bunnyboard, or social media handle. Telling him where she lives or inviting him somewhere later also counts. Mentioning Bunnyboard in passing, or a campus or professor email does not count.'
+    'the character gave the reader a way to reach them later or the reader gave his contact info: a phone number, email, Bunnyboard, or social media handle. Telling him where they live or inviting him somewhere later also counts. Mentioning Bunnyboard in passing, or a campus or professor email does not count.'
   ],
   [
     'unblocked',
-    'she had the reader blocked on Bunnyboard and agreed in this scene to unblock him — only report it if the CAST block says she has him blocked'
+    'the character had the reader blocked on Bunnyboard and agreed in this scene to unblock him — only report it if the CAST block says they have him blocked'
   ],
   [
     'agreed_to_harem',
-    'she agreed in this scene to an open relationship and/or to share the reader with other girls, and not to be jealous about them'
+    'the character agreed in this scene to an open relationship and/or to share the reader with other people, and not to be jealous about them'
   ]
 ]
 
@@ -1695,9 +1701,9 @@ export function buildLedgerPrompt(
       ? [
           'MEMORIES',
           'Write a single memory of what the character should still remember weeks from now.',
-          'Each desc completes the sentence "<Name> <type> that ...", in the past tense, e.g. "the reader helped her carry books".',
-          'Call the reader "the reader" every time, never "you", "he" or "him": "the reader lent her the reader\'s notes", not "he lent her his notes".',
-          'If a scene was uneventful for someone, give her nothing.',
+          'Each desc completes the sentence "<Name> <type> that ...", in the past tense, e.g. "the reader helped them carry books".',
+          'Call the reader "the reader" every time, never "you", "he" or "him": "the reader lent them the reader\'s notes", not "he lent them his notes".',
+          'If a scene was uneventful for someone, give them nothing.',
           '',
           'EVENTS',
           'List any of these milestones that actually happened IN THIS SCENE:',
@@ -1708,12 +1714,12 @@ export function buildLedgerPrompt(
           'ACTS',
           'Report every kiss and every time the reader slept with somebody in this scene.',
           ...ACT_KINDS.map(([kind, gloss]) => `- kind "${kind}": ${gloss}`),
-          'One row per act, and "chars" is every girl who was in that act with him:',
-          '- With one girl on her own: one row naming her.',
-          '- With two or more girls at the same time — a threesome, a shared kiss, a girl joining in while he is with another: ONE row naming all of them. Never split it into a row per girl.',
-          '- With two girls separately — different moments, or different places: one row for each, naming one girl.',
-          'Repeats do not add rows: however many times the same girls kissed, that is one "kiss" row, and sleeping together is its own "sex" row beside it.',
-          '"inPublic" is true if anybody not taking part could have seen it — a passerby, somebody else in the room, a crowd — and false only when they were alone and out of sight. If the same girls were seen once and unseen once, say true.',
+          'One row per act, and "chars" is every character who was in that act with him:',
+          '- With one character on their own: one row naming them.',
+          '- With two or more characters at the same time — a threesome, a shared kiss, a character joining in while he is with another: ONE row naming all of them. Never split it into a row per character.',
+          '- With two characters separately — different moments, or different places: one row for each, naming one character.',
+          'Repeats do not add rows: however many times the same characters kissed, that is one "kiss" row, and sleeping together is its own "sex" row beside it.',
+          '"inPublic" is true if anybody not taking part could have seen it — a passerby, somebody else in the room, a crowd — and false only when they were alone and out of sight. If the same characters were seen once and unseen once, say true.',
           'An empty "acts" list is the ordinary answer.',
           'Examples, for a cast of "mina_okafor — Mina Okafor" and "hazel_kim — Hazel Kim":',
           'SCENE he kisses Mina in the library, and later that hour kisses her again in the stacks',

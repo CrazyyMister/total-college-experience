@@ -1,6 +1,6 @@
 import { globalSlotOf } from '@shared/jobs'
 import { rumorPass, upsertJealousyMemory, type RumorPassOutcome } from '@shared/rumors'
-import type { CharInfo, LedgerResponse, TimeSlot } from '@shared/types'
+import type { CharInfo, Gender, LedgerResponse, TimeSlot } from '@shared/types'
 import { stageContextOf, useGameStore } from '../gameStore'
 import { ledgerActs } from '../sceneSanitizer'
 import { stageAt } from '../stageStep'
@@ -45,9 +45,12 @@ export function rollRumorPass(
 ): RumorPassOutcome {
   const game = useGameStore.getState()
   const firstNames: Record<string, string> = {}
+  const genders: Record<string, Gender> = {}
   for (const charId of game.chars) {
     const character = game.characters[charId]
-    if (character) firstNames[charId] = character.firstName
+    if (!character) continue
+    firstNames[charId] = character.firstName
+    genders[charId] = character.gender
   }
   return rumorPass({
     slot: globalSlotOf(game.date, game.time),
@@ -62,7 +65,8 @@ export function rollRumorPass(
     npcRelationships: game.npcRelationships,
     groupmates: groupmatesNow(game.date, game.time),
     loose: looseNow(game.date, game.time),
-    firstNames
+    firstNames,
+    genders
   })
 }
 

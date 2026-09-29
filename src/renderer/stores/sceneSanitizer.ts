@@ -20,16 +20,17 @@ import { splitSentences } from '@shared/sentences'
 import { giftStatusMarkedLine } from '@shared/shop'
 import {
   allBackgrounds,
-  charKeyOf,
-  roomBgIdOf,
   type CharInfo,
+  charKeyOf,
   type CharMemory,
   type Emotion,
+  type Gender,
   type IntimateAct,
   type LedgerResponse,
   MEMORY_TYPES,
   type MemoryType,
   type RelationshipEvent,
+  roomBgIdOf,
   type SceneGift,
   type SceneLine,
   type SceneResponse,
@@ -45,7 +46,7 @@ import {
   useGameStore
 } from './gameStore'
 import { stageFactsOf, stepStage } from './stageStep'
-import { addContact, IGNORED_TEXT_DESC, TURNED_DOWN_DESC, unblockContact } from './textingLoop'
+import { addContact, ignoredTextDesc, turnedDownDesc, unblockContact } from './textingLoop'
 
 /**
  * The double quotes RITA sometimes wraps a whole line in — never single quotes, which a line can
@@ -522,11 +523,17 @@ export function memoryStatusLines(
 
   for (const entry of texted.values()) lines.push(textMemoryStatusLine(entry))
   // The invitation he spent the slot not answering, said in the same words it was recorded in.
-  for (const charId of ignored)
-    lines.push(memoryLineOf(statusNameOf(charId), { type: 'disliked', desc: IGNORED_TEXT_DESC }))
+  const genderOf = (charId: string): Gender =>
+    useGameStore.getState().characters[charId]?.gender ?? 'woman'
+  for (const charId of ignored) {
+    const desc = ignoredTextDesc(genderOf(charId))
+    lines.push(memoryLineOf(statusNameOf(charId), { type: 'disliked', desc }))
+  }
   // The invitation he did answer, and said no to.
-  for (const charId of turnedDown)
-    lines.push(memoryLineOf(statusNameOf(charId), { type: 'disliked', desc: TURNED_DOWN_DESC }))
+  for (const charId of turnedDown) {
+    const desc = turnedDownDesc(genderOf(charId))
+    lines.push(memoryLineOf(statusNameOf(charId), { type: 'disliked', desc }))
+  }
   // A present to a girl the ledger left nothing about still lands, at the end.
   for (const gift of given)
     lines.push(giftStatusMarkedLine(statusNameOf(gift.charId), gift.reaction))
@@ -625,7 +632,12 @@ export function milestoneReports(projected: ProjectedLedger): MilestoneReport[] 
   for (const charId of chars) {
     const before = charInfo[charId]?.flags ?? emptyFlags()
     const after = projected.scene[charId]?.flags ?? before
-    const lines = milestoneLinesFor(statusNameOf(charId), before, after)
+    const lines = milestoneLinesFor(
+      statusNameOf(charId),
+      useGameStore.getState().characters[charId]?.gender ?? 'woman',
+      before,
+      after
+    )
     if (lines.length === 0) continue
     reports.push({
       charId,
@@ -651,15 +663,19 @@ function datingInputOf(
 ): DatingPassInput {
   const game = useGameStore.getState()
   const firstNames: Record<string, string> = {}
+  const genders: Record<string, Gender> = {}
   for (const charId of game.chars) {
     const character = game.characters[charId]
-    if (character) firstNames[charId] = character.firstName
+    if (!character) continue
+    firstNames[charId] = character.firstName
+    genders[charId] = character.gender
   }
   return {
     roster: game.chars,
     before,
     after,
     firstNames,
+    genders,
     npcRelationships: game.npcRelationships,
     date
   }
@@ -751,7 +767,12 @@ export function projectLedger(
 
   // Last, like the apply, so the cap evicts in the same order.
   for (const [charId, events] of ledgerEvents(ledger, false)) {
-    projected[charId] = foldRelationshipEvents(entryFor(charId), events, date)
+    projected[charId] = foldRelationshipEvents(
+      entryFor(charId),
+      events,
+      date,
+      useGameStore.getState().characters[charId]?.gender ?? 'woman'
+    )
   }
 
   const dating = settleDating(datingInputOf(charInfo, projected, date))

@@ -1,3 +1,5 @@
+import { pronounsOf } from '@shared/pronouns'
+import type { Character } from '@shared/types'
 import { formatDatePart } from './gameDate'
 import { SPRING_BREAK } from './occasions'
 
@@ -52,13 +54,15 @@ export function isSpringBreakOutingWeek(date: number): boolean {
  * after she is back.
  */
 export function springBreakLines(
-  firstName: string,
+  character: Pick<Character, 'firstName' | 'gender'>,
   plans: string | undefined,
   away: readonly string[] | null | undefined,
   charId: string,
   date: number
 ): string[] {
   if (!away) return []
+  const { firstName } = character
+  const p = pronounsOf(character.gender)
   if (date < SPRING_BREAK_NOTICE || date >= SPRING_BREAK_FORGET) return []
 
   if (!away.includes(charId)) {
@@ -73,14 +77,14 @@ export function springBreakLines(
   if (date < SPRING_BREAK_LEAVE) {
     return [
       `${firstName} has spring break plans next week${tail}` +
-        " She's leaving campus on Saturday and is fully committed."
+        ` ${p.Subject}'s leaving campus on Saturday and is fully committed.`
     ]
   }
   if (date < SPRING_BREAK_RETURN) {
     return [
       `${firstName} left campus for spring break on ${formatDatePart(SPRING_BREAK_LEAVE)}` +
-        ` and can't hang out. What she's currently doing${tail}`
+        ` and can't hang out. What ${p.subject}'s currently doing${tail}`
     ]
   }
-  return [`${firstName} came back from her spring break vacation on Sunday morning${tail}`]
+  return [`${firstName} came back from ${p.possessive} spring break vacation on Sunday morning${tail}`]
 }

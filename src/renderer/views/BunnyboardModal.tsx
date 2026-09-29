@@ -1405,7 +1405,7 @@ function ProfilePage(): JSX.Element {
       0
     )
     return [
-      { id: 'bb-tally-girls', label: 'GIRLS MET', value: `${met} / ${chars.length}` },
+      { id: 'bb-tally-met', label: 'PEOPLE MET', value: `${met} / ${chars.length}` },
       {
         id: 'bb-tally-gpa',
         label: 'GPA',

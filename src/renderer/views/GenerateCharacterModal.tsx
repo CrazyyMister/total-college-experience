@@ -366,7 +366,7 @@ export function GenerateCharacterModal({
           )}
           <CheckField
             id="generate-room"
-            label="Her dorm room"
+            label={`${man ? 'His' : 'Her'} dorm room`}
             meta={ROOM}
             checked={room}
             onChange={setRoom}
