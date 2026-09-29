@@ -6,6 +6,7 @@ import { EMOTIONS } from '@shared/emotions'
 import { STAT_ATTRACTIONS } from '@shared/playerStats'
 import { POSITIONS } from '@shared/positions'
 import { ROOM_VARIANTS } from '@shared/room'
+import { sfwWithholds, withheldReason } from '@shared/sfw'
 import { fullNameOf, type Character } from '@shared/types'
 import { LandscapeTile } from '../components/LandscapeTile'
 import { useModalShell } from '../components/useModalShell'
@@ -186,8 +187,8 @@ export function CharacterModal({
                   staged={false}
                   version={version}
                   spoiler={set === 'nude'}
-                  locked={set === 'nude' && noNsfwImages}
-                  lockedReason="Hidden by SFW setting"
+                  locked={set === 'nude' && sfwWithholds('nude', noNsfwImages, character.gender)}
+                  lockedReason={withheldReason(character.gender)}
                 />
               ))}
             </div>
@@ -210,8 +211,8 @@ export function CharacterModal({
                 shownDone={cgsOnDisk}
                 total={POSITIONS.length}
                 onShow={() => setGallery(true)}
-                showLocked={noNsfwImages}
-                showLockedReason="Hidden by SFW setting"
+                showLocked={sfwWithholds('cgs', noNsfwImages, character.gender)}
+                showLockedReason={withheldReason(character.gender)}
               />
             </div>
           </div>

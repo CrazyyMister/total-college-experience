@@ -1,3 +1,4 @@
+import { mayHaveAdultArt } from '@shared/characterRules'
 import { SENIOR_YEAR, slotFullLabel } from '@shared/classes'
 import { globalSlotOf, slotFromId } from '@shared/jobs'
 import type { PlayerStats } from '@shared/playerStats'
@@ -138,11 +139,16 @@ export async function loadCgReady(cast: readonly string[]): Promise<void> {
         window.api.chars.outfits(charId),
         window.api.chars.room(charId)
       ])
-      if (status.ok) ready[charId] = POSITIONS.every((position) => status.data[position])
-      else console.warn(`[cast] could not read CGs for ${charId}:`, status.error)
+      // Adult art is never offered for somebody who may have none, whatever is on disk.
+      const adult = mayHaveAdultArt(useGameStore.getState().characters[charId]?.gender ?? 'woman')
+      if (status.ok) {
+        ready[charId] = adult && POSITIONS.every((position) => status.data[position])
+      } else console.warn(`[cast] could not read CGs for ${charId}:`, status.error)
 
-      if (outfits.ok) outfitReady[charId] = readyOutfitSets(outfits.data)
-      else console.warn(`[cast] could not read outfits for ${charId}:`, outfits.error)
+      if (outfits.ok) {
+        const sets = readyOutfitSets(outfits.data)
+        outfitReady[charId] = adult ? sets : sets.filter((set) => set !== 'nude')
+      } else console.warn(`[cast] could not read outfits for ${charId}:`, outfits.error)
 
       if (room.ok) roomReady[charId] = ROOM_VARIANTS.every((variant) => room.data[variant])
       else console.warn(`[cast] could not read the room for ${charId}:`, room.error)

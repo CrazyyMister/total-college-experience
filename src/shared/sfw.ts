@@ -1,15 +1,24 @@
+import { mayHaveAdultArt } from './characterRules'
 import { isPosition } from './positions'
 import { parseSpriteRef, spriteRef } from './outfits'
-import type { OutfitSet, Position, SetTarget, SpriteRef } from './types'
+import type { Gender, OutfitSet, Position, SetTarget, SpriteRef } from './types'
 
 /**
  * What the stage shows instead of the explicit images, when `noNsfwImages` is set, and which
  * render targets that setting withholds outright.
  */
 
-/** Whether `noNsfwImages` withholds a render target: the nude wardrobe and the CGs. */
-export function sfwWithholds(target: SetTarget, noNsfwImages: boolean): boolean {
-  return noNsfwImages && (target === 'nude' || target === 'cgs')
+/**
+ * Whether a render target is withheld: the nude wardrobe and the CGs, under `noNsfwImages` or
+ * for a character of a gender that has no adult art.
+ */
+export function sfwWithholds(target: SetTarget, noNsfwImages: boolean, gender: Gender): boolean {
+  return (noNsfwImages || !mayHaveAdultArt(gender)) && (target === 'nude' || target === 'cgs')
+}
+
+/** Why a withheld set is locked, for the cover it is drawn behind. */
+export function withheldReason(gender: Gender): string {
+  return mayHaveAdultArt(gender) ? 'Hidden by SFW setting' : 'Not available for men'
 }
 
 /** The wardrobe a substitution keeps her in: whatever her sticky reference is already wearing. */

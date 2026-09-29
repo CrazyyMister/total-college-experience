@@ -1,3 +1,4 @@
+import { romancesReader } from '@shared/characterRules'
 import { settleDating, type DatingPassInput, type DatingPassOutcome } from '@shared/dating'
 import { isCustomOutfitSlot, parseSpriteRef } from '@shared/outfits'
 import type { PlayerStats } from '@shared/playerStats'
@@ -12,7 +13,8 @@ import {
   milestoneEmotionOf,
   milestoneSoured,
   milestoneStatusLines as milestoneLinesFor,
-  overTextDesc
+  overTextDesc,
+  ROMANTIC_EVENTS
 } from '@shared/relationship'
 import { storedMemoryDesc } from '@shared/readerVoice'
 import { parseAction, showAction, spriteAction } from '@shared/sceneActions'
@@ -387,6 +389,7 @@ function ledgerTextMemories(ledger: LedgerResponse, log = true): ValidMemory[] {
 export function ledgerActs(ledger: LedgerResponse | null, log = true): IntimateAct[] {
   if (!ledger) return []
   const { charKeyToId } = useGameStore.getState()
+  const canRomance = romanceOpenTo()
   const kinds = new Set<string>(ACT_KINDS.map(([kind]) => kind))
   const byPairing = new Map<string, IntimateAct>()
 
@@ -401,6 +404,11 @@ export function ledgerActs(ledger: LedgerResponse | null, log = true): IntimateA
       if (!charId) {
         if (log)
           console.warn(`[ledger] act names unknown character "${charKey}" — leaving her out of it.`)
+        continue
+      }
+      if (!canRomance(charId)) {
+        if (log)
+          console.warn(`[ledger] act names "${charKey}", who is not his romance — leaving them out.`)
         continue
       }
       if (!charIds.includes(charId)) charIds.push(charId)
@@ -429,6 +437,7 @@ export function ledgerActs(ledger: LedgerResponse | null, log = true): IntimateA
  */
 function ledgerEvents(ledger: LedgerResponse, log = true): Map<string, RelationshipEvent[]> {
   const { charKeyToId } = useGameStore.getState()
+  const canRomance = romanceOpenTo()
   const byChar = new Map<string, RelationshipEvent[]>()
 
   for (const entry of ledger.events ?? []) {
@@ -445,6 +454,13 @@ function ledgerEvents(ledger: LedgerResponse, log = true): Map<string, Relations
       if (log)
         console.warn(
           `[ledger] "${entry.event}" reported as an event rather than an act — dropping it.`
+        )
+      continue
+    }
+    if (ROMANTIC_EVENTS.includes(entry.event) && !canRomance(charId)) {
+      if (log)
+        console.warn(
+          `[ledger] "${entry.event}" for "${entry.charKey}", who is not his romance — dropping it.`
         )
       continue
     }
@@ -468,6 +484,15 @@ function ledgerEvents(ledger: LedgerResponse, log = true): Map<string, Relations
   }
 
   return byChar
+}
+
+/** Whether a charId can be the reader's romance, off the characters as they stand now. */
+function romanceOpenTo(): (charId: string) => boolean {
+  const { characters } = useGameStore.getState()
+  return (charId) => {
+    const character = characters[charId]
+    return character !== undefined && romancesReader(character)
+  }
 }
 
 /** How a status line names a character: masked the same way the name box masks a speaker. */
@@ -554,7 +579,9 @@ function crushStatusLine(charId: string, stats: PlayerStats): string | null {
   // Nothing to advise somebody already past the roll this is about.
   if (flags.isLover || flags.hasCrush || flags.benefits) return null
 
-  const update = crushHintUpdate(statusNameOf(charId), character, stats, info?.crushHint)
+  // Somebody who cannot be his romance is won over as a friend, by the same stat.
+  const goal = romancesReader(character) ? 'interest' : 'respect'
+  const update = crushHintUpdate(statusNameOf(charId), character, stats, info?.crushHint, goal)
   // Written as the line is queued, for `spendMoney`'s reason.
   if (update.hint !== info?.crushHint) game.setCrushHint(charId, update.hint)
   return update.line

@@ -1,3 +1,4 @@
+import { romancesReader } from '@shared/characterRules'
 import { affectionFor, rollsCrush } from '@shared/relationship'
 import type { PlayerStats } from '@shared/playerStats'
 import type { CharInfo, LedgerResponse } from '@shared/types'
@@ -25,6 +26,8 @@ export function rollCrushSettle(
     const flags = info.flags
     if (flags?.hasCrush || flags?.isLover) continue
     const character = game.characters[charId]
+    // Somebody who cannot be his romance never rolls.
+    if (!character || !romancesReader(character)) continue
     if (rollsCrush(character, stats, affectionFor(info, game.date, character))) fell.push(charId)
   }
 

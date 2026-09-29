@@ -1,3 +1,4 @@
+import { romancesReader } from '@shared/characterRules'
 import {
   behaviorLevelOf,
   DISPOSITION_PHRASE,
@@ -9,6 +10,7 @@ import { pronounsOf } from '@shared/pronouns'
 import { missingCrushStatOf } from '@shared/relationship'
 import {
   DEFAULT_PLAYER_STATS,
+  STAT_ATTRACTIONS,
   STAT_REQUIREMENT_PHRASES,
   type PlayerStats
 } from '@shared/playerStats'
@@ -27,6 +29,21 @@ export interface RelationshipMedium {
   texting: boolean
   /** They have exchanged texts before this turn. */
   texted: boolean
+}
+
+/**
+ * What the writer is told about a character who cannot be the reader's romance: that, and how
+ * the stat they go for weighs on their respect for him instead.
+ */
+function notRomanceLines(character: Character, name: string, stats: PlayerStats): string[] {
+  const p = pronounsOf(character.gender)
+  const missing = missingCrushStatOf(character, stats)
+  return [
+    `${name} is not a romantic option for the reader: ${p.subject} won't flirt with him, date him, or make or accept romantic or sexual advances, and treats any from him as a joke or a misunderstanding.`,
+    missing
+      ? `${name} respects people with ${STAT_ATTRACTIONS[character.preferredStat]}, and the reader isn't there yet (he needs to be ${STAT_REQUIREMENT_PHRASES[missing]}), so ${name} is a little dismissive of him.`
+      : `${name} respects people with ${STAT_ATTRACTIONS[character.preferredStat]}, and the reader has earned it, so ${name} warms to him quickly.`
+  ]
 }
 
 /** The default every caller but the two texting builders wants. */
@@ -171,8 +188,11 @@ export function relationshipLines(
     )
   }
 
-  // Independent of the status chain; `brokenUp` only changes the tense.
-  if (!flags.isLover && !flags.hasCrush && !flags.benefits) {
+  // Not his romance at all: said outright, and the stat she goes for is what earns her respect.
+  if (!romancesReader(character)) {
+    lines.push(...notRomanceLines(character, name, stats))
+  } else if (!flags.isLover && !flags.hasCrush && !flags.benefits) {
+    // Independent of the status chain; `brokenUp` only changes the tense.
     const missingStat = missingCrushStatOf(character, stats)
     const lustful =
       mood !== undefined &&

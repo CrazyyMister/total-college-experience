@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { profileRel, roomRel, spriteRel } from '@shared/characterFiles'
-import { blankSheet, isWritten, poseKeysFor } from '@shared/characterRules'
+import { blankSheet, isWritten, mayHaveAdultArt, poseKeysFor } from '@shared/characterRules'
 import { EMOTIONS } from '@shared/emotions'
 import type { PromptEdit } from '@shared/imagePrompt'
 import {
@@ -123,6 +123,12 @@ export function cgTargetFor(position: Position): CgTarget {
 }
 
 /** True for the one-CG form. */
+/** Whether a render target is adult art: the nude wardrobe, one of its sprites, or a CG. */
+function isAdultTarget(target: RenderTarget): boolean {
+  if (target === 'nude' || target === 'cgs' || isCgTarget(target)) return true
+  return isExpressionTarget(target) && spriteOfTarget(target)?.set === 'nude'
+}
+
 function isCgTarget(target: RenderTarget): target is CgTarget {
   return target.startsWith('cg:')
 }
@@ -1071,8 +1077,8 @@ function optionalSpecs(
 
   if (options.pe) specs.push(outfit('pe'))
   if (options.swim) specs.push(outfit('swim'))
-  if (options.nude && !sfwWithholds('nude', noNsfwImages)) specs.push(outfit('nude'))
-  if (options.cgs && !sfwWithholds('cgs', noNsfwImages)) {
+  if (options.nude && !sfwWithholds('nude', noNsfwImages, character.gender)) specs.push(outfit('nude'))
+  if (options.cgs && !sfwWithholds('cgs', noNsfwImages, character.gender)) {
     specs.push({ kind: 'cgs', positions: [...POSITIONS], staged: true, ...plan('cgs') })
   }
   if (options.room) specs.push({ kind: 'room', variants: [...ROOM_VARIANTS], staged: true })
@@ -1277,7 +1283,7 @@ export function missingContentPlan(
     const defaultsPresent = doneCountOf(state.expressions, charId) === EMOTIONS.length
     if (gates.comfyReady && defaultsPresent) {
       for (const set of STOCK_OUTFIT_SETS) {
-        if (sfwWithholds(set, gates.noNsfwImages)) continue
+        if (sfwWithholds(set, gates.noNsfwImages, character.gender)) continue
         consider(set, EMOTIONS.filter((emotion) => !state.outfits[charId]?.[set]?.[emotion]).length)
       }
       // Only a slot her record carries tags for: nothing else has anything to render from.
@@ -1288,7 +1294,7 @@ export function missingContentPlan(
           EMOTIONS.filter((emotion) => !state.outfits[charId]?.[slot]?.[emotion]).length
         )
       }
-      if (!sfwWithholds('cgs', gates.noNsfwImages)) {
+      if (!sfwWithholds('cgs', gates.noNsfwImages, character.gender)) {
         consider('cgs', POSITIONS.filter((position) => !state.cgs[charId]?.[position]).length)
       }
     }
@@ -2013,6 +2019,13 @@ async function runBuckets(
     const cancelled = (): boolean => isBucketCancelled(charId, bucketId)
     // The character as the store holds it now, not as the run captured it.
     const current = get().characters[charId] ?? character
+
+    // Adult art for somebody who may have none is never rendered, whoever asked for it.
+    if (isAdultTarget(target) && !mayHaveAdultArt(current.gender)) {
+      console.warn(`[render] ${target} is not rendered for ${charId} — skipping it.`)
+      patchTask(taskId, { cancelled: true, queued: false, finished: true })
+      continue
+    }
 
     // Cancelled before it started: no jobs to abort, and the run carries on to the next set.
     if (cancelled()) {

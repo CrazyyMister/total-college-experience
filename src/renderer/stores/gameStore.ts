@@ -1,11 +1,13 @@
 import { create } from 'zustand'
+import { romancesReader } from '@shared/characterRules'
 import {
   affectionFor,
   emptyFlags,
   foldRelationshipEvents,
   MEMORY_CAP,
   refreshedFlags,
-  withMemoryReplaced
+  withMemoryReplaced,
+  withoutReaderRomance
 } from '@shared/relationship'
 import { escapeRegExp } from '@shared/sentences'
 import { pronounsOf } from '@shared/pronouns'
@@ -2048,6 +2050,15 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
         )
         if (flags === existing.flags) continue
         charInfo[charId] = { ...existing, flags }
+      }
+      // Anybody on the roster who cannot be his romance holds none, whatever an older save
+      // filed: cleared without a word, the memories of it kept.
+      for (const charId of state.chars) {
+        const character = state.characters[charId]
+        const existing = charInfo[charId]
+        if (!character || !existing || romancesReader(character)) continue
+        const cleared = withoutReaderRomance(existing)
+        if (cleared !== existing) charInfo[charId] = cleared
       }
       return { charInfo }
     }),

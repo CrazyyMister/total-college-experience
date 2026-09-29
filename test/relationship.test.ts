@@ -23,7 +23,8 @@ import {
   readerStandingOf,
   refreshedFlags,
   rollsCrush,
-  withMemoryReplaced
+  withMemoryReplaced,
+  withoutReaderRomance
 } from '@shared/relationship'
 import { pointsForTier, type PlayerStats } from '@shared/playerStats'
 import type { CharInfo, CharMemory, CrushHint, MemoryType, SocialPost } from '@shared/types'
@@ -729,7 +730,7 @@ describe('the crush roll', () => {
       char: Parameters<typeof crushHintUpdate>[1],
       block: PlayerStats,
       hint?: CrushHint
-    ): ReturnType<typeof crushHintUpdate> => crushHintUpdate('Sarah', char, block, hint)
+    ): ReturnType<typeof crushHintUpdate> => crushHintUpdate('Sarah', char, block, hint, 'interest')
 
     it('names the one stat to spend the next hour on, and remembers its tier', () => {
       expect(update(ordinary, stats())).toEqual({
@@ -793,5 +794,52 @@ describe('the crush roll', () => {
       expect(rollsCrush(ordinary, stats({ brain: GODLY }), -1, () => 0)).toBe(false)
       expect(rollsCrush(ordinary, stats({ brain: GODLY }), 0, () => 0)).toBe(true)
     })
+  })
+})
+
+/**
+ * `withoutReaderRomance` is how a save filed before the romance locks loses what a character
+ * who cannot be his romance may no longer hold; a flag it misses keeps a man as his lover.
+ */
+describe('withoutReaderRomance', () => {
+  it('clears every romantic state and the dating it left, and keeps the neutral ones', () => {
+    const entry = charInfo({
+      flags: {
+        ...emptyFlags(),
+        hasMet: true,
+        hasCrush: true,
+        isLover: true,
+        benefits: true,
+        harem: true,
+        hasKissed: true,
+        hadSex: true,
+        friendZoned: true,
+        friendZonedBy: true,
+        brokenUp: 2,
+        gaveContactInfo: true,
+        knowsTraits: true
+      },
+      datingSince: 3,
+      brokeUpOn: 5,
+      leftFor: 'other'
+    })
+
+    const cleared = withoutReaderRomance(entry)
+
+    expect(cleared.flags).toEqual({
+      ...emptyFlags(),
+      hasMet: true,
+      gaveContactInfo: true,
+      knowsTraits: true
+    })
+    expect('datingSince' in cleared).toBe(false)
+    expect('brokeUpOn' in cleared).toBe(false)
+    expect('leftFor' in cleared).toBe(false)
+    expect(cleared.memories).toBe(entry.memories)
+  })
+
+  it('hands back the same entry when there is nothing to clear', () => {
+    const entry = charInfo({ flags: { ...emptyFlags(), hasMet: true, gaveContactInfo: true } })
+    expect(withoutReaderRomance(entry)).toBe(entry)
   })
 })

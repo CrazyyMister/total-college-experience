@@ -64,9 +64,27 @@ export function poseKeysFor(poses: PoseManifest, gender: Gender): string[] {
     .sort()
 }
 
-/** Whether a character could be drawn to the reader. */
-export function drawnToReader(character: CharacterIdentity): boolean {
+/**
+ * Whether a man may ever be the reader's romance, whoever he is attracted to. Off: a man's
+ * attraction is for the other characters alone.
+ */
+const MEN_ROMANCE_READER = false
+
+/** Whether a man may ever have adult art — a nude wardrobe or CGs. Off: never rendered nor shown. */
+const MEN_ADULT_ART = false
+
+/**
+ * Whether a character can be the reader's romance: attracted to his gender, and not a man while
+ * men are kept out of it. Every romantic mechanic with the reader asks this and nothing else.
+ */
+export function romancesReader(character: CharacterIdentity): boolean {
+  if (character.gender === 'man' && !MEN_ROMANCE_READER) return false
   return character.attractedTo === READER_GENDER
+}
+
+/** Whether a character of `gender` may have adult art: a nude wardrobe or CGs. */
+export function mayHaveAdultArt(gender: Gender): boolean {
+  return gender === 'woman' || MEN_ADULT_ART
 }
 
 /** What a character record must carry; where it is kept names her. */

@@ -42,7 +42,7 @@ import { POSITIONS } from '@shared/positions'
 import { ROOM_PROMPT_LEAD, ROOM_VARIANTS } from '@shared/room'
 import { withRegenTags, type PromptGroup } from '@shared/regenTags'
 import { pictureKeySet } from '@shared/settingsRules'
-import { sfwWithholds } from '@shared/sfw'
+import { sfwWithholds, withheldReason } from '@shared/sfw'
 import { isGiftCategory } from '@shared/shop'
 import type { GiftCategory } from '@shared/shop'
 import { isCharacterTrait } from '@shared/traits'
@@ -713,7 +713,7 @@ export function EditCharacterModal({
     // A set the setting withholds is offered no control and no repair — unless a
     // render of it is still going, whose Cancel stays reachable.
     const offered =
-      sfwWithholds(target, noNsfwImages) && !taskOf(target)
+      sfwWithholds(target, noNsfwImages, form.gender) && !taskOf(target)
         ? {}
         : {
             control: setControl,
@@ -774,8 +774,8 @@ export function EditCharacterModal({
       staged: regenerating(target),
       version,
       spoiler: set === 'nude',
-      locked: set === 'nude' && noNsfwImages,
-      lockedReason: 'Hidden by SFW setting',
+      locked: set === 'nude' && sfwWithholds('nude', noNsfwImages, form.gender),
+      lockedReason: withheldReason(form.gender),
       ...offered,
       ...authored
     }
@@ -785,7 +785,7 @@ export function EditCharacterModal({
 
   // The CGs' control is withheld on the wardrobe's terms: gone under the setting, kept while
   // a render of them is still going.
-  const cgsWithheld = sfwWithholds('cgs', noNsfwImages) && !taskOf('cgs')
+  const cgsWithheld = sfwWithholds('cgs', noNsfwImages, form.gender) && !taskOf('cgs')
 
   const rendering = isInFlight(progress)
 
@@ -860,8 +860,8 @@ export function EditCharacterModal({
                 total={POSITIONS.length}
                 control={cgsWithheld ? undefined : control('cgs', cgsOnDisk, POSITIONS.length)}
                 onShow={() => setGallery(true)}
-                showLocked={noNsfwImages}
-                showLockedReason="Hidden by SFW setting"
+                showLocked={sfwWithholds('cgs', noNsfwImages, form.gender)}
+                showLockedReason={withheldReason(form.gender)}
                 hug
               />
             </div>
@@ -1347,7 +1347,7 @@ export function EditCharacterModal({
             kind="cgs"
             theme={theme}
             // The same gate the set's control reads.
-            regenEnabled={!setBlocked('cgs') && !sfwWithholds('cgs', noNsfwImages)}
+            regenEnabled={!setBlocked('cgs') && !sfwWithholds('cgs', noNsfwImages, form.gender)}
             // A single CG re-roll goes through the dirty gate as a set does.
             onRegenerate={(position) =>
               guardDirty('regenerate', () =>

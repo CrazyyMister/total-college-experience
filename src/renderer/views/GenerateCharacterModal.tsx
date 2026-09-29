@@ -344,7 +344,7 @@ export function GenerateCharacterModal({
             onChange={setSwim}
             disabled={blank}
           />
-          {!sfwWithholds('nude', noNsfwImages) && (
+          {!sfwWithholds('nude', noNsfwImages, gender) && (
             <CheckField
               id="generate-nude"
               label="Nude outfit"
@@ -354,7 +354,7 @@ export function GenerateCharacterModal({
               disabled={blank}
             />
           )}
-          {!sfwWithholds('cgs', noNsfwImages) && (
+          {!sfwWithholds('cgs', noNsfwImages, gender) && (
             <CheckField
               id="generate-cgs"
               label="NSFW CGs"
@@ -405,7 +405,8 @@ export function GenerateCharacterModal({
                       prompt.trim() || shown.prompt,
                       { gender, attractedTo },
                       !firstName.trim() && !lastName.trim(),
-                      { pe, swim, nude, cgs, room },
+                      // A man is never asked for either, whatever was ticked before the switch.
+                      { pe, swim, nude: nude && !man, cgs: cgs && !man, room },
                       reference ?? undefined
                     )
               }

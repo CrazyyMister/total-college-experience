@@ -1,5 +1,6 @@
 import { Fragment, useState, type JSX, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
+import { romancesReader } from '@shared/characterRules'
 import { slotPartsOf, yearLabel } from '@shared/classes'
 import { dormLabel } from '@shared/dorms'
 import { jobDefOf, WEEK_DAY_HEADERS } from '@shared/jobs'
@@ -19,7 +20,12 @@ import {
   MEMORY_CAP
 } from '@shared/relationship'
 import { isCharacterTrait } from '@shared/traits'
-import { type CharMemory, fullNameOf, type Gender, type StockOutfitSet } from '@shared/types'
+import {
+  type CharacterIdentity,
+  type CharMemory,
+  fullNameOf,
+  type StockOutfitSet
+} from '@shared/types'
 import { kindOf, pronounsOf } from '@shared/pronouns'
 import { formatShortGameDate } from '../prompts/gameDate'
 import { useBunnyboardStore } from '../stores/bunnyboardStore'
@@ -214,10 +220,12 @@ export function ContactPage({
                 )}
 
                 {/* Undiscovered is drawn, never hidden: the slot says what would open it (D4). */}
-                <Field label={`${pronounsOf(character.gender).Possessive} type`}>
+                <Field label={typeLabelOf(character)}>
                   {showPreferred ? (
                     <p className="vu-contact-text">
-                      {character.firstName} likes {kindOf(character.attractedTo, true)} with{' '}
+                      {romancesReader(character)
+                        ? `${character.firstName} likes ${kindOf(character.attractedTo, true)} with `
+                        : `${character.firstName} respects people with `}
                       {STAT_ATTRACTIONS[character.preferredStat]}.
                     </p>
                   ) : (
@@ -297,7 +305,7 @@ export function ContactPage({
                 </Field>
               </>
             ) : (
-              <StrangerProfile gender={character.gender} />
+              <StrangerProfile character={character} />
             )}
           </Card>
 
@@ -510,7 +518,15 @@ function Card({
  * with what unlocks it named, never omitted — an absence here would tell the reader something
  * he has no way of knowing.
  */
-function StrangerProfile({ gender }: { gender: Gender }): JSX.Element {
+/**
+ * What the preferred-stat field is called: her type for somebody who can be his romance, and
+ * what earns their respect for anybody else.
+ */
+function typeLabelOf(character: CharacterIdentity): string {
+  return romancesReader(character) ? `${pronounsOf(character.gender).Possessive} type` : 'Respects'
+}
+
+function StrangerProfile({ character }: { character: CharacterIdentity }): JSX.Element {
   return (
     <>
       <Field label="Likes">
@@ -522,7 +538,7 @@ function StrangerProfile({ gender }: { gender: Gender }): JSX.Element {
       <Field label="Traits">
         <Locked>??? — Unlocked at Friends</Locked>
       </Field>
-      <Field label={`${pronounsOf(gender).Possessive} type`}>
+      <Field label={typeLabelOf(character)}>
         <Locked>??? — Unlocked at Best Friends</Locked>
       </Field>
       <Field label="Backstory">

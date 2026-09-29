@@ -678,7 +678,8 @@ export function crushHintUpdate(
   name: string,
   character: CrushCharacter,
   stats: PlayerStats,
-  hint: CrushHint | undefined
+  hint: CrushHint | undefined,
+  goal: 'interest' | 'respect'
 ): { line: string | null; hint: CrushHint | undefined } {
   // The terminal state: nothing takes a payoff back.
   if (hint && 'met' in hint) return { line: null, hint }
@@ -691,7 +692,7 @@ export function crushHintUpdate(
     return {
       line: `Your ${hintSubject(character, hint.stat)} seem${
         hasTrait(character, 'High Standards') ? '' : 's'
-      } to have caught ${name}'s interest...`,
+      } to have ${goal === 'respect' ? `earned ${name}'s respect` : `caught ${name}'s interest`}...`,
       hint: { met: true }
     }
   }
@@ -699,7 +700,7 @@ export function crushHintUpdate(
   return {
     line: `Your ${STAT_LABELS[missing]} needs to be at least ${tierNameOf(
       crushRequirementOf(character, missing)
-    )} to catch ${name}'s interest.`,
+    )} to ${goal === 'respect' ? `earn ${name}'s respect` : `catch ${name}'s interest`}.`,
     hint: { stat: missing, tier: tierOf(stats[missing]) }
   }
 }
@@ -731,6 +732,57 @@ export function rollsCrush(
   // Never at a score `refreshedFlags` would clear it at.
   if (affection < 0) return false
   return rand() < crushChance(character, stats, affection)
+}
+
+/** The events that are romance with the reader; everything else a ledger reports is neutral. */
+export const ROMANTIC_EVENTS: readonly RelationshipEvent[] = [
+  'kissed',
+  'sex',
+  'became_lovers',
+  'broke_up',
+  'friendzoned_by_reader',
+  'friendzoned_reader',
+  'agreed_to_harem'
+]
+
+/**
+ * A character's entry with every romantic state with the reader taken off it — the flags, and
+ * the dates and names dating leaves — for a character who cannot be his romance. The same object
+ * where there was none, so a pass over the roster writes nothing it need not.
+ */
+export function withoutReaderRomance(info: CharInfo): CharInfo {
+  // Read as the store reads an entry: no flags is no romance.
+  const flags = info.flags ?? emptyFlags()
+  const romantic =
+    flags.hasCrush ||
+    flags.isLover ||
+    flags.benefits ||
+    flags.harem ||
+    flags.hasKissed ||
+    flags.hadSex ||
+    flags.friendZoned ||
+    flags.friendZonedBy ||
+    flags.brokenUp > 0
+  const dated =
+    info.datingSince !== undefined || info.brokeUpOn !== undefined || info.leftFor !== undefined
+  if (!romantic && !dated) return info
+
+  const { datingSince: _since, brokeUpOn: _ended, leftFor: _for, ...rest } = info
+  return {
+    ...rest,
+    flags: {
+      ...flags,
+      hasCrush: false,
+      isLover: false,
+      benefits: false,
+      harem: false,
+      hasKissed: false,
+      hadSex: false,
+      friendZoned: false,
+      friendZonedBy: false,
+      brokenUp: 0
+    }
+  }
 }
 
 /**

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { blankSheet, isWritten, newCharacter, readCharacterRecord } from '@shared/characterRules'
+import {
+  blankSheet,
+  isWritten,
+  newCharacter,
+  readCharacterRecord,
+  romancesReader
+} from '@shared/characterRules'
 import { EMOTIONS } from '@shared/emotions'
 import { WOMAN } from './fixtures'
 
@@ -95,5 +101,21 @@ describe('readCharacterRecord', () => {
     expect(() => readCharacterRecord(stored(1, ['long_hair']), 'x')).toThrowError(
       expect.objectContaining({ code: 'CHARACTER_SCHEMA_VERSION' })
     )
+  })
+})
+
+/**
+ * `romancesReader` is the one gate every romantic mechanic with the reader asks; a wrong answer
+ * files a crush, a kiss or a lover on somebody who can never be his.
+ */
+describe('romancesReader', () => {
+  it('lets a woman be his romance only when she is attracted to men', () => {
+    expect(romancesReader({ gender: 'woman', attractedTo: 'man' })).toBe(true)
+    expect(romancesReader({ gender: 'woman', attractedTo: 'woman' })).toBe(false)
+  })
+
+  it('never lets a man be his romance, whoever he is attracted to', () => {
+    expect(romancesReader({ gender: 'man', attractedTo: 'man' })).toBe(false)
+    expect(romancesReader({ gender: 'man', attractedTo: 'woman' })).toBe(false)
   })
 })

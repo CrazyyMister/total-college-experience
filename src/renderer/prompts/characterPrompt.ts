@@ -1,4 +1,4 @@
-import { drawnToReader, poseKeysFor, SUBJECT_TAGS, subjectTagsOf } from '@shared/characterRules'
+import { poseKeysFor, romancesReader, SUBJECT_TAGS, subjectTagsOf } from '@shared/characterRules'
 import { EMOTIONS } from '@shared/emotions'
 import {
   BREAST_SIZES,
@@ -643,11 +643,11 @@ function uniqueCategories(values: string[] | undefined): GiftCategory[] {
 const ROMANTIC_BEHAVIOR: readonly (keyof CharacterBehavior)[] = ['withCrush', 'withLover']
 
 /**
- * Fields the Generate modal treats as required before a character can render. A character not
- * drawn to the reader's gender may leave the romantic ones empty.
+ * Fields the Generate modal treats as required before a character can render. A character who
+ * cannot be the reader's romance may leave the romantic ones empty.
  */
 export function missingRequiredFields(character: Character): string[] {
-  const romantic = drawnToReader(character)
+  const romantic = romancesReader(character)
   const missing: string[] = []
   if (!character.firstName) missing.push('first name')
   if (!character.lastName) missing.push('last name')
