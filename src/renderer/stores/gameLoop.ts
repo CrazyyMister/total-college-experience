@@ -19,6 +19,7 @@ import {
 import { factoidLine, kindOf, projectProgress, projectProgressLine } from '@shared/academics'
 import { giftActionLine, itemDefOf } from '@shared/shop'
 import type { NpcSlotOverlay } from '@shared/npcRelationships'
+import type { ReaderBreakup } from '@shared/npcRomance'
 import { isSilentLine, isSlotSaveId } from '@shared/saveRules'
 import {
   charKeyOf,
@@ -26,6 +27,7 @@ import {
   type AppError,
   type CalendarEvent,
   type Character,
+  type CharInfo,
   type EventCancellation,
   type GameSave,
   type PlaythroughRecord,
@@ -182,13 +184,20 @@ import {
 import { applyCrushSettle, rollCrushSettle } from './loop/crushes'
 import { startExam } from './loop/exams'
 import { startHangoutScene } from './loop/hangouts'
-import { liveView, withCrushes, withRumorPass, type PostLedgerView } from './loop/ledgerView'
+import {
+  liveView,
+  withCrushes,
+  withReaderLosses,
+  withRumorPass,
+  type PostLedgerView
+} from './loop/ledgerView'
 import { registerLoopHooks } from './loop/hooks'
 import { failTurn, runSceneTurn } from './loop/turn'
 import { resolveProject, settleShifts } from './loop/jobs'
 import {
   applyNewFriendships,
   applyNpcOverlay,
+  applyReaderLosses,
   npcWhereaboutsFor,
   rollNpcOverlayNow,
   rollNpcRelationshipSettle,
@@ -1506,21 +1515,37 @@ async function runEnding(solo: boolean): Promise<void> {
  * The lovers the finished scene left for somebody else, for the opening that writes their
  * breakup texts. Off the projection, which is where the dump has happened.
  */
-function introBreakupsOf(projected: ProjectedLedger): IntroBreakup[] {
+function introBreakupsOf(
+  projected: ProjectedLedger,
+  drifted: readonly ReaderBreakup[],
+  charInfo: Readonly<Record<string, CharInfo>>
+): IntroBreakup[] {
   const game = useGameStore.getState()
   const breakups: IntroBreakup[] = []
-  for (const { charId, forCharId } of projected.breakups) {
-    const info = projected.charInfo[charId]
+  const add = (
+    charId: string,
+    forCharId: string,
+    info: CharInfo | undefined,
+    reason?: ReaderBreakup['reason']
+  ): void => {
     const character = game.characters[charId]
     const forFirstName = game.characters[forCharId]?.firstName
-    if (!info || !character || !forFirstName) continue
+    if (!info || !character || !forFirstName) return
     breakups.push({
       character,
       info,
       charKey: charKeyOf(character.firstName, character.lastName),
       texted: hasTexted(game.bunnyboard.conversations[charId]),
-      forFirstName
+      forFirstName,
+      ...(reason ? { reason } : {})
     })
+  }
+  for (const { charId, forCharId } of projected.breakups) {
+    add(charId, forCharId, projected.charInfo[charId])
+  }
+  // The lovers who drifted away from him: off the map the breakup has already been folded into.
+  for (const { charId, forCharId, reason } of drifted) {
+    add(charId, forCharId, charInfo[charId], reason)
   }
   return breakups
 }
@@ -1557,7 +1582,9 @@ async function fetchEndingOpening(
   const {
     relationships: npcRelationships,
     romance: npcRomance,
-    log: romanceLog
+    log: romanceLog,
+    readerBreakups,
+    rivals
   } = rollNpcRomanceSettle(
     rollNpcRelationshipSettle(bondedCharIds(ledger), groups),
     groups,
@@ -1565,9 +1592,11 @@ async function fetchEndingOpening(
     ledgerNpcRomance(ledger)
   )
   loopState.romanceLog = romanceLog
+  // The lovers who leave him and the men he displaced, as the boundary will leave them.
+  const parted = withReaderLosses(seen, readerBreakups, rivals)
 
   const view: PostLedgerView = {
-    charInfo: withCrushes(seen, crushes),
+    charInfo: withCrushes(parted, crushes),
     stats,
     // The calendar plus what the scene just agreed to.
     events: [...game.events, ...plans.events],
@@ -1590,7 +1619,9 @@ async function fetchEndingOpening(
       rumorPass: rumor,
       crushes,
       npcRelationships,
-      npcRomance
+      npcRomance,
+      readerBreakups,
+      rivals
     }
   }
 
@@ -1600,7 +1631,7 @@ async function fetchEndingOpening(
     time,
     plans.events,
     plans.cancellations,
-    introBreakupsOf(projected),
+    introBreakupsOf(projected, readerBreakups, parted),
     useGameStore.getState().sceneSummary,
     npcOverlay,
     view,
@@ -1609,7 +1640,7 @@ async function fetchEndingOpening(
   // An abandoned opening banks nothing, the rolls above included; the player replays the
   // turn.
   return opening
-    ? { ...opening, rumorPass: rumor, crushes, npcRelationships, npcRomance }
+    ? { ...opening, rumorPass: rumor, crushes, npcRelationships, npcRomance, readerBreakups, rivals }
     : null
 }
 
@@ -2417,6 +2448,9 @@ async function crossSlotBoundary(): Promise<void> {
     useGameStore.getState().setNpcRelationships(banked.npcRelationships)
     // An opening banked before romance was rolled leaves the map as it stands.
     if (banked.npcRomance) useGameStore.getState().setNpcRomance(banked.npcRomance)
+    // After the ledger's own breakups and the rumor pass, so a lover who was left or who learned
+    // of a betrayal this scene is judged as she now stands; an opening banked before drifts has none.
+    applyReaderLosses(banked.readerBreakups ?? [], banked.rivals ?? [])
     recordRomanceEvents(loopState.romanceLog)
     loopState.romanceLog = []
 

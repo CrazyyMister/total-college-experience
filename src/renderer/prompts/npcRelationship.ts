@@ -12,6 +12,7 @@ import {
   declarationOutcomeOf,
   emptyNpcRomance,
   isAttractedTo,
+  isRivalGrudge,
   npcPartnerOf,
   REJECTION_COOLDOWN_DAYS,
   type NpcRomanceMap
@@ -297,6 +298,10 @@ export interface NpcRomanceFacts {
   rejections: Array<{ from: string; to: string; date: number }>
   /** Present crush holders whose crush is the reader's lover. */
   jealous: Array<{ from: string; lover: string }>
+  /** Drifts where the reader's lover or the one she is drawn to is present. */
+  drifting: Array<{ lover: string; suitor: string }>
+  /** Men the reader displaced, present, while their grudge runs. */
+  rivals: Array<{ rival: string; lover: string; ended: number }>
 }
 
 /** Whoever the charInfo marks as the reader's lover, sorted. */
@@ -316,7 +321,15 @@ export function npcRomanceFactsOf(
   readerLovers: readonly string[],
   date: number
 ): NpcRomanceFacts {
-  const facts: NpcRomanceFacts = { couples: [], exes: [], crushes: [], rejections: [], jealous: [] }
+  const facts: NpcRomanceFacts = {
+    couples: [],
+    exes: [],
+    crushes: [],
+    rejections: [],
+    jealous: [],
+    drifting: [],
+    rivals: []
+  }
   if (!map) return facts
   const here = new Set(present)
   for (const key of Object.keys(map.couples).sort()) {
@@ -325,7 +338,19 @@ export function npcRomanceFactsOf(
   }
   for (const key of Object.keys(map.exes).sort()) {
     const [a, b] = key.split('|')
-    facts.exes.push({ a, b, since: map.exes[key].since, ended: map.exes[key].ended })
+    const ex = map.exes[key]
+    facts.exes.push({ a, b, since: ex.since, ended: ex.ended })
+    if (ex.displaced !== undefined && here.has(ex.displaced) && isRivalGrudge(ex, date)) {
+      facts.rivals.push({
+        rival: ex.displaced,
+        lover: ex.displaced === a ? b : a,
+        ended: ex.ended
+      })
+    }
+  }
+  for (const lover of Object.keys(map.drifts ?? {}).sort()) {
+    const { to } = map.drifts![lover]
+    if (here.has(lover) || here.has(to)) facts.drifting.push({ lover, suitor: to })
   }
   for (const from of Object.keys(map.crushes).sort()) {
     if (!here.has(from)) continue
@@ -407,6 +432,21 @@ export function npcRomanceLines(
     if (!holder || !object) continue
     lines.push(
       `${object.firstName} is dating the reader, so ${holder.firstName} is jealous of him and treats him coolly or with thinly veiled resentment.`
+    )
+  }
+  for (const { lover, suitor } of facts.drifting) {
+    const [she, he] = [person(lover), person(suitor)]
+    if (!she || !he) continue
+    const p = pronounsOf(she.gender)
+    lines.push(
+      `${she.firstName} and the reader are drifting apart, and ${she.firstName} has been growing closer to ${he.firstName}, who has a secret crush on ${p.object}. Nothing has been said or done: ${she.firstName} is still the reader's partner and nobody has confessed anything. Show it only in small signs — ${she.firstName} pulling away from the reader, distracted or cool with him, finding reasons to be near ${he.firstName}, ${he.firstName} a little too warm with ${p.object}. It is not for this scene to end things; the reader can still turn it around by how he treats ${p.object}.`
+    )
+  }
+  for (const { rival, lover, ended } of facts.rivals) {
+    const [man, woman] = [person(rival), person(lover)]
+    if (!man || !woman) continue
+    lines.push(
+      `${man.firstName} used to date ${woman.firstName}, and ${daysAgo(ended, today)} ${pronounsOf(woman.gender).subject} started dating the reader and ended it. ${man.firstName} resents the reader for it: cold, sarcastic or openly hostile towards him, in the way that suits ${pronounsOf(man.gender).possessive} personality.`
     )
   }
   for (const { from, to, date } of facts.rejections) {

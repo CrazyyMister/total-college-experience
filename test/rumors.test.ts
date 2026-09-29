@@ -263,7 +263,7 @@ describe('rumorPass the passerby', () => {
     expect(Object.keys(seen.suspicions)).toEqual(['w'])
 
     const quiet = rumorPass(passInput({ roster: ['p1'], loose: ['p1'] }), ALWAYS)
-    expect(quiet).toEqual({ suspicions: {}, memories: [], sightings: [] })
+    expect(quiet).toEqual({ suspicions: {}, memories: [], sightings: [], betrayed: [] })
   })
 })
 

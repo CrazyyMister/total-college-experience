@@ -24,7 +24,8 @@ import {
   refreshedFlags,
   rollsCrush,
   withMemoryReplaced,
-  withoutReaderRomance
+  withoutReaderRomance,
+  leftTheReader
 } from '@shared/relationship'
 import { pointsForTier, type PlayerStats } from '@shared/playerStats'
 import type { CharInfo, CharMemory, CrushHint, MemoryType, SocialPost } from '@shared/types'
@@ -606,6 +607,21 @@ describe('foldRelationshipEvents', () => {
       desc: 'things ended between the reader and her'
     })
     expect(folded.flags.brokenUp).toBe(1)
+  })
+
+  it('takes a lover who leaves the reader through the same fold, with the reason on the memory', () => {
+    const info = charInfo({ flags: { ...emptyFlags(), isLover: true } })
+    const left = leftTheReader(info, 7, 'woman', 'Sam', 'betrayal')
+    const reported = foldRelationshipEvents(info, ['broke_up'], 7, 'woman')
+    expect(left.flags).toEqual(reported.flags)
+    expect(left.brokeUpOn).toBe(7)
+    expect(left.memories).toHaveLength(1)
+    expect(left.memories[0].type).toBe('hated')
+    expect(left.memories[0].desc).toContain('cheating')
+    expect(leftTheReader(info, 7, 'woman', 'Sam', 'coldness').memories[0].desc).toContain('cold')
+    // Somebody who is no longer his lover is left as she is.
+    const gone = charInfo({})
+    expect(leftTheReader(gone, 7, 'woman', 'Sam', 'coldness')).toBe(gone)
   })
 
   it('drops the oldest memory rather than growing past the cap', () => {

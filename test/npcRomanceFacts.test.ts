@@ -67,7 +67,9 @@ describe('what the romance section picks', () => {
       exes: [],
       crushes: [],
       rejections: [],
-      jealous: []
+      jealous: [],
+      drifting: [],
+      rivals: []
     })
   })
 })

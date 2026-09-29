@@ -2,7 +2,7 @@ import type { JSX } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'motion/react'
 import { pairKeyOf } from '@shared/npcRelationships'
-import { REJECTION_COOLDOWN_DAYS } from '@shared/npcRomance'
+import { isRivalGrudge, REJECTION_COOLDOWN_DAYS } from '@shared/npcRomance'
 import { useModalShell } from '../components/useModalShell'
 import { TitleTab } from '../components/TitleTab'
 import { useGameStore } from '../stores/gameStore'
@@ -40,7 +40,7 @@ function sectionsOf(): DebugSection[] {
   }
   const affinity = (a: string, b: string): string =>
     `affinity ${game.npcRelationships[pairKeyOf(a, b)]?.affinity ?? '—'}`
-  const { crushes, couples, exes, rejections, discovered = {} } = game.npcRomance
+  const { crushes, couples, exes, rejections, discovered = {}, drifts = {} } = game.npcRomance
 
   return [
     {
@@ -71,9 +71,25 @@ function sectionsOf(): DebugSection[] {
         return {
           key,
           who: `${name(a)} & ${name(b)}`,
-          facts: `${dated(ex.since)} to ${dated(ex.ended)} · ${affinity(a, b)}`
+          facts: `${dated(ex.since)} to ${dated(ex.ended)} · ${affinity(a, b)}${
+            ex.displaced !== undefined
+              ? ` · ${name(ex.displaced)} displaced by the reader${
+                  isRivalGrudge(ex, game.date) ? ', grudge running' : ', grudge over'
+                }`
+              : ''
+          }`
         }
       })
+    },
+    {
+      title: 'Drifting from the reader',
+      rows: Object.entries(drifts).map(([lover, drift]) => ({
+        key: lover,
+        who: `${name(lover)} is drifting towards ${name(drift.to)}`,
+        facts: `since ${dated(drift.since)} · ${drift.signs} signs${
+          drift.lastSign !== undefined ? ` · last ${dated(drift.lastSign)}` : ''
+        }`
+      }))
     },
     {
       title: 'Rejections',

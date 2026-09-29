@@ -1,5 +1,6 @@
 import { affectionFor, dedupedMemoriesFor, emptyFlags } from '@shared/relationship'
 import { DEFAULT_PLAYER_STATS, type PlayerStats } from '@shared/playerStats'
+import { pronounsOf } from '@shared/pronouns'
 import {
   fullNameOf,
   type CalendarEvent,
@@ -55,8 +56,13 @@ export interface IntroBreakup {
   charKey: string
   /** Whether a Bunnyboard thread with her already holds anything (`hasTexted`). */
   texted: boolean
-  /** The first name of the girl he started dating instead. */
+  /** The first name of the girl he started dating instead, or the one she has grown closer to. */
   forFirstName: string
+  /**
+   * Why she leaves when it is her own doing rather than his dating somebody else: things went
+   * cold, or she could not forgive his cheating.
+   */
+  reason?: 'coldness' | 'betrayal'
 }
 
 /**
@@ -264,10 +270,17 @@ function breakupBlock(input: SlotIntroInput): string[] {
 
   return [
     'BREAKING UP',
-    'Each of these characters has just found out the reader started dating somebody else and is ending things with him over text right now. Write one entry in "breakups" for each, and nothing for anyone else. They are described under LOREBOOK.',
-    ...input.breakups.map(
-      ({ charKey, forFirstName }) => `- ${charKey} — he started dating ${forFirstName}`
-    )
+    'Each of these characters is ending things with the reader over text right now, for the reason given beside them. Write one entry in "breakups" for each, and nothing for anyone else. They are described under LOREBOOK.',
+    ...input.breakups.map(({ charKey, character, forFirstName, reason }) => {
+      const p = pronounsOf(character.gender)
+      if (reason === 'coldness') {
+        return `- ${charKey} — things have gone cold between them, and ${p.subject} has been growing closer to ${forFirstName}`
+      }
+      if (reason === 'betrayal') {
+        return `- ${charKey} — ${p.subject} could not forgive him for cheating on ${p.object}, and has been growing closer to ${forFirstName}`
+      }
+      return `- ${charKey} — he started dating ${forFirstName}`
+    })
   ]
 }
 
@@ -409,7 +422,7 @@ export function buildSlotIntroPrompt(
     ...(input.breakups.length > 0
       ? [
           '',
-          'Then fill "breakups", one entry per character under BREAKING UP. "char" is their key exactly as written there. "texts" is two to four short messages they send one after another, in their own texting voice — lowercase, slang, typos and emoji are all fine if that is how they type — breaking up with the reader because he started dating the character named beside them: how they found out, how they feel about it, and that it is over. No narration, no stage directions, no reply from the reader.',
+          'Then fill "breakups", one entry per character under BREAKING UP. "char" is their key exactly as written there. "texts" is two to four short messages they send one after another, in their own texting voice — lowercase, slang, typos and emoji are all fine if that is how they type — breaking up with the reader for the reason given beside them: what led to it, how they feel about it, and that it is over. Where the reason names somebody they have grown closer to, that person is not their partner and nothing has happened with them yet: do not say otherwise. No narration, no stage directions, no reply from the reader.',
           'The narration in "lines" must not mention these messages or these characters at all — the reader has not opened his phone yet.'
         ]
       : [

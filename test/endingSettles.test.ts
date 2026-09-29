@@ -5,9 +5,10 @@ import type { LedgerResponse } from '@shared/types'
 import { buildCharKeyToId, useGameStore } from '../src/renderer/stores/gameStore'
 import { projectLedger } from '../src/renderer/stores/sceneSanitizer'
 import { applyRumorPass, rollRumorPass } from '../src/renderer/stores/loop/rumors'
-import { rollNpcRelationshipSettle } from '../src/renderer/stores/loop/npc'
+import { applyReaderLosses, rollNpcRelationshipSettle } from '../src/renderer/stores/loop/npc'
 import { applyCrushSettle, rollCrushSettle } from '../src/renderer/stores/loop/crushes'
-import { withRumorPass } from '../src/renderer/stores/loop/ledgerView'
+import { withReaderLosses, withRumorPass } from '../src/renderer/stores/loop/ledgerView'
+import { emptyFlags } from '@shared/relationship'
 import { pointsForTier } from '@shared/playerStats'
 import { character, charactersById, charInfo } from './fixtures'
 
@@ -84,7 +85,8 @@ describe('rollRumorPass', () => {
     expect(rollRumorPass({ memories: [], events: [] })).toEqual({
       suspicions: {},
       memories: [],
-      sightings: []
+      sightings: [],
+      betrayed: []
     })
   })
 })
@@ -123,6 +125,49 @@ describe('withRumorPass', () => {
     expect(seen.c.suspicions).toEqual(outcome.suspicions.c)
     // By value: the map it was handed is the save's own and stays as it was.
     expect(projection.c.suspicions).toBeUndefined()
+  })
+})
+
+describe('the reader’s losses', () => {
+  const breakups = [{ charId: 'b', forCharId: 'a', reason: 'coldness' as const }]
+  const lover = () =>
+    useGameStore.setState({
+      characters: charactersById(sarah, mina, character({ charId: 'c', gender: 'man' })),
+      charInfo: {
+        a: charInfo(),
+        b: charInfo({ flags: { ...emptyFlags(), isLover: true } }),
+        c: charInfo()
+      }
+    })
+
+  it('projects the lover leaving and the rival’s grudge exactly as the boundary files them', () => {
+    lover()
+    const projected = withReaderLosses(useGameStore.getState().charInfo, breakups, ['c'])
+    applyReaderLosses(breakups, ['c'])
+    const filed = useGameStore.getState().charInfo
+    expect(projected.b).toEqual(filed.b)
+    expect(projected.c).toEqual(filed.c)
+    expect(filed.b.flags.isLover).toBe(false)
+    expect(filed.b.brokeUpOn).toBe(7)
+  })
+
+  it('is safe to replay: she is not broken up with twice and the rival keeps one memory', () => {
+    lover()
+    applyReaderLosses(breakups, ['c'])
+    const once = useGameStore.getState().charInfo
+    applyReaderLosses(breakups, ['c'])
+    const again = useGameStore.getState().charInfo
+    expect(again.b.flags.brokenUp).toBe(1)
+    expect(again.b.memories).toHaveLength(once.b.memories.length)
+    expect(again.c.jealousyMemories).toHaveLength(1)
+  })
+
+  it('dates the day a lover learned of a betrayal, in the projection and in the store', () => {
+    lover()
+    const outcome = { suspicions: {}, memories: [], sightings: [], betrayed: ['b'] }
+    expect(withRumorPass(useGameStore.getState().charInfo, outcome).b.betrayedOn).toBe(7)
+    applyRumorPass(outcome)
+    expect(useGameStore.getState().charInfo.b.betrayedOn).toBe(7)
   })
 })
 

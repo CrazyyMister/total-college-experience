@@ -16,10 +16,15 @@ import {
   type NpcSlotOverlay
 } from '@shared/npcRelationships'
 import {
+  rivalMemoryOf,
   settleNpcRomance,
   type NpcRomanceOutcome,
-  type NpcSceneEvent
+  type NpcSceneEvent,
+  type ReaderBreakup,
+  type ReaderLoverState
 } from '@shared/npcRomance'
+import { affectionFor } from '@shared/relationship'
+import { upsertJealousyMemory } from '@shared/rumors'
 import type { CharInfo, Haunt, TimeSlot } from '@shared/types'
 import { globalSlotOf, shiftSlotOf } from '@shared/jobs'
 import { classSlotOf, hauntClosedOn } from '../../prompts/occasions'
@@ -189,6 +194,16 @@ export function rollNpcRomanceSettle(
   sceneEvents: readonly NpcSceneEvent[] = []
 ): NpcRomanceOutcome {
   const game = useGameStore.getState()
+  const readerLovers = game.chars.filter((charId) => charInfo[charId]?.flags?.isLover)
+  const loverStates: Record<string, ReaderLoverState> = {}
+  for (const charId of readerLovers) {
+    const info = charInfo[charId]
+    loverStates[charId] = {
+      affection: affectionFor(info, game.date, game.characters[charId]),
+      harem: info?.flags?.harem === true,
+      ...(info?.betrayedOn !== undefined ? { betrayedOn: info.betrayedOn } : {})
+    }
+  }
   return settleNpcRomance({
     date: game.date,
     // Sunday night closes the week.
@@ -197,10 +212,48 @@ export function rollNpcRomanceSettle(
     romance: game.npcRomance,
     groups,
     cast: game.cast,
-    readerLovers: game.chars.filter((charId) => charInfo[charId]?.flags?.isLover),
+    readerLovers,
     characters: game.characters,
-    sceneEvents
+    sceneEvents,
+    loverStates,
+    signed: driftSignsShown(readerLovers)
   })
+}
+
+/**
+ * The drifting lovers whose signs a scene or a thread carried this slot: she or the one she is
+ * drawn to was in the cast, or a message was exchanged with either today. The drift was on the
+ * map before the slot, which is what put the signs in those prompts.
+ */
+function driftSignsShown(readerLovers: readonly string[]): string[] {
+  const game = useGameStore.getState()
+  const drifts = game.npcRomance.drifts ?? {}
+  const spoke = (charId: string): boolean =>
+    game.bunnyboard.conversations[charId]?.messages.some(
+      (message) => message.sender !== 'system' && message.date === game.date
+    ) === true
+  return readerLovers.filter((lover) => {
+    const drift = drifts[lover]
+    if (!drift) return false
+    return [lover, drift.to].some((charId) => game.cast.includes(charId) || spoke(charId))
+  })
+}
+
+/**
+ * Files what an ending banked about the reader's losses: the lovers who leave him, through the
+ * same fold a reported breakup takes, and the grudge memory of each man he displaced. Idempotent,
+ * so the boundary can replay off its own save.
+ */
+export function applyReaderLosses(breakups: readonly ReaderBreakup[], rivals: readonly string[]): void {
+  const game = useGameStore.getState()
+  game.applyReaderBreakups(breakups)
+  for (const charId of rivals) {
+    const held = game.charInfo[charId]?.jealousyMemories
+    game.setJealousyMemories(
+      charId,
+      upsertJealousyMemory(held, rivalMemoryOf(game.characters[charId], game.date))
+    )
+  }
 }
 
 /**

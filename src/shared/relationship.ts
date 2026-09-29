@@ -493,7 +493,8 @@ export function foldRelationshipEvents(
   info: CharInfo,
   events: readonly RelationshipEvent[],
   date: number,
-  gender: Gender
+  gender: Gender,
+  endedBecause?: string
 ): CharInfo {
   const them = pronounsOf(gender).object
   const before = info.flags ?? emptyFlags()
@@ -510,7 +511,8 @@ export function foldRelationshipEvents(
   }
   // Keyed on the count, so a second breakup writes a second memory.
   if (flags.brokenUp > before.brokenUp) {
-    milestones.push({ date, type: 'hated', desc: `things ended between the reader and ${them}` })
+    const why = endedBecause ? ` ${endedBecause}` : ''
+    milestones.push({ date, type: 'hated', desc: `things ended between the reader and ${them}${why}` })
   }
 
   const folded: CharInfo = {
@@ -529,6 +531,27 @@ export function foldRelationshipEvents(
     return together
   }
   return folded
+}
+
+/**
+ * A lover who leaves the reader drawn to somebody else: the same fold a reported breakup takes,
+ * with the reason on the memory it files. A lover no longer his is left as she is.
+ */
+export function leftTheReader(
+  info: CharInfo,
+  date: number,
+  gender: Gender,
+  forFirstName: string | undefined,
+  reason: 'coldness' | 'betrayal'
+): CharInfo {
+  if (!info.flags?.isLover) return info
+  const p = pronounsOf(gender)
+  const closer = forFirstName ? ` and had grown closer to ${forFirstName}` : ''
+  const because =
+    reason === 'betrayal'
+      ? `because ${p.subject} could not forgive the reader for cheating on ${p.object}${closer}`
+      : `because things had gone cold between them${closer}`
+  return foldRelationshipEvents(info, ['broke_up'], date, gender, because)
 }
 
 /**

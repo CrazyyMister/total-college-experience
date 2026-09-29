@@ -84,4 +84,8 @@ export function applyRumorPass(outcome: RumorPassOutcome): void {
     const held = useGameStore.getState().charInfo[charId]?.jealousyMemories
     useGameStore.getState().setJealousyMemories(charId, upsertJealousyMemory(held, memory))
   }
+  // The pass's own date is the finished slot's, which the clock has not left yet.
+  for (const charId of outcome.betrayed ?? []) {
+    useGameStore.getState().setBetrayedOn(charId, useGameStore.getState().date)
+  }
 }

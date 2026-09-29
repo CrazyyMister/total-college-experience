@@ -1,4 +1,5 @@
-import type { Character } from './types'
+import type { Character, CharMemory } from './types'
+import { pronounsOf } from './pronouns'
 import { hasTrait } from './traits'
 import {
   MAX_AFFINITY,
@@ -52,6 +53,19 @@ export const BREAKUP_BELOW = 0
 /** What a breakup costs the pair on top of what brought it about. */
 export const EX_AFFINITY_DROP = 1
 
+/** The reader's lover starts drifting once her affection for him is this low or lower. */
+export const DRIFT_OPENS_AT = -15
+/** A drift ends once her affection climbs above this, unless he betrayed her lately. */
+export const DRIFT_HOLDS_ABOVE = -10
+/** How many days a betrayal counts as recent for a drift. */
+export const BETRAYAL_WINDOW_DAYS = 21
+/** The fewest days a drift runs before she may leave the reader. */
+export const DRIFT_MIN_DAYS = 10
+/** The fewest days on which a sign of the drift must have been shown before she may leave. */
+export const DRIFT_MIN_SIGNS = 2
+/** How many days the reader's rival keeps his grudge for the reader taking his girlfriend. */
+export const RIVAL_DAYS = 30
+
 /** One character's crush on another, keyed on the save by who holds it. */
 export interface NpcCrush {
   to: string
@@ -70,6 +84,26 @@ export interface NpcCouple {
 export interface NpcEx {
   since: number
   ended: number
+  /**
+   * Set when the couple ended because one of them started dating the reader: the other, whom he
+   * displaced and who is his rival.
+   */
+  displaced?: string
+}
+
+/**
+ * The reader's lover growing distant from him and closer to somebody with a crush on her,
+ * keyed by her charId: the run-up to her leaving him.
+ */
+export interface NpcDrift {
+  /** The character with the crush on her she is drawn to. */
+  to: string
+  /** The date the drift opened. */
+  since: number
+  /** The days on which a scene or a thread carried the signs of it. */
+  signs: number
+  /** The latest of those days, so one day counts once. */
+  lastSign?: number
 }
 
 /** A turned-down declaration, keyed by {@link directedKeyOf}. */
@@ -93,6 +127,8 @@ export interface NpcRomanceMap {
   rejections: Record<string, NpcRejection>
   /** Crushes the reader knows of; dropped once the crush it names is gone. Absent means none. */
   discovered?: Record<string, NpcDiscovery>
+  /** Drifts under way, keyed by the reader's lover. Absent means none. */
+  drifts?: Record<string, NpcDrift>
 }
 
 /** The kinds of row a scene ledger reports between two roster characters. */
@@ -112,7 +148,17 @@ export interface NpcRomanceLogEntry {
   date: number
   /** Whether a scene showed it or the settle rolled it. */
   source: 'scene' | 'system'
-  kind: 'crush' | 'accepted' | 'rejected' | 'fight' | 'breakup' | 'discovered' | 'discarded'
+  kind:
+    | 'crush'
+    | 'accepted'
+    | 'rejected'
+    | 'fight'
+    | 'breakup'
+    | 'discovered'
+    | 'discarded'
+    | 'drift'
+    | 'drift_ended'
+    | 'left_reader'
   from: string
   to: string
   /** For a discarded scene event, what it was and why it could not stand. */
@@ -176,6 +222,28 @@ export interface NpcRomanceInput {
   characters: Record<string, Character>
   /** What the finished scene showed, applied before anything is rolled; absent means nothing. */
   sceneEvents?: readonly NpcSceneEvent[]
+  /** How each of the reader's lovers stands with him; absent means no drift is judged. */
+  loverStates?: Readonly<Record<string, ReaderLoverState>>
+  /** The lovers a scene or a thread with the signs of their drift was held for this slot. */
+  signed?: readonly string[]
+}
+
+/** What a drift reads of the reader's lover. */
+export interface ReaderLoverState {
+  /** Her affection for the reader, as the prompts carry it. */
+  affection: number
+  /** She agreed to share him: nothing to be cold or betrayed over. */
+  harem: boolean
+  /** The date she last found out he cheated on her. */
+  betrayedOn?: number
+}
+
+/** A lover who leaves the reader, and why. */
+export interface ReaderBreakup {
+  charId: string
+  /** Who she is drawn to. */
+  forCharId: string
+  reason: 'coldness' | 'betrayal'
 }
 
 /** What a settle returns: both maps, and what happened. */
@@ -184,6 +252,10 @@ export interface NpcRomanceOutcome {
   romance: NpcRomanceMap
   tally: NpcRomanceTally
   log: NpcRomanceLogEntry[]
+  /** The reader's lovers whose drift ended in leaving him; the boundary breaks them up. */
+  readerBreakups: ReaderBreakup[]
+  /** The men the reader displaced this settle, who each owe him a grudge memory. */
+  rivals: string[]
 }
 
 /** What a declaration between two characters can come to: nothing, only a no, or either answer. */
@@ -221,6 +293,36 @@ export function declarationOutcomeOf(
     return 'refusal_only'
   }
   return 'open'
+}
+
+/** Whether the reader betrayed her lately enough for a drift. */
+export function betrayalIsRecent(betrayedOn: number | undefined, date: number): boolean {
+  return betrayedOn !== undefined && date - betrayedOn < BETRAYAL_WINDOW_DAYS
+}
+
+/**
+ * Whether the reader's lover is cold enough, or betrayed enough, for a drift: the bar to open one
+ * is lower than the bar to keep one, so a lover hovering near it does not flicker. A lover who
+ * shares him never drifts.
+ */
+export function driftsFrom(state: ReaderLoverState, date: number, running: boolean): boolean {
+  if (state.harem) return false
+  if (betrayalIsRecent(state.betrayedOn, date)) return true
+  return running ? state.affection <= DRIFT_HOLDS_ABOVE : state.affection <= DRIFT_OPENS_AT
+}
+
+/**
+ * The memory a man the reader displaced keeps of him. It names nobody, so upserting it files one
+ * entry per rival however many times or for whomever he is displaced.
+ */
+export function rivalMemoryOf(character: Character | undefined, date: number): CharMemory {
+  const possessive = pronounsOf(character?.gender ?? 'man').possessive
+  return { date, type: 'hated', desc: `the reader started dating ${possessive} girlfriend` }
+}
+
+/** Whether an ex pair is one the reader broke up and the grudge for it still runs. */
+export function isRivalGrudge(ex: NpcEx, date: number): boolean {
+  return ex.displaced !== undefined && date - ex.ended < RIVAL_DAYS
 }
 
 /** Holds an affinity inside the pair map's range. */
@@ -289,8 +391,11 @@ export function settleNpcRomance(
     couples: { ...input.romance.couples },
     exes: { ...input.romance.exes },
     rejections: { ...input.romance.rejections },
-    ...(input.romance.discovered ? { discovered: { ...input.romance.discovered } } : {})
+    ...(input.romance.discovered ? { discovered: { ...input.romance.discovered } } : {}),
+    ...(input.romance.drifts ? { drifts: { ...input.romance.drifts } } : {})
   }
+  const readerBreakups: ReaderBreakup[] = []
+  const rivals: string[] = []
   const tally: NpcRomanceTally = {
     crushes: 0,
     declarations: 0,
@@ -313,11 +418,19 @@ export function settleNpcRomance(
   const affinityOf = (a: string, b: string): number =>
     relationships[pairKeyOf(a, b)]?.affinity ?? 0
 
-  const breakUp = (key: string, a: string, b: string): void => {
+  const breakUp = (key: string, a: string, b: string, byReader = false): void => {
     const couple = romance.couples[key]
     delete romance.couples[key]
-    romance.exes[key] = { since: couple.since, ended: date }
+    // The one of the two who is not the reader's lover is the man he displaced.
+    const rival = byReader ? (readerLovers.has(a) ? b : a) : undefined
+    const displaced = rival !== undefined && !readerLovers.has(rival) ? rival : undefined
+    romance.exes[key] = {
+      since: couple.since,
+      ended: date,
+      ...(displaced !== undefined ? { displaced } : {})
+    }
     shiftAffinity(relationships, a, b, -EX_AFFINITY_DROP)
+    if (displaced !== undefined && !rivals.includes(displaced)) rivals.push(displaced)
   }
 
   // Couples: the week's fight, then the breakup a sour pair or the reader's lover ends in.
@@ -329,8 +442,9 @@ export function settleNpcRomance(
       tally.fights++
       note('system', 'fight', a, b)
     }
-    if (affinityOf(a, b) < BREAKUP_BELOW || readerLovers.has(a) || readerLovers.has(b)) {
-      breakUp(key, a, b)
+    const byReader = readerLovers.has(a) || readerLovers.has(b)
+    if (affinityOf(a, b) < BREAKUP_BELOW || byReader) {
+      breakUp(key, a, b, byReader)
       tally.breakups++
       note('system', 'breakup', a, b)
     }
@@ -410,6 +524,8 @@ export function settleNpcRomance(
     ] as const) {
       const crush = romance.crushes[from]
       if (!crush || crush.to !== to) continue
+      // A crush on the reader's lover is kept to itself while she is his: no roll, no answer.
+      if (readerLovers.has(to)) continue
       if (date - crush.since < DECLARE_AFTER_DAYS) continue
       if (coupleCountOf(romance) >= MAX_COUPLES) continue
       if (rand() >= DECLARE_CHANCE) continue
@@ -429,6 +545,65 @@ export function settleNpcRomance(
         note('system', 'rejected', from, to)
       }
     }
+  }
+
+  // Drifts: the signs shown count, the ones that no longer hold end, and the ones that have run
+  // their course end with her leaving the reader. Only drifts already on the map carried their
+  // signs into this slot's scene, so a drift opened below counts none yet.
+  const signed = new Set(input.signed ?? [])
+  const loverStates = input.loverStates ?? {}
+  const suitorContext: DeclarationContext = { date, characters, readerLovers: [] }
+  // Whether `from` could still declare to her and be answered, her being counted as free.
+  const suitorStands = (from: string, lover: string): boolean =>
+    romance.crushes[from]?.to === lover &&
+    declarationOutcomeOf(romance, from, lover, suitorContext) === 'open'
+
+  for (const lover of Object.keys(romance.drifts ?? {}).sort()) {
+    const drift = romance.drifts![lover]
+    const state = loverStates[lover]
+    const endDrift = (): void => {
+      delete romance.drifts![lover]
+      note('system', 'drift_ended', lover, drift.to)
+    }
+    if (!readerLovers.has(lover) || !state || !driftsFrom(state, date, true)) {
+      endDrift()
+      continue
+    }
+    if (!suitorStands(drift.to, lover)) {
+      endDrift()
+      continue
+    }
+    let running = drift
+    if (signed.has(lover) && drift.lastSign !== date) {
+      running = { ...drift, signs: drift.signs + 1, lastSign: date }
+      romance.drifts![lover] = running
+    }
+    if (date - running.since >= DRIFT_MIN_DAYS && running.signs >= DRIFT_MIN_SIGNS) {
+      delete romance.drifts![lover]
+      readerBreakups.push({
+        charId: lover,
+        forCharId: running.to,
+        reason: betrayalIsRecent(state.betrayedOn, date) ? 'betrayal' : 'coldness'
+      })
+      note('system', 'left_reader', lover, running.to)
+    }
+  }
+
+  // A lover who has cause and somebody who could take her: the oldest crush wins, so the pick is
+  // the same whatever order the map was written in.
+  for (const lover of [...readerLovers].sort()) {
+    const state = loverStates[lover]
+    if (!state || romance.drifts?.[lover] || !driftsFrom(state, date, false)) continue
+    if (readerBreakups.some(({ charId }) => charId === lover)) continue
+    const suitors = Object.keys(romance.crushes)
+      .filter(
+        (from) =>
+          suitorStands(from, lover) && affinityOf(from, lover) >= ACCEPT_AFFINITY
+      )
+      .sort((a, b) => romance.crushes[a].since - romance.crushes[b].since || (a < b ? -1 : 1))
+    if (suitors.length === 0) continue
+    romance.drifts = { ...romance.drifts, [lover]: { to: suitors[0], since: date, signs: 0 } }
+    note('system', 'drift', lover, suitors[0])
   }
 
   // New crushes, off the encounters this slot's affinity settle stamped as positive.
@@ -460,5 +635,7 @@ export function settleNpcRomance(
     }
   }
 
-  return { relationships, romance, tally, log }
+  if (romance.drifts && Object.keys(romance.drifts).length === 0) delete romance.drifts
+
+  return { relationships, romance, tally, log, readerBreakups, rivals }
 }

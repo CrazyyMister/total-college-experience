@@ -1,6 +1,7 @@
-import { emptyFlags } from '@shared/relationship'
+import { emptyFlags, leftTheReader } from '@shared/relationship'
 import { upsertJealousyMemory, type RumorPassOutcome } from '@shared/rumors'
 import type { NpcRelationshipMap } from '@shared/npcRelationships'
+import { rivalMemoryOf, type ReaderBreakup } from '@shared/npcRomance'
 import type { PlayerStats } from '@shared/playerStats'
 import type { CalendarEvent, CharInfo } from '@shared/types'
 import { blankCharInfo, useGameStore } from '../gameStore'
@@ -37,7 +38,8 @@ export function liveView(): PostLedgerView {
  */
 export function withRumorPass(
   charInfo: Readonly<Record<string, CharInfo>>,
-  outcome: RumorPassOutcome
+  outcome: RumorPassOutcome,
+  date: number = useGameStore.getState().date
 ): Record<string, CharInfo> {
   const projected: Record<string, CharInfo> = { ...charInfo }
   for (const [charId, records] of Object.entries(outcome.suspicions)) {
@@ -55,6 +57,44 @@ export function withRumorPass(
     projected[charId] = {
       ...info,
       jealousyMemories: upsertJealousyMemory(info.jealousyMemories, memory)
+    }
+  }
+  for (const charId of outcome.betrayed ?? []) {
+    projected[charId] = { ...(projected[charId] ?? blankCharInfo()), betrayedOn: date }
+  }
+  return projected
+}
+
+/**
+ * A projected `charInfo` with the lovers who leave the reader at this boundary already gone, the
+ * way `applyReaderBreakups` leaves them, and the grudge memory each man he displaced is owed.
+ */
+export function withReaderLosses(
+  charInfo: Readonly<Record<string, CharInfo>>,
+  breakups: readonly ReaderBreakup[],
+  rivals: readonly string[]
+): Record<string, CharInfo> {
+  const game = useGameStore.getState()
+  const projected: Record<string, CharInfo> = { ...charInfo }
+  for (const { charId, forCharId, reason } of breakups) {
+    const info = projected[charId]
+    if (!info) continue
+    projected[charId] = leftTheReader(
+      info,
+      game.date,
+      game.characters[charId]?.gender ?? 'woman',
+      game.characters[forCharId]?.firstName,
+      reason
+    )
+  }
+  for (const charId of rivals) {
+    const info = projected[charId] ?? blankCharInfo()
+    projected[charId] = {
+      ...info,
+      jealousyMemories: upsertJealousyMemory(
+        info.jealousyMemories,
+        rivalMemoryOf(game.characters[charId], game.date)
+      )
     }
   }
   return projected

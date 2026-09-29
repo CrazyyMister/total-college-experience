@@ -4,6 +4,7 @@ import {
   affectionFor,
   emptyFlags,
   foldRelationshipEvents,
+  leftTheReader,
   MEMORY_CAP,
   refreshedFlags,
   withMemoryReplaced,
@@ -62,7 +63,7 @@ import type {
   NpcRelationshipMap,
   NpcSlotOverlay
 } from '@shared/npcRelationships'
-import { emptyNpcRomance, type NpcRomanceMap } from '@shared/npcRomance'
+import { emptyNpcRomance, type NpcRomanceMap, type ReaderBreakup } from '@shared/npcRomance'
 import {
   type AddedClass,
   type AppError,
@@ -709,6 +710,13 @@ interface GameStoreState {
    * keeps her entry's identity, for the same reason.
    */
   setJealousyMemories: (charId: string, entries: readonly CharMemory[]) => void
+  /** Dates the day she learned he cheated on her; a no-op on a date she already holds. */
+  setBetrayedOn: (charId: string, date: number) => void
+  /**
+   * The lovers who leave the reader at this boundary, through the same fold a reported breakup
+   * takes; a lover already gone is left as she is.
+   */
+  applyReaderBreakups: (breakups: readonly ReaderBreakup[]) => void
   /** Applies the ledger's milestones for one character. */
   applyRelationshipEvents: (charId: string, events: readonly RelationshipEvent[]) => void
   /** Writes the dating pass's replacement entries over the girls it touched. */
@@ -1977,6 +1985,32 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
           : { ...info, jealousyMemories: [...entries] }
       )
     ),
+
+  setBetrayedOn: (charId, date) =>
+    set((state) =>
+      patchCharInfo(state, charId, (info = blankCharInfo()) =>
+        info.betrayedOn === date ? null : { ...info, betrayedOn: date }
+      )
+    ),
+
+  applyReaderBreakups: (breakups) =>
+    set((state) => {
+      const charInfo = { ...state.charInfo }
+      let changed = false
+      for (const { charId, forCharId, reason } of breakups) {
+        const info = charInfo[charId]
+        if (!info?.flags?.isLover) continue
+        charInfo[charId] = leftTheReader(
+          info,
+          state.date,
+          state.characters[charId]?.gender ?? 'woman',
+          state.characters[forCharId]?.firstName,
+          reason
+        )
+        changed = true
+      }
+      return changed ? { charInfo } : {}
+    }),
 
   setTextMemory: (charId, entry) =>
     set((state) =>

@@ -7,7 +7,7 @@ import type { ClassDifficulty, ClassKind, ExamPeriod, Professor } from './academ
 import type { CharacterTrait } from './traits'
 import type { GiftPreferences, GiftReaction } from './shop'
 import type { NpcFriendship, NpcRelationshipMap, NpcSlotOverlay } from './npcRelationships'
-import type { NpcRomanceKind, NpcRomanceMap } from './npcRomance'
+import type { NpcRomanceKind, NpcRomanceMap, ReaderBreakup } from './npcRomance'
 import type { PromptKind } from './promptKinds'
 import type { RumorPassOutcome } from './rumors'
 import type { DormId } from './dorms'
@@ -710,6 +710,11 @@ export interface CharState {
   /** What she found out for certain about the reader and somebody else; never expires. */
   jealousyMemories?: CharMemory[]
   /**
+   * The game date she last learned, as his lover, that the reader cheated on her; what a drift
+   * away from him counts a betrayal from.
+   */
+  betrayedOn?: number
+  /**
    * The presents she kept a warm memory of, oldest first — `loved` and `liked`
    * handovers only.
    */
@@ -1161,6 +1166,12 @@ export interface SlotOpening {
    * affinities it moves. Absent in an opening banked before romance between them was rolled.
    */
   npcRomance?: NpcRomanceMap
+  /**
+   * The reader's lovers who leave him at that same boundary, drawn to somebody else, and the men
+   * he displaced, who are owed a grudge memory. Absent in an opening banked before drifts.
+   */
+  readerBreakups?: ReaderBreakup[]
+  rivals?: string[]
   /**
    * Whoever fell for the reader in that same scene — rolled at the ending after the witness
    * pass, so the narration above describes her as she now feels.

@@ -83,6 +83,8 @@ export interface RumorPassOutcome {
   memories: { charId: string; memory: CharMemory }[]
   /** Who watched him with whom, which is what the player is told and what BunnyBot reads. */
   sightings: { witness: string; subjects: string[] }[]
+  /** The lovers who now know he cheated on them, dated by the pass's own date. */
+  betrayed?: string[]
 }
 
 /**
@@ -98,6 +100,7 @@ export function rumorPass(
   const touched = new Set<string>()
   const memories: { charId: string; memory: CharMemory }[] = []
   const sightings: { witness: string; subjects: string[] }[] = []
+  const betrayed: string[] = []
   const written = new Set<string>()
   const witnessed = new Set<string>()
   const told = new Set<string>()
@@ -155,6 +158,7 @@ export function rumorPass(
       let desc: string
       const p = pronounsOf(input.genders[w] ?? 'woman')
       if (stake.kind === 'lover') {
+        if (!betrayed.includes(w)) betrayed.push(w)
         if (saw) type = 'hated'
         desc = saw
           ? `${p.subject} saw the reader cheating on ${p.object} with ${named}`
@@ -261,7 +265,7 @@ export function rumorPass(
     for (let at = 0; at < tellers.length; at++) tell(tellers[at])
   }
 
-  const outcome: RumorPassOutcome = { suspicions: {}, memories, sightings }
+  const outcome: RumorPassOutcome = { suspicions: {}, memories, sightings, betrayed }
   for (const charId of new Set([...input.roster, ...working.keys()])) {
     const before = input.charInfo[charId]?.suspicions ?? []
     const after = working.get(charId) ?? liveSuspicionsOf(input.charInfo[charId], input.slot)
