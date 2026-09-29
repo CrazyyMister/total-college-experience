@@ -15,7 +15,7 @@ import {
 import { useGameStore } from '../gameStore'
 import { useGrabBagStore } from '../grabBagStore'
 import { pickFeedFill, pickSuggestions, pickTeaser, type TeaserCandidate } from '../feedRolls'
-import { contactFeedPosts, visibleFriendships } from '../feedView'
+import { contactFeedPosts, visibleFriendships, visibleRomanceMoments } from '../feedView'
 import { deliverBunnybotNow } from '../textingLoop'
 
 /** The social feed where it meets the store. */
@@ -67,6 +67,7 @@ export function deliverSlotPosts(posts: SlotIntroResponse['posts']): void {
     showing:
       listed.length +
       visibleFriendships(game.npcFriendships, game.characters, game.charInfo).length +
+      visibleRomanceMoments(game.npcRomance, game, game.characters, game.charInfo).length +
       (teaser ? 1 : 0) +
       (game.feedExtras.randomPost ? 1 : 0),
     showingCharIds: [...listed.map((entry) => entry.charId), ...(teaser ? [teaser.charId] : [])],

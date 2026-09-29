@@ -5,7 +5,8 @@ import { slotPartsOf, yearLabel } from '@shared/classes'
 import { dormLabel } from '@shared/dorms'
 import { jobDefOf, WEEK_DAY_HEADERS } from '@shared/jobs'
 import { OUTFIT_SET_LABELS, spriteRef, STOCK_OUTFIT_SETS } from '@shared/outfits'
-import { npcEnemiesOf, npcFriendsOf } from '@shared/npcRelationships'
+import { npcEnemiesOf, npcFriendsOf, pairKeyOf } from '@shared/npcRelationships'
+import { npcPartnerOf, type NpcRomanceMap } from '@shared/npcRomance'
 import { STAT_ATTRACTIONS } from '@shared/playerStats'
 import {
   affectionFor,
@@ -31,6 +32,7 @@ import { formatShortGameDate } from '../prompts/gameDate'
 import { useBunnyboardStore } from '../stores/bunnyboardStore'
 import { profileUrl, spriteUrl, useSpriteVersion } from '../stores/characterStore'
 import { newestFirst } from '../stores/feedRolls'
+import { npcRomanceMoments } from '../stores/feedView'
 import { useGameStore } from '../stores/gameStore'
 import { noNsfwImagesOf, useSettingsStore } from '../stores/settingsStore'
 import { sendFriendRequest } from '../stores/textingLoop'
@@ -76,10 +78,12 @@ export function ContactPage({
   const chars = useGameStore((s) => s.chars)
   const npcRelationships = useGameStore((s) => s.npcRelationships)
   const npcFriendships = useGameStore((s) => s.npcFriendships)
+  const npcRomance = useGameStore((s) => s.npcRomance)
   // The whole map, for the other half of a pair: `info` is only ever this girl's.
   const charInfo = useGameStore((s) => s.charInfo)
   const playerSchedule = useGameStore((s) => s.playerSchedule)
   const date = useGameStore((s) => s.date)
+  const time = useGameStore((s) => s.time)
   const requestsSent = useGameStore((s) => s.bunnyboard.requestsSent)
   const closePage = useBunnyboardStore((s) => s.closePage)
   const version = useSpriteVersion(charId)
@@ -115,10 +119,21 @@ export function ContactPage({
     if (!who || !charInfo[other]?.nameKnown) return []
     return [{ pair, other, name: who.firstName }]
   })
-  // One list, sorted once: both are dated things on the same card.
+  // Another character's first name, or null for one the reader cannot name.
+  const nameOf = (other: string): string | null =>
+    characters[other] && charInfo[other]?.nameKnown ? characters[other].firstName : null
+  // The days she started dating somebody or broke up, under the friendships' own rule.
+  const dated = npcRomanceMoments(npcRomance, { date, time }).flatMap((moment) => {
+    if (moment.a !== charId && moment.b !== charId) return []
+    const name = nameOf(moment.a === charId ? moment.b : moment.a)
+    return name ? [{ moment, name }] : []
+  })
+  const romance = romanceStatusOf(npcRomance, charId, nameOf)
+  // One list, sorted once: all of them are dated things on the same card.
   const entries = [
     ...feed.map((post) => ({ kind: 'post' as const, post, date: post.date, time: post.time })),
-    ...made.map((entry) => ({ kind: 'made' as const, ...entry, date: entry.pair.date, time: entry.pair.time }))
+    ...made.map((entry) => ({ kind: 'made' as const, ...entry, date: entry.pair.date, time: entry.pair.time })),
+    ...dated.map((entry) => ({ kind: 'dated' as const, ...entry, date: entry.moment.date, time: entry.moment.time }))
   ].sort(newestFirst)
   const dorm = info ? dormLabel(info.dorm) : ''
   const affection = affectionFor(info, date, character)
@@ -253,6 +268,28 @@ export function ContactPage({
                   </Field>
                 )}
 
+                {/* Absent when there is nothing he could know: never "Single". */}
+                {(romance.partner || romance.exes.length > 0 || romance.crush) && (
+                  <Field label="Relationship">
+                    {romance.partner && (
+                      <p className="vu-contact-text vu-contact-status">
+                        Dating {romance.partner.name} ·{' '}
+                        <span className="vu-contact-when">
+                          since {formatShortGameDate(romance.partner.since)}
+                        </span>
+                      </p>
+                    )}
+                    {romance.exes.length > 0 && (
+                      <p className="vu-contact-text">
+                        {romance.exes.length === 1 ? 'Ex' : 'Exes'}: {romance.exes.join(', ')}
+                      </p>
+                    )}
+                    {romance.crush && (
+                      <p className="vu-contact-text">Has a crush on {romance.crush}</p>
+                    )}
+                  </Field>
+                )}
+
                 {friends.length > 0 && (
                   <Field label="Friends">
                     <div className="vu-contact-faces">
@@ -319,7 +356,18 @@ export function ContactPage({
             ) : (
               <ul className="vu-contact-feed">
                 {entries.map((entry) =>
-                  entry.kind === 'made' ? (
+                  entry.kind === 'dated' ? (
+                    <li
+                      className="vu-contact-made"
+                      key={`${entry.moment.kind}:${entry.moment.a}|${entry.moment.b}`}
+                    >
+                      {entry.moment.kind === 'dating' ? 'Started dating' : 'Broke up with'}{' '}
+                      {entry.name}.{' '}
+                      <span className="vu-contact-when">
+                        {formatShortGameDate(entry.moment.date)}
+                      </span>
+                    </li>
+                  ) : entry.kind === 'made' ? (
                     // Dated like a post and **carrying no like**: there is nothing here she
                     // said, so there is nothing to answer.
                     <li className="vu-contact-made" key={`friends:${entry.pair.a}|${entry.pair.b}`}>
@@ -511,6 +559,38 @@ function Card({
       <div className="vu-scroll-fade" />
     </motion.section>
   )
+}
+
+/**
+ * What the reader knows of her romance with the roster: who she is dating and since when, her
+ * exes newest first, and a crush he has found out about while she still holds it. Anybody he
+ * cannot name is left out.
+ */
+function romanceStatusOf(
+  map: NpcRomanceMap,
+  charId: string,
+  nameOf: (other: string) => string | null
+): { partner?: { name: string; since: number }; exes: string[]; crush?: string } {
+  const partnerId = npcPartnerOf(map, charId)
+  const partnerName = partnerId ? nameOf(partnerId) : null
+  const couple = partnerId ? map.couples[pairKeyOf(charId, partnerId)] : undefined
+  const exes = Object.entries(map.exes)
+    .flatMap(([key, ex]) => {
+      const [a, b] = key.split('|')
+      if (a !== charId && b !== charId) return []
+      const name = nameOf(a === charId ? b : a)
+      return name ? [{ name, ended: ex.ended }] : []
+    })
+    .sort((one, two) => two.ended - one.ended)
+    .map(({ name }) => name)
+  const crush = map.crushes[charId]
+  const found = map.discovered?.[charId]
+  const crushName = crush && found?.to === crush.to ? nameOf(crush.to) : null
+  return {
+    ...(partnerName && couple ? { partner: { name: partnerName, since: couple.since } } : {}),
+    exes,
+    ...(crushName ? { crush: crushName } : {})
+  }
 }
 
 /**

@@ -505,3 +505,8 @@
 .vu-contact-foot {
   flex: none;
 }
+
+/* The date a couple has stood since, in the feed card's own date face. */
+.vu-contact-status .vu-contact-when {
+  font: 500 12px var(--font-mono);
+}

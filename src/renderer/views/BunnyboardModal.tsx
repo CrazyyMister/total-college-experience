@@ -47,7 +47,13 @@ import { isBunnybotChat, BUNNYBOT_EMOJI, BUNNYBOT_NAME, BUNNYBOT_TITLE } from '.
 import { useBunnyboardStore, type BunnyboardTab } from '../stores/bunnyboardStore'
 import { profileUrl, useSpriteVersion } from '../stores/characterStore'
 import { postsLocationUpdate } from '../stores/feedRolls'
-import { FEED_PAGE, isFeedContact, updatesFeed, type FeedEntry } from '../stores/feedView'
+import {
+  FEED_PAGE,
+  isFeedContact,
+  updatesFeed,
+  type FeedEntry,
+  type NpcRomanceMoment
+} from '../stores/feedView'
 import { knownWhereabouts, type Whereabouts } from '../stores/whereabouts'
 import { useGameStore } from '../stores/gameStore'
 import { pickProfilePicture, removeProfilePicture } from '../stores/loop/profilePicture'
@@ -1757,6 +1763,36 @@ const FriendshipRow = memo(function FriendshipRow({
   )
 })
 
+/**
+ * Two of them starting to date or breaking up, on the friendship's own row; it redraws only when
+ * the couple and what happened to it do.
+ */
+const RomanceRow = memo(function RomanceRow({
+  moment,
+  one,
+  two
+}: {
+  moment: NpcRomanceMoment
+  one: Character
+  two: Character
+}): JSX.Element {
+  const openPage = useBunnyboardStore.getState().openPage
+  return (
+    <motion.div className="vu-row vu-bb-checkin vu-bb-made" variants={slideInQuick}>
+      <FaceButton name={one.firstName} onOpen={() => openPage(moment.a)}>
+        <Portrait charId={moment.a} ring size="sm" />
+      </FaceButton>
+      <FaceButton name={two.firstName} onOpen={() => openPage(moment.b)}>
+        <Portrait charId={moment.b} ring size="sm" />
+      </FaceButton>
+      <span>
+        {one.firstName} and {two.firstName}{' '}
+        {moment.kind === 'dating' ? 'are now dating.' : 'broke up.'}
+      </span>
+    </motion.div>
+  )
+})
+
 /** Where somebody is right now, on her own row; it redraws only when the place it names does. */
 const CheckInRow = memo(function CheckInRow({
   name,
@@ -1776,11 +1812,14 @@ const CheckInRow = memo(function CheckInRow({
 })
 
 /**
- * What a row is keyed on: the post it draws, the pair it names, the girl checking in, or the
- * day's own student.
+ * What a row is keyed on: the post it draws, the pair it names and what happened to it, the girl
+ * checking in, or the day's own student.
  */
 function feedRowKey(entry: FeedEntry): string {
   if (entry.kind === 'friendship') return `friends:${entry.pair.a}|${entry.pair.b}`
+  if (entry.kind === 'romance') {
+    return `${entry.moment.kind}:${entry.moment.a}|${entry.moment.b}`
+  }
   if (entry.kind === 'checkIn') return `checkin:${entry.charId}`
   return entry.kind === 'random' ? 'random-student' : entry.post.id
 }
@@ -1792,6 +1831,17 @@ function samePage(before: readonly FeedEntry[], now: readonly FeedEntry[]): bool
     const was = before[at]
     if (was.kind !== entry.kind) return false
     if (entry.kind === 'friendship') return was.kind === 'friendship' && was.pair === entry.pair
+    // Built afresh on every read, so the same couple is told by what it names.
+    if (entry.kind === 'romance') {
+      return (
+        was.kind === 'romance' &&
+        feedRowKey(was) === feedRowKey(entry) &&
+        was.moment.date === entry.moment.date &&
+        was.moment.time === entry.moment.time &&
+        was.one === entry.one &&
+        was.two === entry.two
+      )
+    }
     if (entry.kind === 'checkIn') {
       return was.kind === 'checkIn' && was.charId === entry.charId && was.label === entry.label
     }
@@ -1805,6 +1855,10 @@ function rowOf(entry: FeedEntry, requestsSent: readonly string[]): JSX.Element {
   if (entry.kind === 'friendship') {
     const { pair, one, two } = entry
     return <FriendshipRow key={feedRowKey(entry)} pair={pair} one={one} two={two} />
+  }
+  if (entry.kind === 'romance') {
+    const { moment, one, two } = entry
+    return <RomanceRow key={feedRowKey(entry)} moment={moment} one={one} two={two} />
   }
   if (entry.kind === 'checkIn') {
     return <CheckInRow key={feedRowKey(entry)} name={entry.name} label={entry.label} />
@@ -1857,6 +1911,7 @@ function UpdatesFeed(): JSX.Element {
   const charInfo = useGameStore((s) => s.charInfo)
   const feedExtras = useGameStore((s) => s.feedExtras)
   const npcFriendships = useGameStore((s) => s.npcFriendships)
+  const npcRomance = useGameStore((s) => s.npcRomance)
   const requestsSent = useGameStore((s) => s.bunnyboard.requestsSent)
   const date = useGameStore((s) => s.date)
   const time = useGameStore((s) => s.time)
@@ -1867,9 +1922,9 @@ function UpdatesFeed(): JSX.Element {
   const springBreakAway = useGameStore((s) => s.springBreakAway)
   const npcOverlay = useGameStore((s) => s.npcOverlay)
 
-  // Everybody he can contact, the strangers the day surfaced, who became friends, where this
-  // slot puts each contact who is not posting about it herself, and the day's own student, in
-  // one newest-first list. `requestsSent` is read only where a stranger draws.
+  // Everybody he can contact, the strangers the day surfaced, who became friends, who started
+  // dating or broke up, where this slot puts each contact who is not posting about it herself,
+  // and the day's own student, in one newest-first list. `requestsSent` is read only where a stranger draws.
   const entries = useMemo(() => {
     const slot = shiftSlotOf(shiftWeekdayOf(date), time)
     const checkIns = chars.flatMap((charId) => {
@@ -1901,6 +1956,7 @@ function UpdatesFeed(): JSX.Element {
       characters,
       charInfo,
       npcFriendships,
+      npcRomance,
       feedExtras,
       checkIns,
       date,
@@ -1911,6 +1967,7 @@ function UpdatesFeed(): JSX.Element {
     characters,
     charInfo,
     npcFriendships,
+    npcRomance,
     feedExtras,
     date,
     time,

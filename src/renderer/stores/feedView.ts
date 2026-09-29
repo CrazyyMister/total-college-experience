@@ -1,4 +1,5 @@
 import type { NpcFriendship } from '@shared/npcRelationships'
+import type { NpcRomanceMap } from '@shared/npcRomance'
 import {
   fullNameOf,
   type Character,
@@ -76,6 +77,63 @@ export function visibleFriendships(
   })
 }
 
+/** A couple forming or ending, read off the romance map: the pair in `pairKeyOf`'s order. */
+export interface NpcRomanceMoment {
+  kind: 'dating' | 'breakup'
+  a: string
+  b: string
+  date: number
+  time: TimeSlot
+}
+
+/** One "are now dating" or "broke up" row, with both characters it names. */
+export interface FeedRomanceEntry {
+  moment: NpcRomanceMoment
+  one: Character
+  two: Character
+}
+
+/**
+ * Every couple's start and every ex's start and end. The map keeps no half of the day, so each
+ * is stamped with the latest half its date could have held that is not in the future: the
+ * night, or the slot being played on the day itself.
+ */
+export function npcRomanceMoments(
+  romance: NpcRomanceMap,
+  now: { date: number; time: TimeSlot }
+): NpcRomanceMoment[] {
+  const stamp = (date: number): { date: number; time: TimeSlot } => ({
+    date,
+    time: date < now.date ? 1 : now.time
+  })
+  const moments: NpcRomanceMoment[] = []
+  for (const [key, couple] of Object.entries(romance.couples)) {
+    const [a, b] = key.split('|')
+    moments.push({ kind: 'dating', a, b, ...stamp(couple.since) })
+  }
+  // The breakup first, so a couple that began and ended on one day reads newest first under a
+  // stable sort.
+  for (const [key, ex] of Object.entries(romance.exes)) {
+    const [a, b] = key.split('|')
+    moments.push({ kind: 'breakup', a, b, ...stamp(ex.ended) })
+    moments.push({ kind: 'dating', a, b, ...stamp(ex.since) })
+  }
+  return moments
+}
+
+/** The romance rows the tab shows, under the same gate as its friendships. */
+export function visibleRomanceMoments(
+  romance: NpcRomanceMap | undefined,
+  now: { date: number; time: TimeSlot },
+  characters: Readonly<Record<string, Character | undefined>>,
+  charInfo: Readonly<Record<string, CharInfo | undefined>>
+): FeedRomanceEntry[] {
+  if (!romance) return []
+  return npcRomanceMoments(romance, now).flatMap((moment) =>
+    visibleFriendships([moment], characters, charInfo).map(({ one, two }) => ({ moment, one, two }))
+  )
+}
+
 /** One girl the slot could run an "updated their location" row for, and what it would say. */
 export interface FeedCheckIn {
   charId: string
@@ -84,12 +142,13 @@ export interface FeedCheckIn {
 }
 
 /**
- * One dated thing on the Updates feed: a post, the day two of them became friends, where
- * somebody is right now, or the slot's own student.
+ * One dated thing on the Updates feed: a post, the day two of them became friends, a couple
+ * forming or ending, where somebody is right now, or the slot's own student.
  */
 export type FeedEntry =
   | ({ kind: 'post'; stranger: boolean; name: string; handle?: string } & FeedPostEntry)
   | ({ kind: 'friendship' } & FeedFriendshipEntry)
+  | ({ kind: 'romance' } & FeedRomanceEntry)
   | { kind: 'checkIn'; charId: string; name: string; label: string; date: number; time: TimeSlot }
   | {
       kind: 'random'
@@ -100,15 +159,17 @@ export type FeedEntry =
 export const FEED_PAGE = 30
 
 /**
- * The whole feed in draw order: contacts' posts and strangers who became friends, newest first,
- * woven with this slot's check-ins (capped at one more than the day has posts) and closed by the
- * day's random student. Pure over the slot, so the same slot always reads the same way.
+ * The whole feed in draw order: contacts' posts, strangers who became friends and couples who
+ * formed or ended, newest first, woven with this slot's check-ins (capped at one more than the
+ * day has posts) and closed by the day's random student. Pure over the slot, so the same slot always reads the same way.
  */
 export function updatesFeed(input: {
   chars: readonly string[]
   characters: Readonly<Record<string, Character | undefined>>
   charInfo: Readonly<Record<string, CharInfo | undefined>>
   npcFriendships: readonly NpcFriendship[]
+  /** The roster's romance, whose couples and exes are rows of their own; absent means none. */
+  npcRomance?: NpcRomanceMap
   feedExtras: FeedExtras | null
   /** Everybody the slot owes a check-in, in roster order; the cap is applied here. */
   checkIns: readonly FeedCheckIn[]
@@ -154,6 +215,9 @@ export function updatesFeed(input: {
   for (const made of visibleFriendships(input.npcFriendships, characters, charInfo)) {
     entries.push({ kind: 'friendship', ...made })
   }
+  for (const made of visibleRomanceMoments(input.npcRomance, { date, time }, characters, charInfo)) {
+    entries.push({ kind: 'romance', ...made })
+  }
   entries.sort((a, b) => newestFirst(stampOf(a), stampOf(b)))
 
   // Every row this slot stamped, as one run in the sorted list. It is not the top of the list:
@@ -192,6 +256,7 @@ export function updatesFeed(input: {
 /** When an entry happened, whichever kind it is — what the one sort reads. */
 function stampOf(entry: FeedEntry): { date: number; time: TimeSlot } {
   if (entry.kind === 'friendship') return entry.pair
+  if (entry.kind === 'romance') return entry.moment
   return entry.kind === 'checkIn' ? entry : entry.post
 }
 

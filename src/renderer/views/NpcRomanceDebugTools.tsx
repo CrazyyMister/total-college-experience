@@ -7,8 +7,10 @@ import {
   debugAffinity,
   debugAgeHeld,
   debugBetrayed,
+  debugBlocked,
   debugCouple,
   debugCrush,
+  debugDiscover,
   debugDriftBack,
   debugLover,
   type DebugResult
@@ -38,7 +40,10 @@ const TOOLS: readonly Tool[] = [
   { label: 'X learned today he cheated', run: (x) => debugBetrayed(x, true) },
   { label: 'Clear X’s betrayal', run: (x) => debugBetrayed(x, false) },
   { label: 'X’s drift began N days earlier', run: (x, _y, n) => debugDriftBack(x, n) },
-  { label: 'X’s kept crush is N days older', run: (x, _y, n) => debugAgeHeld(x, n) }
+  { label: 'X’s kept crush is N days older', run: (x, _y, n) => debugAgeHeld(x, n) },
+  { label: 'The reader discovers X’s crush', run: (x) => debugDiscover(x) },
+  { label: 'X blocks the reader', run: (x) => debugBlocked(x, true) },
+  { label: 'X unblocks the reader', run: (x) => debugBlocked(x, false) }
 ]
 
 /** Pickers for the two characters and the number, and a button for each thing to set up. */

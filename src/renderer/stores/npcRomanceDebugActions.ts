@@ -17,6 +17,7 @@ import { charKeyOf, type MemoryType } from '@shared/types'
 import { readerLoversOf } from '../prompts/npcRelationship'
 import { useGameStore } from './gameStore'
 import { applyLedger } from './sceneSanitizer'
+import { unblockContact } from './textingLoop'
 
 /**
  * What the development build's test buttons do to a game. Each one writes through the store the
@@ -270,4 +271,51 @@ export function debugAgeHeld(charId: string, days: number): DebugResult {
     crushes: { ...game.npcRomance.crushes, [charId]: { ...crush, heldSince } }
   })
   return done(`The crush has been kept unsaid for ${game.date - heldSince} days.`)
+}
+
+/** Marks the crush she already holds as found out today, as a scene reporting it would. */
+export function debugDiscover(charId: string): DebugResult {
+  if (!import.meta.env.DEV) return NOT_DEV
+  const game = useGameStore.getState()
+  const character = game.characters[charId]
+  const crush = game.npcRomance.crushes[charId]
+  if (!character) return refused('Pick a character.')
+  if (!crush) return refused(`${character.firstName} holds no crush.`)
+  game.setNpcRomance({
+    ...game.npcRomance,
+    discovered: { ...game.npcRomance.discovered, [charId]: { to: crush.to, date: game.date } }
+  })
+  const object = game.characters[crush.to]?.firstName ?? 'somebody'
+  return done(`The reader knows ${character.firstName} has a crush on ${object}.`)
+}
+
+/** Has her block the reader or lift it, as a thread of hers would, with its system line. */
+export function debugBlocked(charId: string, on: boolean): DebugResult {
+  if (!import.meta.env.DEV) return NOT_DEV
+  const game = useGameStore.getState()
+  const character = game.characters[charId]
+  if (!character) return refused('Pick a character.')
+  const flags = game.charInfo[charId]?.flags
+  if (!flags?.gaveContactInfo) return refused(`${character.firstName} is not a contact.`)
+  if (on === (flags.blocked === true)) {
+    return refused(`${character.firstName} has ${on ? 'already' : 'not'} blocked the reader.`)
+  }
+  if (!on) {
+    unblockContact(charId)
+    return done(`${character.firstName} unblocked the reader.`)
+  }
+  game.setBlocked(charId, true)
+  game.setPendingHangout(charId, null)
+  game.appendChatMessage(
+    charId,
+    {
+      id: crypto.randomUUID(),
+      sender: 'system',
+      text: `${character.firstName} blocked you.`,
+      date: game.date,
+      time: game.time
+    },
+    1
+  )
+  return done(`${character.firstName} blocked the reader.`)
 }
