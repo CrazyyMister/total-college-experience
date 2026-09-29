@@ -15,11 +15,12 @@ import {
   type NpcRelationshipMap,
   type NpcSlotOverlay
 } from '@shared/npcRelationships'
+import { settleNpcRomance, type NpcRomanceOutcome } from '@shared/npcRomance'
 import type { CharInfo, Haunt, TimeSlot } from '@shared/types'
 import { globalSlotOf, shiftSlotOf } from '@shared/jobs'
 import { classSlotOf, hauntClosedOn } from '../../prompts/occasions'
 import { isMoodHomebound } from '../../prompts/moods'
-import { prevSlot, shiftWeekdayOf, weekendSaturdayOf } from '../../prompts/gameDate'
+import { prevSlot, shiftWeekdayOf, weekdayOf, weekendSaturdayOf } from '../../prompts/gameDate'
 import { isSummerOutingWeek } from '../../prompts/graduation'
 import { isSpringBreakOutingWeek } from '../../prompts/springBreak'
 import { useGameStore } from '../gameStore'
@@ -168,6 +169,30 @@ export function rollNpcRelationshipSettle(
     cast: game.cast,
     bonded,
     groups,
+    characters: game.characters
+  })
+}
+
+/**
+ * Rolls the finished slot's romance between the roster off the affinities just settled, and
+ * returns both maps, writing nothing. `charInfo` is the ending's projection, so a girl the scene
+ * just made the reader's lover counts as taken.
+ */
+export function rollNpcRomanceSettle(
+  relationships: NpcRelationshipMap,
+  groups: readonly NpcEncounterGroup[],
+  charInfo: Readonly<Record<string, CharInfo | undefined>>
+): NpcRomanceOutcome {
+  const game = useGameStore.getState()
+  return settleNpcRomance({
+    date: game.date,
+    // Sunday night closes the week.
+    endsWeek: weekdayOf(game.date) === 0 && game.time === 1,
+    relationships,
+    romance: game.npcRomance,
+    groups,
+    cast: game.cast,
+    readerLovers: game.chars.filter((charId) => charInfo[charId]?.flags?.isLover),
     characters: game.characters
   })
 }

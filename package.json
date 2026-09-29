@@ -16,6 +16,7 @@
     "typecheck:test": "tsc --noEmit -p tsconfig.test.json",
     "typecheck": "npm run typecheck:node && npm run typecheck:web && npm run typecheck:test",
     "test": "vitest run",
+    "sim:romance": "vitest run -c vitest.sim.config.ts scripts/sim/npcRomance.sim.ts",
     "dev:web": "vite -c vite.web.config.ts",
     "build:web": "vite build -c vite.web.config.ts",
     "release": "node scripts/release.mjs",

@@ -7,6 +7,7 @@ import type { ClassDifficulty, ClassKind, ExamPeriod, Professor } from './academ
 import type { CharacterTrait } from './traits'
 import type { GiftPreferences, GiftReaction } from './shop'
 import type { NpcFriendship, NpcRelationshipMap, NpcSlotOverlay } from './npcRelationships'
+import type { NpcRomanceMap } from './npcRomance'
 import type { PromptKind } from './promptKinds'
 import type { RumorPassOutcome } from './rumors'
 import type { DormId } from './dorms'
@@ -1156,6 +1157,11 @@ export interface SlotOpening {
    */
   npcRelationships?: NpcRelationshipMap
   /**
+   * The roster's romances with each other after that same scene, settled beside the
+   * affinities it moves. Absent in an opening banked before romance between them was rolled.
+   */
+  npcRomance?: NpcRomanceMap
+  /**
    * Whoever fell for the reader in that same scene — rolled at the ending after the witness
    * pass, so the narration above describes her as she now feels.
    */
@@ -1293,6 +1299,11 @@ export interface GameSave {
    * before the feed said so.
    */
   npcFriendships?: NpcFriendship[]
+  /**
+   * The roster's crushes, couples, exes and rejections with each other. Absent in a save
+   * written before they had any, which reads as none.
+   */
+  npcRomance?: NpcRomanceMap
   /**
    * The occasions he turned down an invitation to, or let one stand — nobody asks him to one
    * of these twice. Absent in a save written before occasions were asked about.

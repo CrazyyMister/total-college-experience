@@ -1476,6 +1476,7 @@ describe('toGameSave', () => {
       'npcFriendships',
       'npcOverlay',
       'npcRelationships',
+      'npcRomance',
       'occasionsDeclined',
       'outingSlots',
       'playerSchedule',

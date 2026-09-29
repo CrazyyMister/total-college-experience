@@ -131,6 +131,7 @@ import { BunnyboardModal } from './BunnyboardModal'
 import { CastModal } from './CastModal'
 import { ChatLogModal } from './ChatLogModal'
 import { ControlsModal } from './ControlsModal'
+import { NpcRomanceDebugModal } from './NpcRomanceDebugModal'
 import { CalendarModal } from './CalendarModal'
 import { MapModal } from './MapModal'
 import { ClassScheduleModal } from './ClassScheduleModal'
@@ -218,6 +219,7 @@ type OpenPanel =
   | { kind: 'loadGame' }
   | { kind: 'appSettings' }
   | { kind: 'controls' }
+  | { kind: 'romanceDebug' }
   | { kind: 'feedback' }
   | { kind: 'leaving' }
   | { kind: 'quitting' }
@@ -1456,6 +1458,12 @@ export function GameView(): JSX.Element {
     // A screen under the curtain answers no key, Escape included. The root's `inert` takes
     // the pointer and the focus, but no attribute reaches a listener on `window`.
     if (covered) return
+    // F9 opens the roster-romance read-out, in the development build alone.
+    if (import.meta.env.DEV && event.key === 'F9' && !event.repeat && !blocked) {
+      event.preventDefault()
+      setPanel({ kind: 'romanceDebug' })
+      return
+    }
     // Every key is the one input the picture takes. Above the Enter branch: a click
     // taken during the wait can leave `awaitingInput` raised, and the composer would eat it.
     if (endingPicture && !finDismissed) {
@@ -2312,6 +2320,10 @@ export function GameView(): JSX.Element {
         {/* The key list the menu opens, an arm of `OpenPanel` for the reason Settings is. */}
         {panel?.kind === 'controls' && (
           <ControlsModal key="controls" theme={half} onClose={closePanel} />
+        )}
+
+        {panel?.kind === 'romanceDebug' && (
+          <NpcRomanceDebugModal key="romance-debug" theme={half} onClose={closePanel} />
         )}
 
         {/* The Feedback modal, the same one the Main Menu opens, as an arm of `OpenPanel` for

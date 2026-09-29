@@ -1,0 +1,51 @@
+/* The development build's roster-romance read-out: four lists of rows in one scroller.
+   Imported from the view module, never from index.css.
+
+   The veil, the sheet, the rows, the empty line and the foot are base.css's. */
+
+.vu-romance-debug-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 24px;
+  padding: 4px 6px 34px;
+  overflow: hidden auto;
+}
+
+.vu-romance-debug-today {
+  margin: 0;
+  color: var(--vu-text-muted);
+  font: 700 13px var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.vu-romance-debug-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.vu-romance-debug-title {
+  margin: 0;
+  color: var(--vu-text);
+  font: 400 24px var(--font-display);
+}
+
+.vu-romance-debug-row {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+
+.vu-romance-debug-who {
+  flex: 0 0 360px;
+  color: var(--vu-text);
+  font: 500 15px var(--font-body);
+}
+
+.vu-romance-debug-facts {
+  color: var(--vu-text-body);
+  font: 700 13px var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}

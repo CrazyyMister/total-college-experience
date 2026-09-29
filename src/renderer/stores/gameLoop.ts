@@ -190,6 +190,7 @@ import {
   npcWhereaboutsFor,
   rollNpcOverlayNow,
   rollNpcRelationshipSettle,
+  rollNpcRomanceSettle,
   rollSlotEncounterGroups
 } from './loop/npc'
 import { applyRumorPass, rollRumorPass } from './loop/rumors'
@@ -1550,7 +1551,12 @@ async function fetchEndingOpening(
   // Rolled against the charInfo the witness pass just left and the post-scene stats, which is
   // what the boundary's fallback would see too.
   const crushes = rollCrushSettle(ledger, seen, stats)
-  const npcRelationships = rollNpcRelationshipSettle(bondedCharIds(ledger), groups)
+  // The romance pass moves affinities too, so the map banked is the one it returns.
+  const { relationships: npcRelationships, romance: npcRomance } = rollNpcRomanceSettle(
+    rollNpcRelationshipSettle(bondedCharIds(ledger), groups),
+    groups,
+    seen
+  )
 
   const view: PostLedgerView = {
     charInfo: withCrushes(seen, crushes),
@@ -1575,7 +1581,8 @@ async function fetchEndingOpening(
       ...(npcOverlay ? { npcOverlay } : {}),
       rumorPass: rumor,
       crushes,
-      npcRelationships
+      npcRelationships,
+      npcRomance
     }
   }
 
@@ -1593,7 +1600,9 @@ async function fetchEndingOpening(
   )
   // An abandoned opening banks nothing, the rolls above included; the player replays the
   // turn.
-  return opening ? { ...opening, rumorPass: rumor, crushes, npcRelationships } : null
+  return opening
+    ? { ...opening, rumorPass: rumor, crushes, npcRelationships, npcRomance }
+    : null
 }
 
 /**
@@ -2397,6 +2406,8 @@ async function crossSlotBoundary(): Promise<void> {
     // Before the map is stored: what is recorded is the difference between the two.
     applyNewFriendships(useGameStore.getState().npcRelationships, banked.npcRelationships)
     useGameStore.getState().setNpcRelationships(banked.npcRelationships)
+    // An opening banked before romance was rolled leaves the map as it stands.
+    if (banked.npcRomance) useGameStore.getState().setNpcRomance(banked.npcRomance)
 
     // The one warning that what gets seen gets told, owed the first time anybody sees him with
     // a girl whose name he knows. Left unsent before BunnyBot has introduced itself, or over a

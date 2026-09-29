@@ -62,6 +62,7 @@ import type {
   NpcRelationshipMap,
   NpcSlotOverlay
 } from '@shared/npcRelationships'
+import { emptyNpcRomance, type NpcRomanceMap } from '@shared/npcRomance'
 import {
   type AddedClass,
   type AppError,
@@ -277,6 +278,8 @@ interface GameStoreState {
   npcRelationships: NpcRelationshipMap
   /** The first time each pair of them became friends, oldest first. Persisted. */
   npcFriendships: NpcFriendship[]
+  /** The roster's crushes, couples, exes and rejections with each other. Persisted. */
+  npcRomance: NpcRomanceMap
   /** Who is with whom this slot, stamped with the slot it describes. Persisted. */
   npcOverlay: NpcSlotOverlay | null
   /** What this slot's opening said was going on somewhere. Persisted. */
@@ -846,6 +849,8 @@ interface GameStoreState {
   clearBunnybotDeferred: () => void
   /** Replaces the whole pair map. Written whole: the settle pass folds every pair at once. */
   setNpcRelationships: (relationships: NpcRelationshipMap) => void
+  /** Replaces the whole romance map, which the settle pass folds at once like the pair map. */
+  setNpcRomance: (romance: NpcRomanceMap) => void
   /** Files who is with whom this slot, or clears it. */
   setNpcOverlay: (overlay: NpcSlotOverlay | null) => void
   /** Appends pairs that have just become friends for the first time. Never rewrites one. */
@@ -1251,6 +1256,7 @@ const initialState = {
   addedClasses: {} as Record<string, AddedClass>,
   npcRelationships: {} as NpcRelationshipMap,
   npcFriendships: [] as NpcFriendship[],
+  npcRomance: emptyNpcRomance(),
   npcOverlay: null as NpcSlotOverlay | null,
   slotRumor: null as SlotRumor | null,
   lastSlotCast: null as { date: number; time: TimeSlot; charIds: string[] } | null,
@@ -1373,6 +1379,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       addedClasses: save.addedClasses,
       npcRelationships: save.npcRelationships,
       npcFriendships: save.npcFriendships ?? [],
+      npcRomance: save.npcRomance ?? emptyNpcRomance(),
       npcOverlay: save.npcOverlay,
       slotRumor: save.slotRumor ?? null,
       lastSlotCast: save.lastSlotCast,
@@ -2501,6 +2508,8 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
 
   setNpcRelationships: (relationships) => set({ npcRelationships: { ...relationships } }),
 
+  setNpcRomance: (romance) => set({ npcRomance: romance }),
+
   setNpcOverlay: (overlay) => set({ npcOverlay: overlay }),
 
   recordNpcFriendships: (pairs) =>
@@ -2626,6 +2635,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       addedClasses: state.addedClasses,
       npcRelationships: state.npcRelationships,
       npcFriendships: state.npcFriendships,
+      npcRomance: state.npcRomance,
       occasionsDeclined: state.occasionsDeclined,
       npcOverlay: state.npcOverlay,
       slotRumor: state.slotRumor,
