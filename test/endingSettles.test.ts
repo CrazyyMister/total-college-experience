@@ -162,6 +162,23 @@ describe('the reader’s losses', () => {
     expect(again.c.jealousyMemories).toHaveLength(1)
   })
 
+  it('files what his wingman actions left remembered once, however often the boundary replays', () => {
+    lover()
+    const memories = [
+      { charId: 'a', memory: { date: 7, type: 'liked' as const, desc: 'the reader helped bring her and Eve together' } },
+      { charId: 'c', memory: { date: 7, type: 'hated' as const, desc: 'the reader badmouthed him to Sarah behind his back' } }
+    ]
+    const projected = withReaderLosses(useGameStore.getState().charInfo, [], [], memories)
+    applyReaderLosses([], [], memories)
+    applyReaderLosses([], [], memories)
+    const filed = useGameStore.getState().charInfo
+    expect(projected.a).toEqual(filed.a)
+    expect(projected.c).toEqual(filed.c)
+    expect(filed.a.jealousyMemories).toEqual([memories[0].memory])
+    expect(filed.c.jealousyMemories).toEqual([memories[1].memory])
+    expect(filed.a.memories).toEqual([])
+  })
+
   it('dates the day a lover learned of a betrayal, in the projection and in the store', () => {
     lover()
     const outcome = { suspicions: {}, memories: [], sightings: [], betrayed: ['b'] }

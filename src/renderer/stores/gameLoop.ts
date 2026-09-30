@@ -1659,7 +1659,8 @@ async function fetchEndingOpening(
     romance: npcRomance,
     log: romanceLog,
     readerBreakups,
-    rivals
+    rivals,
+    readerMemories
   } = rollNpcRomanceSettle(
     rollNpcRelationshipSettle(bondedCharIds(ledger), groups),
     groups,
@@ -1669,7 +1670,9 @@ async function fetchEndingOpening(
   )
   loopState.romanceLog = romanceLog
   // The lovers who leave him and the men he displaced, as the boundary will leave them.
-  const parted = withReaderLosses(seen, readerBreakups, rivals)
+  const wingmanMemories = readerMemories.map(({ charId, memory }) => ({ charId, memory }))
+  const parted = withReaderLosses(seen, readerBreakups, rivals, wingmanMemories)
+  const bankedMemories = wingmanMemories.length > 0 ? { wingmanMemories } : {}
 
   const view: PostLedgerView = {
     charInfo: withCrushes(parted, crushes),
@@ -1702,6 +1705,7 @@ async function fetchEndingOpening(
       npcRomance,
       readerBreakups,
       rivals,
+      ...bankedMemories,
       ...silentBreakups
     }
   }
@@ -1734,6 +1738,7 @@ async function fetchEndingOpening(
         npcRomance,
         readerBreakups,
         rivals,
+        ...bankedMemories,
         ...silentBreakups
       }
     : null
@@ -2545,7 +2550,7 @@ async function crossSlotBoundary(): Promise<void> {
     if (banked.npcRomance) useGameStore.getState().setNpcRomance(banked.npcRomance)
     // After the ledger's own breakups and the rumor pass, so a lover who was left or who learned
     // of a betrayal this scene is judged as she now stands; an opening banked before drifts has none.
-    applyReaderLosses(banked.readerBreakups ?? [], banked.rivals ?? [])
+    applyReaderLosses(banked.readerBreakups ?? [], banked.rivals ?? [], banked.wingmanMemories ?? [])
     recordRomanceEvents(loopState.romanceLog)
     loopState.romanceLog = []
     // The ending that read the buttons' couples as news has been applied.

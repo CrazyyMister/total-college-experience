@@ -32,7 +32,7 @@ import {
 } from '@shared/npcRomancePosts'
 import { affectionFor } from '@shared/relationship'
 import { upsertJealousyMemory } from '@shared/rumors'
-import type { CharInfo, Haunt, TimeSlot } from '@shared/types'
+import type { CharInfo, CharMemory, Haunt, TimeSlot } from '@shared/types'
 import { globalSlotOf, shiftSlotOf } from '@shared/jobs'
 import { classSlotOf, hauntClosedOn } from '../../prompts/occasions'
 import { isMoodHomebound } from '../../prompts/moods'
@@ -253,18 +253,26 @@ function driftSignsShown(readerLovers: readonly string[]): string[] {
 
 /**
  * Files what an ending banked about the reader's losses: the lovers who leave him, through the
- * same fold a reported breakup takes, and the grudge memory of each man he displaced. Idempotent,
- * so the boundary can replay off its own save.
+ * same fold a reported breakup takes, the grudge memory of each man he displaced, and what his
+ * wingman actions left anybody remembering. Idempotent, so the boundary can replay off its own save.
  */
-export function applyReaderLosses(breakups: readonly ReaderBreakup[], rivals: readonly string[]): void {
+export function applyReaderLosses(
+  breakups: readonly ReaderBreakup[],
+  rivals: readonly string[],
+  wingmanMemories: ReadonlyArray<{ charId: string; memory: CharMemory }> = []
+): void {
   const game = useGameStore.getState()
   game.applyReaderBreakups(breakups)
   for (const charId of rivals) {
-    const held = game.charInfo[charId]?.jealousyMemories
+    const held = useGameStore.getState().charInfo[charId]?.jealousyMemories
     game.setJealousyMemories(
       charId,
       upsertJealousyMemory(held, rivalMemoryOf(game.characters[charId], game.date))
     )
+  }
+  for (const { charId, memory } of wingmanMemories) {
+    const held = useGameStore.getState().charInfo[charId]?.jealousyMemories
+    game.setJealousyMemories(charId, upsertJealousyMemory(held, memory))
   }
 }
 

@@ -20,6 +20,7 @@ import {
   TALK_DOWN_AFFINITY_DROP,
   TALK_UP_AFFINITY,
   TALK_UP_CRUSH_FACTOR,
+  WINGMAN_CREDIT_DAYS,
   WINGMAN_KEEP_DAYS,
   directedKeyOf,
   emptyNpcRomance,
@@ -28,6 +29,7 @@ import {
   type NpcRomanceInput,
   type NpcRomanceMap,
   type NpcSceneEvent,
+  type NpcWingmanEntry,
   type ReaderLoverState,
   type WingmanKind
 } from '@shared/npcRomance'
@@ -1125,5 +1127,277 @@ describe('the reader as a wingman', () => {
       )
       expect(out.romance).toEqual(before)
     })
+  })
+})
+
+describe('what the reader’s wingman actions leave remembered of him', () => {
+  const characters = charactersById(
+    man('m', { firstName: 'Julian' }),
+    woman('w', { firstName: 'Chloe' }),
+    woman('x', { firstName: 'Mia' }),
+    man('z', { firstName: 'Theo' })
+  )
+  const entry = (kind: WingmanKind, date: number, from = 'm', to = 'w'): NpcWingmanEntry => ({
+    kind,
+    from,
+    to,
+    date
+  })
+  const filed = (out: ReturnType<typeof settleNpcRomance>) =>
+    out.readerMemories.map(({ charId, memory }) => ({ charId, ...memory }))
+  const close = { [pairKeyOf('m', 'w')]: { affinity: ACCEPT_AFFINITY } }
+
+  describe('a couple he helped form', () => {
+    // A crush old enough to be declared, met off the scene, at an affinity that says yes.
+    const formed = (wingman: NpcWingmanEntry[], over: Partial<NpcRomanceInput> = {}) =>
+      settleNpcRomance(
+        input({
+          characters,
+          relationships: close,
+          romance: romance({ crushes: { m: { to: 'w', since: 1 } }, wingman }),
+          groups: together('m', 'w'),
+          ...over
+        }),
+        always
+      )
+
+    it('leaves the one who declared loving it and the one who said yes liking it', () => {
+      const out = formed([entry('talked_up', DAY - WINGMAN_CREDIT_DAYS)])
+      expect(out.romance.couples[pairKeyOf('m', 'w')]).toBeDefined()
+      expect(filed(out)).toEqual([
+        {
+          charId: 'm',
+          date: DAY,
+          type: 'loved',
+          desc: 'the reader helped him get together with Chloe'
+        },
+        {
+          charId: 'w',
+          date: DAY,
+          type: 'liked',
+          desc: 'the reader helped bring her and Julian together'
+        }
+      ])
+    })
+
+    it('counts help in either direction, and none older than the window', () => {
+      expect(filed(formed([entry('talked_up', DAY, 'w', 'm')]))).toHaveLength(2)
+      expect(filed(formed([entry('talked_up', DAY - WINGMAN_CREDIT_DAYS - 1)]))).toEqual([])
+      expect(filed(formed([]))).toEqual([])
+    })
+
+    it('is undone by a badmouthing after the help, and earned back by help after that', () => {
+      const soured = [entry('talked_up', DAY - 5), entry('talked_down', DAY - 3, 'w', 'm')]
+      expect(filed(formed(soured))).toEqual([])
+      expect(filed(formed([...soured, entry('talked_up', DAY - 1)]))).toHaveLength(2)
+    })
+
+    it('is earned by telling of the crush, the rules answering it in the same settle', () => {
+      const out = settleNpcRomance(
+        input({
+          characters,
+          relationships: close,
+          romance: romance({ crushes: { m: { to: 'w', since: DAY - 1 } } }),
+          cast: ['w'],
+          sceneEvents: [{ kind: 'revealed_crush', from: 'm', to: 'w' }]
+        }),
+        never
+      )
+      // The rules answered, not the scene, so the listener here is remembered as well.
+      expect(filed(out).map(({ charId, type }) => [charId, type])).toEqual([
+        ['m', 'loved'],
+        ['w', 'liked']
+      ])
+    })
+
+    it('is earned by an urged confession the rules declare with both in the scene', () => {
+      const urged = [entry('encouraged_confession', DAY - 1)]
+      const out = formed(urged, {
+        romance: romance({
+          crushes: { m: { to: 'w', since: DAY - 1, encouraged: DAY - 1 } },
+          wingman: urged
+        }),
+        groups: [],
+        cast: ['m', 'w']
+      })
+      expect(out.romance.couples[pairKeyOf('m', 'w')]).toBeDefined()
+      expect(filed(out)).toHaveLength(2)
+    })
+
+    it('leaves nothing to whoever was here while the scene itself showed it', () => {
+      const told = settleNpcRomance(
+        input({
+          characters,
+          relationships: close,
+          romance: romance({ crushes: { m: { to: 'w', since: DAY - 1 } } }),
+          cast: ['w'],
+          sceneEvents: [
+            { kind: 'revealed_crush', from: 'm', to: 'w' },
+            { kind: 'declared', from: 'm', to: 'w', accepted: true }
+          ]
+        }),
+        never
+      )
+      expect(filed(told).map(({ charId }) => charId)).toEqual(['m'])
+      expect(
+        told.log.some((row) => row.kind === 'reader_memory_skipped' && row.from === 'w')
+      ).toBe(true)
+      const shown = settleNpcRomance(
+        input({
+          characters,
+          relationships: close,
+          romance: romance({
+            crushes: { m: { to: 'w', since: 1 } },
+            wingman: [entry('talked_up', DAY - 2)]
+          }),
+          cast: ['m', 'w'],
+          sceneEvents: [{ kind: 'declared', from: 'm', to: 'w', accepted: true }]
+        }),
+        never
+      )
+      expect(shown.romance.couples[pairKeyOf('m', 'w')]).toBeDefined()
+      expect(filed(shown)).toEqual([])
+    })
+  })
+
+  describe('a confession he pushed that was turned down', () => {
+    const refused = (over: Partial<NpcRomanceInput>) =>
+      settleNpcRomance(
+        input({
+          characters,
+          relationships: { [pairKeyOf('m', 'w')]: { affinity: 2 } },
+          romance: romance({ crushes: { m: { to: 'w', since: DAY - 1, encouraged: DAY - 1 } } }),
+          ...over
+        }),
+        never
+      )
+
+    it('leaves the one he urged disliking it', () => {
+      const out = refused({ groups: together('m', 'w') })
+      expect(out.romance.rejections[directedKeyOf('m', 'w')]).toBeDefined()
+      expect(filed(out)).toEqual([
+        {
+          charId: 'm',
+          date: DAY,
+          type: 'disliked',
+          desc: 'the reader pushed him to confess to Chloe, and she turned him down'
+        }
+      ])
+    })
+
+    it('leaves only hatred of the telling when he also told of the crush', () => {
+      const out = refused({
+        cast: ['w'],
+        sceneEvents: [{ kind: 'revealed_crush', from: 'm', to: 'w' }]
+      })
+      expect(filed(out)).toEqual([
+        {
+          charId: 'm',
+          date: DAY,
+          type: 'hated',
+          desc: 'the reader told Chloe about his crush on her, and she turned him down'
+        }
+      ])
+    })
+
+    it('leaves nothing where the scene showed the no with him in it', () => {
+      const out = refused({
+        cast: ['m', 'w'],
+        sceneEvents: [{ kind: 'declared', from: 'm', to: 'w', accepted: false }]
+      })
+      expect(out.romance.rejections[directedKeyOf('m', 'w')]).toBeDefined()
+      expect(filed(out)).toEqual([])
+    })
+
+    it('leaves nothing for a turn-down he had no hand in', () => {
+      const out = settleNpcRomance(
+        input({
+          characters,
+          relationships: { [pairKeyOf('m', 'w')]: { affinity: 2 } },
+          romance: romance({ crushes: { m: { to: 'w', since: 1 } } }),
+          groups: together('m', 'w')
+        }),
+        always
+      )
+      expect(out.romance.rejections[directedKeyOf('m', 'w')]).toBeDefined()
+      expect(filed(out)).toEqual([])
+    })
+  })
+
+  describe('a badmouthing found out', () => {
+    const badmouth = (over: Partial<NpcRomanceInput>, events: NpcSceneEvent[] = []) =>
+      settleNpcRomance(
+        input({
+          characters,
+          relationships: { [pairKeyOf('m', 'w')]: { affinity: 4 } },
+          cast: ['w'],
+          sceneEvents: [{ kind: 'talked_down', from: 'm', to: 'w' }, ...events],
+          ...over
+        }),
+        never
+      )
+
+    it('leaves nothing to a victim who was in the scene', () => {
+      const out = badmouth({ cast: ['m', 'w'] })
+      expect(filed(out)).toEqual([])
+      expect(out.romance.wingman?.[0].found).toBeUndefined()
+    })
+
+    it('reaches a victim away through the listener, a friend before the drop', () => {
+      const out = badmouth({})
+      expect(filed(out)).toEqual([
+        {
+          charId: 'm',
+          date: DAY,
+          type: 'hated',
+          desc: 'the reader badmouthed him to Chloe behind his back'
+        }
+      ])
+      expect(out.romance.wingman).toEqual([
+        { kind: 'talked_down', from: 'm', to: 'w', date: DAY, found: true }
+      ])
+    })
+
+    it('reaches him through another friend in the scene', () => {
+      const out = badmouth({
+        cast: ['w', 'z'],
+        relationships: {
+          [pairKeyOf('m', 'w')]: { affinity: 1 },
+          [pairKeyOf('m', 'z')]: { affinity: 5 }
+        }
+      })
+      expect(filed(out).map(({ charId, type }) => [charId, type])).toEqual([['m', 'hated']])
+    })
+
+    it('goes unnoticed with no friend of his here', () => {
+      const out = badmouth({ relationships: { [pairKeyOf('m', 'w')]: { affinity: 3 } } })
+      expect(filed(out)).toEqual([])
+      expect(out.romance.wingman?.[0].found).toBeUndefined()
+      expect(out.log.some((row) => row.kind === 'sabotage_unnoticed')).toBe(true)
+    })
+
+    it('is found out once a day at most', () => {
+      const twice = badmouth(
+        {
+          cast: ['w', 'x'],
+          relationships: {
+            [pairKeyOf('m', 'w')]: { affinity: 4 },
+            [pairKeyOf('m', 'x')]: { affinity: 4 }
+          }
+        },
+        [{ kind: 'talked_down', from: 'm', to: 'x' }]
+      )
+      expect(filed(twice)).toHaveLength(1)
+      const found = (date: number) => ({ ...entry('talked_down', date, 'm', 'x'), found: true as const })
+      expect(filed(badmouth({ romance: romance({ wingman: [found(DAY)] }) }))).toEqual([])
+      expect(filed(badmouth({ romance: romance({ wingman: [found(DAY - 1)] }) }))).toHaveLength(1)
+    })
+  })
+
+  it('reads a record from before it as nothing found out, and files nothing for it', () => {
+    const old = [entry('talked_down', DAY - 1), entry('talked_up', DAY - 2)]
+    const out = settleNpcRomance(input({ characters, romance: romance({ wingman: old }) }), never)
+    expect(out.readerMemories).toEqual([])
+    expect(out.romance.wingman).toEqual(old)
   })
 })

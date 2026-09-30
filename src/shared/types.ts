@@ -1190,6 +1190,11 @@ export interface SlotOpening {
   readerBreakups?: ReaderBreakup[]
   rivals?: string[]
   /**
+   * What the reader's wingman actions in that same scene left the characters they touched
+   * remembering of him. Absent when there is none.
+   */
+  wingmanMemories?: Array<{ charId: string; memory: CharMemory }>
+  /**
    * Whoever fell for the reader in that same scene — rolled at the ending after the witness
    * pass, so the narration above describes her as she now feels.
    */

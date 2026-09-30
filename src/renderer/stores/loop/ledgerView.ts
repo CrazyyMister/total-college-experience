@@ -3,7 +3,7 @@ import { upsertJealousyMemory, type RumorPassOutcome } from '@shared/rumors'
 import type { NpcRelationshipMap } from '@shared/npcRelationships'
 import { rivalMemoryOf, type ReaderBreakup } from '@shared/npcRomance'
 import type { PlayerStats } from '@shared/playerStats'
-import type { CalendarEvent, CharInfo } from '@shared/types'
+import type { CalendarEvent, CharInfo, CharMemory } from '@shared/types'
 import { blankCharInfo, useGameStore } from '../gameStore'
 
 /** The slot opening's view of a world the boundary has not written yet. */
@@ -72,7 +72,8 @@ export function withRumorPass(
 export function withReaderLosses(
   charInfo: Readonly<Record<string, CharInfo>>,
   breakups: readonly ReaderBreakup[],
-  rivals: readonly string[]
+  rivals: readonly string[],
+  wingmanMemories: ReadonlyArray<{ charId: string; memory: CharMemory }> = []
 ): Record<string, CharInfo> {
   const game = useGameStore.getState()
   const projected: Record<string, CharInfo> = { ...charInfo }
@@ -95,6 +96,13 @@ export function withReaderLosses(
         info.jealousyMemories,
         rivalMemoryOf(game.characters[charId], game.date)
       )
+    }
+  }
+  for (const { charId, memory } of wingmanMemories) {
+    const info = projected[charId] ?? blankCharInfo()
+    projected[charId] = {
+      ...info,
+      jealousyMemories: upsertJealousyMemory(info.jealousyMemories, memory)
     }
   }
   return projected

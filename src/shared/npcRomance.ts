@@ -1,7 +1,8 @@
-import type { Character, CharMemory } from './types'
+import type { Character, CharMemory, MemoryType } from './types'
 import { pronounsOf } from './pronouns'
 import { hasTrait } from './traits'
 import {
+  areNpcFriends,
   MAX_AFFINITY,
   MIN_AFFINITY,
   pairKeyOf,
@@ -82,6 +83,8 @@ export const TALK_UP_CRUSH_FACTOR = 3
 export const ENCOURAGED_DAYS = 7
 /** How many days the reader's wingman actions stay on the map. */
 export const WINGMAN_KEEP_DAYS = 30
+/** How many days before a couple forms the reader's help still earns their gratitude. */
+export const WINGMAN_CREDIT_DAYS = 14
 
 /** One character's crush on another, keyed on the save by who holds it. */
 export interface NpcCrush {
@@ -164,6 +167,22 @@ export interface NpcWingmanEntry {
   from: string
   to: string
   date: number
+  /** Set on a talk-down whose victim found out about it. */
+  found?: true
+}
+
+/** Why the game filed a memory of the reader's wingman actions. */
+export type WingmanMemoryReason =
+  | 'helped'
+  | 'pushed_turned_down'
+  | 'told_turned_down'
+  | 'badmouthed'
+
+/** A memory of the reader a settle files for one character, and why. */
+export interface WingmanMemory {
+  charId: string
+  memory: CharMemory
+  reason: WingmanMemoryReason
 }
 
 /** The whole of it, on the save beside the pair map. */
@@ -226,6 +245,9 @@ export interface NpcRomanceLogEntry {
     | 'crush_faded'
     | 'wingman'
     | 'encouragement_lapsed'
+    | 'reader_memory'
+    | 'reader_memory_skipped'
+    | 'sabotage_unnoticed'
   from: string
   to: string
   /** For a discarded scene event, what it was and why it could not stand. */
@@ -327,6 +349,8 @@ export interface NpcRomanceOutcome {
   readerBreakups: ReaderBreakup[]
   /** The men the reader displaced this settle, who each owe him a grudge memory. */
   rivals: string[]
+  /** What the reader's wingman actions leave the characters they touched remembering of him. */
+  readerMemories: WingmanMemory[]
 }
 
 /** What a declaration between two characters can come to: nothing, only a no, or either answer. */
@@ -399,6 +423,49 @@ export function driftsFrom(state: ReaderLoverState, date: number, running: boole
 export function rivalMemoryOf(character: Character | undefined, date: number): CharMemory {
   const possessive = pronounsOf(character?.gender ?? 'man').possessive
   return { date, type: 'hated', desc: `the reader started dating ${possessive} girlfriend` }
+}
+
+/** The memories a character keeps of the reader's wingman actions, in that character's pronouns. */
+function wingmanMemoryDesc(
+  reason: WingmanMemoryReason,
+  holder: Character | undefined,
+  other: Character | undefined,
+  declared: boolean
+): string {
+  const own = pronounsOf(holder?.gender ?? 'woman')
+  const theirs = pronounsOf(other?.gender ?? 'woman')
+  const name = other?.firstName ?? 'someone'
+  switch (reason) {
+    case 'helped':
+      return declared
+        ? `the reader helped ${own.object} get together with ${name}`
+        : `the reader helped bring ${own.object} and ${name} together`
+    case 'pushed_turned_down':
+      return `the reader pushed ${own.object} to confess to ${name}, and ${theirs.subject} turned ${own.object} down`
+    case 'told_turned_down':
+      return `the reader told ${name} about ${own.possessive} crush on ${theirs.object}, and ${theirs.subject} turned ${own.object} down`
+    case 'badmouthed':
+      return `the reader badmouthed ${own.object} to ${name} behind ${own.possessive} back`
+  }
+}
+
+/**
+ * Whether the reader's latest action on the pair within {@link WINGMAN_CREDIT_DAYS} of `date`, in
+ * either direction, was help: talking one up, urging a confession or telling of a crush.
+ */
+export function readerHelpedPair(
+  wingman: readonly NpcWingmanEntry[] | undefined,
+  a: string,
+  b: string,
+  date: number
+): boolean {
+  const key = pairKeyOf(a, b)
+  let latest: NpcWingmanEntry | undefined
+  for (const entry of wingman ?? []) {
+    if (pairKeyOf(entry.from, entry.to) !== key || date - entry.date > WINGMAN_CREDIT_DAYS) continue
+    if (!latest || entry.date >= latest.date) latest = entry
+  }
+  return latest !== undefined && latest.kind !== 'talked_down'
 }
 
 /** Whether an ex pair is one the reader broke up and the grudge for it still runs. */
@@ -602,6 +669,7 @@ export function settleNpcRomance(
   }
   const readerBreakups: ReaderBreakup[] = []
   const rivals: string[] = []
+  const readerMemories: WingmanMemory[] = []
   const tally: NpcRomanceTally = {
     crushes: 0,
     declarations: 0,
@@ -644,10 +712,40 @@ export function settleNpcRomance(
     seen.add(once)
     wingman.push(event)
   }
-  const record = (action: NpcWingmanEvent): void => {
-    romance.wingman = [...(romance.wingman ?? []), { ...action, date }]
+  const record = (action: NpcWingmanEvent, found = false): void => {
+    const entry: NpcWingmanEntry = { ...action, date, ...(found ? { found: true as const } : {}) }
+    romance.wingman = [...(romance.wingman ?? []), entry]
     note('scene', 'wingman', action.from, action.to, action.kind)
   }
+  // Files what `charId` remembers of the reader over `other`, unless the scene itself showed the
+  // outcome with them in it, which leaves the remembering to the ledger.
+  const remember = (
+    charId: string,
+    other: string,
+    reason: WingmanMemoryReason,
+    type: MemoryType,
+    shown: boolean,
+    declared = false,
+    detail = `${reason} (${type})`
+  ): void => {
+    if (shown && inScene.has(charId)) {
+      const why = `${reason}: the scene showed it with them here`
+      note('system', 'reader_memory_skipped', charId, other, why)
+      return
+    }
+    const desc = wingmanMemoryDesc(reason, characters[charId], characters[other], declared)
+    readerMemories.push({ charId, memory: { date, type, desc }, reason })
+    note('system', 'reader_memory', charId, other, detail)
+  }
+  // Whether the victim of a talk-down away from the scene hears of it from a friend who was in
+  // it, the listener first, judged on the pair map as it stood before the reader's talk.
+  const friendWhoTells = (victim: string, listener: string): string | undefined =>
+    [listener, ...[...input.cast].sort()].find(
+      (charId) =>
+        charId !== victim &&
+        inScene.has(charId) &&
+        areNpcFriends(input.relationships, victim, charId)
+    )
   // Whether the game takes the action, noting why where it does not. A talk-up and a talk-down
   // of the same pair in one scene cancel each other out.
   const takes = (action: NpcWingmanEvent): boolean => {
@@ -673,8 +771,34 @@ export function settleNpcRomance(
       action.to,
       up ? TALK_UP_AFFINITY : -TALK_DOWN_AFFINITY_DROP
     )
-    record(action)
-    if (up) talkedUp.push(action)
+    if (up) {
+      record(action)
+      talkedUp.push(action)
+      continue
+    }
+    // The one badmouthed, away from the scene, finds out through a friend in it, once a day.
+    const victim = action.from
+    if (inScene.has(victim)) {
+      record(action)
+      const why = 'badmouthed: the scene showed it with them here'
+      note('system', 'reader_memory_skipped', victim, action.to, why)
+      continue
+    }
+    const already = (romance.wingman ?? []).some(
+      (entry) =>
+        entry.kind === 'talked_down' && entry.from === victim && entry.date === date && entry.found
+    )
+    const teller = already ? undefined : friendWhoTells(victim, action.to)
+    record(action, teller !== undefined)
+    if (already) {
+      const why = 'badmouthed: already found out today'
+      note('system', 'reader_memory_skipped', victim, action.to, why)
+    } else if (teller === undefined) {
+      note('system', 'sabotage_unnoticed', victim, action.to, 'nobody here is a friend of theirs')
+    } else {
+      const via = `badmouthed (hated), found out via ${characters[teller]?.firstName ?? teller}`
+      remember(victim, action.to, 'badmouthed', 'hated', false, false, via)
+    }
   }
 
   const breakUp = (key: string, a: string, b: string, byReader = false): void => {
@@ -735,8 +859,19 @@ export function settleNpcRomance(
     record(action)
   }
 
-  const accept = (from: string, to: string): void => acceptDeclaration(romance, from, to, date)
-  const turnDown = (from: string, to: string): void => {
+  // A couple the reader helped form within the window leaves both grateful to him.
+  const accept = (from: string, to: string, shown: boolean): void => {
+    acceptDeclaration(romance, from, to, date)
+    if (!readerHelpedPair(romance.wingman, from, to, date)) return
+    remember(from, to, 'helped', 'loved', shown, true)
+    remember(to, from, 'helped', 'liked', shown)
+  }
+  // A declaration the reader told of or urged on that is turned down leaves its maker sore at him.
+  const turnDown = (from: string, to: string, shown: boolean, told = false): void => {
+    if (told) remember(from, to, 'told_turned_down', 'hated', shown)
+    else if (romance.crushes[from]?.encouraged !== undefined) {
+      remember(from, to, 'pushed_turned_down', 'disliked', shown)
+    }
     delete romance.crushes[from]
     romance.rejections[directedKeyOf(from, to)] = { date }
     shiftAffinity(relationships, from, to, -REJECTION_AFFINITY_DROP)
@@ -754,14 +889,13 @@ export function settleNpcRomance(
     )
     const reported = at === -1 ? undefined : shown.splice(at, 1)[0]
     const outcome = declarationOutcomeOf(romance, from, to, context)
-    const yes =
+    const shownAnswer =
       reported?.kind === 'declared' && (!reported.accepted || outcome === 'open')
-        ? reported.accepted
-        : wouldSayYes(romance, relationships, from, to, context)
+    const yes = shownAnswer ? reported.accepted : wouldSayYes(romance, relationships, from, to, context)
     romance.discovered = { ...romance.discovered, [from]: { to, date } }
     record(action)
-    if (yes) accept(from, to)
-    else turnDown(from, to)
+    if (yes) accept(from, to, shownAnswer)
+    else turnDown(from, to, shownAnswer, true)
     declared.add(pairKeyOf(from, to))
     note('scene', yes ? 'accepted' : 'rejected', from, to, 'the reader told')
   }
@@ -781,8 +915,8 @@ export function settleNpcRomance(
         refuse(`${what}: ${outcome === 'impossible' ? 'impossible' : 'only a no was possible'}`)
         continue
       }
-      if (event.accepted) accept(from, to)
-      else turnDown(from, to)
+      if (event.accepted) accept(from, to, true)
+      else turnDown(from, to, true)
       declared.add(pairKeyOf(from, to))
       note('scene', event.accepted ? 'accepted' : 'rejected', from, to)
     } else if (event.kind === 'broke_up') {
@@ -838,11 +972,11 @@ export function settleNpcRomance(
         (romance.crushes[to]?.to === from || affinityOf(from, to) >= ACCEPT_AFFINITY)
       const why = urged ? 'encouraged by the reader' : undefined
       if (answersYes) {
-        accept(from, to)
+        accept(from, to, false)
         tally.accepted++
         note('system', 'accepted', from, to, why)
       } else {
-        turnDown(from, to)
+        turnDown(from, to, false)
         tally.rejected++
         note('system', 'rejected', from, to, why)
       }
@@ -982,5 +1116,5 @@ export function settleNpcRomance(
     if (romance.wingman.length === 0) delete romance.wingman
   }
 
-  return { relationships, romance, tally, log, readerBreakups, rivals }
+  return { relationships, romance, tally, log, readerBreakups, rivals, readerMemories }
 }

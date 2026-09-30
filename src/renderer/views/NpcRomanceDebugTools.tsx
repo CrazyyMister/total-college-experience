@@ -6,6 +6,7 @@ import {
   debugAffection,
   debugAffinity,
   debugAgeEncouraged,
+  debugAgeWingman,
   debugAgeHeld,
   debugBetrayed,
   debugBlocked,
@@ -57,7 +58,8 @@ const TOOLS: readonly Tool[] = [
   },
   { label: 'Reader tells Y of X’s crush', run: (x, y) => debugWingman('revealed_crush', x, y) },
   { label: 'X and Y spend this slot together', run: (x, y) => debugMeet(x, y) },
-  { label: 'X’s encouragement is N days older', run: (x, _y, n) => debugAgeEncouraged(x, n) }
+  { label: 'X’s encouragement is N days older', run: (x, _y, n) => debugAgeEncouraged(x, n) },
+  { label: 'X’s wingman actions are N days older', run: (x, _y, n) => debugAgeWingman(x, n) }
 ]
 
 /** Pickers for the two characters and the number, and a button for each thing to set up. */

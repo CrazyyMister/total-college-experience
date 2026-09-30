@@ -411,3 +411,26 @@ export function debugAgeEncouraged(charId: string, days: number): DebugResult {
   })
   return done(`The reader encouraged the crush ${game.date - encouraged} days ago.`)
 }
+
+/**
+ * Moves every wingman action with `charId` at either end back, ageing it towards the edge of the
+ * window a couple's gratitude is earned in.
+ */
+export function debugAgeWingman(charId: string, days: number): DebugResult {
+  if (!import.meta.env.DEV) return NOT_DEV
+  const game = useGameStore.getState()
+  const wingman = game.npcRomance.wingman ?? []
+  if (!wingman.some((entry) => entry.from === charId || entry.to === charId)) {
+    return refused('No wingman action on record names that character.')
+  }
+  const back = Math.max(0, days)
+  game.setNpcRomance({
+    ...game.npcRomance,
+    wingman: wingman.map((entry) =>
+      entry.from === charId || entry.to === charId
+        ? { ...entry, date: Math.max(0, entry.date - back) }
+        : entry
+    )
+  })
+  return done(`Their wingman actions are ${back} days older.`)
+}
