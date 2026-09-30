@@ -2,12 +2,24 @@ import { lazy, Suspense, useState, type JSX } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'motion/react'
 import { pairKeyOf } from '@shared/npcRelationships'
-import { HELD_CRUSH_FADES_DAYS, isRivalGrudge, REJECTION_COOLDOWN_DAYS } from '@shared/npcRomance'
+import {
+  ENCOURAGED_DAYS,
+  HELD_CRUSH_FADES_DAYS,
+  isRivalGrudge,
+  REJECTION_COOLDOWN_DAYS,
+  WINGMAN_KEEP_DAYS
+} from '@shared/npcRomance'
 import { useModalShell } from '../components/useModalShell'
 import { TitleTab } from '../components/TitleTab'
 import { useGameStore } from '../stores/gameStore'
 import { lastScenePromptText } from '../stores/gameLoop'
-import { pendingGossipLeak, romanceEventLog, romanceSectionOf } from '../stores/npcRomanceDebug'
+import {
+  pendingGossipLeak,
+  pendingMeetings,
+  pendingWingman,
+  romanceEventLog,
+  romanceSectionOf
+} from '../stores/npcRomanceDebug'
 import { formatShortGameDate } from '../prompts/gameDate'
 import { gestures, lift, panelUnderTab, press, veilIn } from './motion'
 import '../vu_styles/NpcRomanceDebug.css'
@@ -47,7 +59,15 @@ function sectionsOf(): DebugSection[] {
   }
   const affinity = (a: string, b: string): string =>
     `affinity ${game.npcRelationships[pairKeyOf(a, b)]?.affinity ?? '—'}`
-  const { crushes, couples, exes, rejections, discovered = {}, drifts = {} } = game.npcRomance
+  const {
+    crushes,
+    couples,
+    exes,
+    rejections,
+    discovered = {},
+    drifts = {},
+    wingman = []
+  } = game.npcRomance
   const leak = pendingGossipLeak()
 
   return [
@@ -72,6 +92,10 @@ function sectionsOf(): DebugSection[] {
         facts: `since ${dated(crush.since)} · ${game.date - crush.since} days · ${affinity(from, crush.to)}${
           crush.heldSince !== undefined
             ? ` · kept unsaid ${game.date - crush.heldSince} of ${HELD_CRUSH_FADES_DAYS} days`
+            : ''
+        }${
+          crush.encouraged !== undefined
+            ? ` · encouraged ${dated(crush.encouraged)}, ${game.date - crush.encouraged} of ${ENCOURAGED_DAYS} days`
             : ''
         }`
       }))
@@ -126,6 +150,26 @@ function sectionsOf(): DebugSection[] {
         who: `${name(from)}'s crush on ${name(found.to)}`,
         facts: dated(found.date)
       }))
+    },
+    {
+      title: `Wingman, last ${WINGMAN_KEEP_DAYS} days`,
+      rows: [
+        ...pendingWingman().map((action, index) => ({
+          key: `queued:${index}`,
+          who: `${action.kind}: ${name(action.from)} → ${name(action.to)}`,
+          facts: 'queued for this scene’s ending'
+        })),
+        ...pendingMeetings().map(([a, b], index) => ({
+          key: `meet:${index}`,
+          who: `${name(a)} & ${name(b)} spend the slot together`,
+          facts: 'queued for this scene’s ending'
+        })),
+        ...[...wingman].reverse().map((entry, index) => ({
+          key: `done:${index}`,
+          who: `${entry.kind}: ${name(entry.from)} → ${name(entry.to)}`,
+          facts: dated(entry.date)
+        }))
+      ]
     },
     {
       title: 'Gossip',

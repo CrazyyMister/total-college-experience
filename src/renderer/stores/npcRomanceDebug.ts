@@ -1,4 +1,4 @@
-import type { NpcRomanceLogEntry } from '@shared/npcRomance'
+import type { NpcRomanceLogEntry, NpcWingmanEvent } from '@shared/npcRomance'
 import { NPC_ROMANCE_HEADING } from '../prompts/npcRelationship'
 import { loopState } from './loop/state'
 
@@ -27,6 +27,16 @@ export function romanceEventLog(): readonly NpcRomanceLogEntry[] {
 /** The crush holder the test button has the next ending's gossip leak, or null. */
 export function pendingGossipLeak(): string | null {
   return loopState.debugGossipLeak
+}
+
+/** The wingman actions the test buttons queued for the next ending. */
+export function pendingWingman(): readonly NpcWingmanEvent[] {
+  return loopState.debugWingman
+}
+
+/** The meetings the test button queued for the next ending. */
+export function pendingMeetings(): ReadonlyArray<readonly [string, string]> {
+  return loopState.debugMeetings
 }
 
 /** The romance section of a scene request's user message, one line per entry; empty without one. */

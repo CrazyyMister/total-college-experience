@@ -5,6 +5,7 @@ import { useGameStore } from '../stores/gameStore'
 import {
   debugAffection,
   debugAffinity,
+  debugAgeEncouraged,
   debugAgeHeld,
   debugBetrayed,
   debugBlocked,
@@ -14,6 +15,8 @@ import {
   debugDriftBack,
   debugLeakCrush,
   debugLover,
+  debugMeet,
+  debugWingman,
   type DebugResult
 } from '../stores/npcRomanceDebugActions'
 import { gestures, lift, press } from './motion'
@@ -45,7 +48,16 @@ const TOOLS: readonly Tool[] = [
   { label: 'The reader discovers X’s crush', run: (x) => debugDiscover(x) },
   { label: 'The next scene leaks X’s crush', run: (x) => debugLeakCrush(x) },
   { label: 'X blocks the reader', run: (x) => debugBlocked(x, true) },
-  { label: 'X unblocks the reader', run: (x) => debugBlocked(x, false) }
+  { label: 'X unblocks the reader', run: (x) => debugBlocked(x, false) },
+  { label: 'Reader talks X up to Y', run: (x, y) => debugWingman('talked_up', x, y) },
+  { label: 'Reader badmouths X to Y', run: (x, y) => debugWingman('talked_down', x, y) },
+  {
+    label: 'Reader urges X to confess to Y',
+    run: (x, y) => debugWingman('encouraged_confession', x, y)
+  },
+  { label: 'Reader tells Y of X’s crush', run: (x, y) => debugWingman('revealed_crush', x, y) },
+  { label: 'X and Y spend this slot together', run: (x, y) => debugMeet(x, y) },
+  { label: 'X’s encouragement is N days older', run: (x, _y, n) => debugAgeEncouraged(x, n) }
 ]
 
 /** Pickers for the two characters and the number, and a button for each thing to set up. */

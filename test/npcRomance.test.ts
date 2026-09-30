@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { pairKeyOf, type NpcEncounterGroup, type NpcRelationshipMap } from '@shared/npcRelationships'
 import {
+  ACCEPT_AFFINITY,
   BETRAYAL_OPENS_AT,
   BETRAYAL_WINDOW_DAYS,
   BREAKUP_BELOW,
+  CRUSH_CHANCE,
+  CRUSH_MIN_AFFINITY,
   DECLARE_AFTER_DAYS,
+  ENCOURAGED_DAYS,
   HELD_CRUSH_FADES_DAYS,
   DRIFT_FORGIVEN_ABOVE,
   DRIFT_HOLDS_ABOVE,
@@ -13,13 +17,19 @@ import {
   MAX_COUPLES,
   REJECTION_AFFINITY_DROP,
   REJECTION_COOLDOWN_DAYS,
+  TALK_DOWN_AFFINITY_DROP,
+  TALK_UP_AFFINITY,
+  TALK_UP_CRUSH_FACTOR,
+  WINGMAN_KEEP_DAYS,
   directedKeyOf,
   emptyNpcRomance,
   rivalMemoryOf,
   settleNpcRomance,
   type NpcRomanceInput,
   type NpcRomanceMap,
-  type ReaderLoverState
+  type NpcSceneEvent,
+  type ReaderLoverState,
+  type WingmanKind
 } from '@shared/npcRomance'
 import { upsertJealousyMemory } from '@shared/rumors'
 import type { Character } from '@shared/types'
@@ -704,5 +714,416 @@ describe('the man the reader displaced', () => {
     const twice = upsertJealousyMemory(once, rivalMemoryOf(characters.m, 31))
     expect(twice).toHaveLength(1)
     expect(twice[0].type).toBe('hated')
+  })
+})
+
+describe('the reader’s lover’s suitor standing close enough', () => {
+  const characters = charactersById(man('m'), woman('w'))
+  const cold: ReaderLoverState = { affection: DRIFT_OPENS_AT, harem: false }
+  const running = romance({
+    crushes: { m: { to: 'w', since: 1 } },
+    drifts: { w: { to: 'm', since: DAY - 2, signs: 0 } }
+  })
+  const settle = (affinity: number, over: Partial<NpcRomanceInput> = {}) =>
+    settleNpcRomance(
+      input({
+        characters,
+        relationships: { [pairKeyOf('m', 'w')]: { affinity } },
+        romance: running,
+        readerLovers: ['w'],
+        loverStates: { w: cold },
+        ...over
+      }),
+      never
+    )
+
+  it('keeps a drift down to the crush bar and ends it below', () => {
+    expect(settle(CRUSH_MIN_AFFINITY).romance.drifts?.w).toBeDefined()
+    expect(settle(CRUSH_MIN_AFFINITY - 1).romance.drifts).toBeUndefined()
+  })
+
+  it('reopens from nothing once the suitor is back at the accepting affinity', () => {
+    const ended = settle(CRUSH_MIN_AFFINITY - 1)
+    const again = settle(ACCEPT_AFFINITY, { romance: ended.romance })
+    expect(again.romance.drifts?.w).toEqual({ to: 'm', since: DAY, signs: 0 })
+  })
+
+  it('ends when the reader badmouths the suitor to her from the accepting affinity', () => {
+    const out = settle(ACCEPT_AFFINITY, {
+      cast: ['w'],
+      sceneEvents: [{ kind: 'talked_down', from: 'm', to: 'w' }]
+    })
+    expect(out.relationships[pairKeyOf('m', 'w')].affinity).toBe(
+      ACCEPT_AFFINITY - TALK_DOWN_AFFINITY_DROP
+    )
+    expect(out.romance.drifts).toBeUndefined()
+  })
+})
+
+describe('two characters in the scene with the reader', () => {
+  const characters = charactersById(man('m'), woman('w'))
+
+  it('may fall for each other when both came out of it liking the reader', () => {
+    const scene = (bonded: string[], affinity: number) =>
+      settleNpcRomance(
+        input({
+          characters,
+          relationships: { [pairKeyOf('m', 'w')]: { affinity } },
+          cast: ['m', 'w'],
+          bonded
+        }),
+        always
+      )
+    expect(scene(['m', 'w'], CRUSH_MIN_AFFINITY).romance.crushes).toEqual({
+      m: { to: 'w', since: DAY },
+      w: { to: 'm', since: DAY }
+    })
+    expect(scene(['m'], CRUSH_MIN_AFFINITY).romance.crushes).toEqual({})
+    expect(scene(['m', 'w'], CRUSH_MIN_AFFINITY - 1).romance.crushes).toEqual({})
+  })
+
+  it('spend the slot together, so a crush held long enough may be declared', () => {
+    const out = settleNpcRomance(
+      input({
+        characters,
+        relationships: { [pairKeyOf('m', 'w')]: { affinity: 6 } },
+        romance: romance({ crushes: { m: { to: 'w', since: 0 } } }),
+        cast: ['m', 'w']
+      }),
+      always
+    )
+    expect(out.romance.couples[pairKeyOf('m', 'w')]).toEqual({ since: DAY })
+  })
+
+  it('declare nothing more once the scene showed a declaration between them', () => {
+    const out = settleNpcRomance(
+      input({
+        characters,
+        relationships: { [pairKeyOf('m', 'w')]: { affinity: 3 } },
+        romance: romance({ crushes: { m: { to: 'w', since: 0 }, w: { to: 'm', since: 0 } } }),
+        cast: ['m', 'w'],
+        sceneEvents: [{ kind: 'declared', from: 'm', to: 'w', accepted: false }]
+      }),
+      always
+    )
+    expect(out.romance.rejections[directedKeyOf('m', 'w')]).toEqual({ date: DAY })
+    expect(out.romance.couples).toEqual({})
+    expect(out.romance.crushes.w).toEqual({ to: 'm', since: 0 })
+    expect(out.tally.declarations).toBe(0)
+  })
+})
+
+describe('the reader as a wingman', () => {
+  const characters = charactersById(
+    man('m'),
+    woman('w'),
+    woman('x'),
+    woman('picky', { traits: ['High Standards'] })
+  )
+  const act = (kind: WingmanKind, from: string, to: string): NpcSceneEvent => ({ kind, from, to })
+  const at = (value: number) => (): number => value
+  const affinityIn = (out: ReturnType<typeof settleNpcRomance>, a: string, b: string) =>
+    out.relationships[pairKeyOf(a, b)]?.affinity
+  const capped = Object.fromEntries(
+    Array.from({ length: MAX_COUPLES }, (_, i) => [pairKeyOf(`a${i}`, `b${i}`), { since: 1 }])
+  )
+
+  describe('talking one up to another', () => {
+    const talk = (over: Partial<NpcRomanceInput>, rand: () => number = never) =>
+      settleNpcRomance(
+        input({ characters, cast: ['w'], sceneEvents: [act('talked_up', 'm', 'w')], ...over }),
+        rand
+      )
+
+    it('raises the pair, up to the ceiling, and is recorded', () => {
+      const out = talk({ relationships: { [pairKeyOf('m', 'w')]: { affinity: 1 } } })
+      expect(affinityIn(out, 'm', 'w')).toBe(1 + TALK_UP_AFFINITY)
+      expect(out.romance.wingman).toEqual([{ kind: 'talked_up', from: 'm', to: 'w', date: DAY }])
+      expect(affinityIn(talk({ relationships: { [pairKeyOf('m', 'w')]: { affinity: 6 } } }), 'm', 'w')).toBe(6)
+    })
+
+    it('earns a listener drawn to them an extra roll at three times the odds, traits applied', () => {
+      const odds = CRUSH_CHANCE * TALK_UP_CRUSH_FACTOR
+      const three = { [pairKeyOf('m', 'w')]: { affinity: CRUSH_MIN_AFFINITY - 1 } }
+      expect(talk({ relationships: three }, at(odds - 0.001)).romance.crushes.w).toEqual({
+        to: 'm',
+        since: DAY
+      })
+      expect(talk({ relationships: three }, at(odds + 0.001)).romance.crushes).toEqual({})
+      const picky = (value: number) =>
+        settleNpcRomance(
+          input({
+            characters,
+            cast: ['picky'],
+            relationships: { [pairKeyOf('m', 'picky')]: { affinity: CRUSH_MIN_AFFINITY } },
+            sceneEvents: [act('talked_up', 'm', 'picky')]
+          }),
+          at(value)
+        ).romance.crushes.picky
+      expect(picky(odds / 2 - 0.001)).toBeDefined()
+      expect(picky(odds / 2 + 0.001)).toBeUndefined()
+    })
+
+    it('only moves the pair for a listener not drawn to them, or short of the crush bar', () => {
+      const out = settleNpcRomance(
+        input({
+          characters,
+          cast: ['w'],
+          relationships: { [pairKeyOf('x', 'w')]: { affinity: 5 } },
+          sceneEvents: [act('talked_up', 'x', 'w')]
+        }),
+        always
+      )
+      expect(affinityIn(out, 'x', 'w')).toBe(6)
+      expect(out.romance.crushes).toEqual({})
+      const short = talk({ relationships: { [pairKeyOf('m', 'w')]: { affinity: 1 } } }, always)
+      expect(short.romance.crushes).toEqual({})
+    })
+
+    it('is refused about or to the reader’s lover, and without the listener in the scene', () => {
+      for (const over of [{ readerLovers: ['w'] }, { readerLovers: ['m'] }, { cast: ['m'] }]) {
+        const out = talk({ relationships: { [pairKeyOf('m', 'w')]: { affinity: 1 } }, ...over })
+        expect(affinityIn(out, 'm', 'w')).toBe(1)
+        expect(out.romance.wingman).toBeUndefined()
+        expect(out.log.some((entry) => entry.kind === 'discarded')).toBe(true)
+      }
+    })
+  })
+
+  describe('badmouthing one to another', () => {
+    const badmouth = (over: Partial<NpcRomanceInput>) =>
+      settleNpcRomance(
+        input({ characters, cast: ['w'], sceneEvents: [act('talked_down', 'm', 'w')], ...over }),
+        never
+      )
+
+    it('lowers the pair, down to the floor', () => {
+      expect(affinityIn(badmouth({ relationships: { [pairKeyOf('m', 'w')]: { affinity: 3 } } }), 'm', 'w')).toBe(
+        3 - TALK_DOWN_AFFINITY_DROP
+      )
+      expect(affinityIn(badmouth({ relationships: { [pairKeyOf('m', 'w')]: { affinity: -5 } } }), 'm', 'w')).toBe(-6)
+    })
+
+    it('breaks a couple up and ends a crush in the same settle', () => {
+      const couple = badmouth({
+        relationships: { [pairKeyOf('m', 'w')]: { affinity: 1 } },
+        romance: romance({ couples: { [pairKeyOf('m', 'w')]: { since: 1 } } })
+      })
+      expect(couple.romance.couples).toEqual({})
+      expect(couple.romance.exes[pairKeyOf('m', 'w')]).toBeDefined()
+      const crush = badmouth({
+        relationships: { [pairKeyOf('m', 'w')]: { affinity: 1 } },
+        romance: romance({ crushes: { m: { to: 'w', since: 1 } } })
+      })
+      expect(crush.romance.crushes).toEqual({})
+    })
+
+    it('is taken about the reader’s lover too', () => {
+      const out = badmouth({
+        relationships: { [pairKeyOf('m', 'w')]: { affinity: 3 } },
+        readerLovers: ['w']
+      })
+      expect(affinityIn(out, 'm', 'w')).toBe(3 - TALK_DOWN_AFFINITY_DROP)
+    })
+  })
+
+  describe('once a day, and a talk-up and a talk-down cancelling', () => {
+    const settle = (sceneEvents: NpcSceneEvent[], wingman: NpcRomanceMap['wingman'] = undefined) =>
+      settleNpcRomance(
+        input({
+          characters,
+          cast: ['w'],
+          relationships: { [pairKeyOf('m', 'w')]: { affinity: 2 } },
+          romance: romance(wingman ? { wingman } : {}),
+          sceneEvents
+        }),
+        never
+      )
+
+    it('applies neither when one scene holds both', () => {
+      const out = settle([act('talked_up', 'm', 'w'), act('talked_down', 'w', 'm')])
+      expect(affinityIn(out, 'm', 'w')).toBe(2)
+      expect(out.romance.wingman).toBeUndefined()
+    })
+
+    it('counts the same action once', () => {
+      const out = settle([act('talked_up', 'm', 'w'), act('talked_up', 'w', 'm')])
+      expect(affinityIn(out, 'm', 'w')).toBe(3)
+      expect(out.romance.wingman).toHaveLength(1)
+    })
+
+    it('keeps the day’s first word over a later slot’s', () => {
+      const earlier = [{ kind: 'talked_up' as const, from: 'm', to: 'w', date: DAY }]
+      for (const kind of ['talked_down', 'talked_up'] as const) {
+        const out = settle([act(kind, 'm', 'w')], earlier)
+        expect(affinityIn(out, 'm', 'w')).toBe(2)
+        expect(out.romance.wingman).toEqual(earlier)
+      }
+      // Yesterday's is no bar.
+      const yesterday = [{ kind: 'talked_up' as const, from: 'm', to: 'w', date: DAY - 1 }]
+      expect(affinityIn(settle([act('talked_down', 'm', 'w')], yesterday), 'm', 'w')).toBe(0)
+    })
+  })
+
+  describe('urging a confession', () => {
+    const crushing = (over: Partial<NpcRomanceMap> = {}) =>
+      romance({ crushes: { m: { to: 'w', since: DAY - 1 } }, ...over })
+    const urge = (over: Partial<NpcRomanceInput>) =>
+      settleNpcRomance(
+        input({
+          characters,
+          relationships: { [pairKeyOf('m', 'w')]: { affinity: 5 } },
+          romance: crushing(),
+          cast: ['m', 'w'],
+          sceneEvents: [act('encouraged_confession', 'm', 'w')],
+          ...over
+        }),
+        never
+      )
+    const meet = (map: NpcRomanceMap, date: number) =>
+      settleNpcRomance(
+        input({
+          date,
+          characters,
+          relationships: { [pairKeyOf('m', 'w')]: { affinity: 5 } },
+          romance: map,
+          groups: together('m', 'w')
+        }),
+        never
+      )
+
+    it('marks the crush, the reader knows of it, and it waits for the next meeting', () => {
+      const out = urge({})
+      expect(out.romance.crushes.m).toEqual({ to: 'w', since: DAY - 1, encouraged: DAY })
+      expect(out.romance.discovered).toEqual({ m: { to: 'w', date: DAY } })
+      expect(out.romance.wingman).toEqual([
+        { kind: 'encouraged_confession', from: 'm', to: 'w', date: DAY }
+      ])
+      expect(out.romance.couples).toEqual({})
+
+      const next = meet(out.romance, DAY + 1)
+      expect(next.romance.couples[pairKeyOf('m', 'w')]).toEqual({ since: DAY + 1 })
+      // The next slot of the same day is a next meeting too.
+      const tonight = meet(out.romance, DAY)
+      expect(tonight.romance.couples[pairKeyOf('m', 'w')]).toEqual({ since: DAY })
+    })
+
+    it('is taken at the couples’ cap, and the declaration waits for room', () => {
+      const out = urge({ romance: crushing({ couples: capped }) })
+      expect(out.romance.crushes.m.encouraged).toBe(DAY)
+      const next = meet(out.romance, DAY + 1)
+      expect(next.romance.crushes.m.encouraged).toBe(DAY)
+      expect(Object.keys(next.romance.couples)).toHaveLength(MAX_COUPLES)
+    })
+
+    it('lapses once the days are gone with no meeting', () => {
+      const marked = (encouraged: number) =>
+        romance({ crushes: { m: { to: 'w', since: 1, encouraged } } })
+      const settle = (encouraged: number) =>
+        settleNpcRomance(
+          input({
+            characters,
+            relationships: { [pairKeyOf('m', 'w')]: { affinity: 5 } },
+            romance: marked(encouraged)
+          }),
+          never
+        ).romance.crushes.m
+      expect(settle(DAY - ENCOURAGED_DAYS).encouraged).toBe(DAY - ENCOURAGED_DAYS)
+      expect(settle(DAY - ENCOURAGED_DAYS - 1)).toEqual({ to: 'w', since: 1 })
+    })
+
+    it('is refused with no such crush, on the reader’s lover, or without its holder here', () => {
+      for (const over of [
+        { romance: emptyNpcRomance() },
+        { readerLovers: ['w'] },
+        { cast: ['w'] }
+      ] as Partial<NpcRomanceInput>[]) {
+        const out = urge(over)
+        expect(out.romance.crushes.m?.encouraged).toBeUndefined()
+        expect(out.romance.wingman).toBeUndefined()
+      }
+    })
+  })
+
+  describe('telling somebody of a crush on them', () => {
+    const tell = (over: Partial<NpcRomanceInput>, extra: NpcSceneEvent[] = []) =>
+      settleNpcRomance(
+        input({
+          characters,
+          relationships: { [pairKeyOf('m', 'w')]: { affinity: 3 } },
+          romance: romance({ crushes: { m: { to: 'w', since: DAY - 1 } } }),
+          cast: ['w'],
+          sceneEvents: [act('revealed_crush', 'm', 'w'), ...extra],
+          ...over
+        }),
+        never
+      )
+
+    it('has it answered now, yes on a crush returned or a high affinity, no otherwise', () => {
+      const back = tell({
+        romance: romance({ crushes: { m: { to: 'w', since: DAY - 1 }, w: { to: 'm', since: 1 } } })
+      })
+      expect(back.romance.couples[pairKeyOf('m', 'w')]).toEqual({ since: DAY })
+      const close = tell({ relationships: { [pairKeyOf('m', 'w')]: { affinity: ACCEPT_AFFINITY } } })
+      expect(close.romance.couples[pairKeyOf('m', 'w')]).toBeDefined()
+      const no = tell({})
+      expect(no.romance.couples).toEqual({})
+      expect(no.romance.rejections[directedKeyOf('m', 'w')]).toEqual({ date: DAY })
+      expect(no.romance.wingman).toEqual([{ kind: 'revealed_crush', from: 'm', to: 'w', date: DAY }])
+    })
+
+    it('takes the answer the scene reported as the same one event', () => {
+      const out = tell({}, [{ kind: 'declared', from: 'm', to: 'w', accepted: true }])
+      expect(out.romance.couples[pairKeyOf('m', 'w')]).toEqual({ since: DAY })
+      expect(out.log.filter((entry) => entry.kind === 'accepted')).toHaveLength(1)
+      expect(out.log.some((entry) => entry.kind === 'discarded')).toBe(false)
+    })
+
+    it('is refused where no declaration could be made, on the reader’s lover, or without them here', () => {
+      for (const over of [
+        { romance: romance({ crushes: { m: { to: 'w', since: 1 } }, couples: capped }) },
+        { romance: emptyNpcRomance() },
+        { readerLovers: ['w'] },
+        { cast: ['m'] }
+      ] as Partial<NpcRomanceInput>[]) {
+        const out = tell(over)
+        expect(out.romance.rejections).toEqual({})
+        expect(out.romance.wingman).toBeUndefined()
+      }
+    })
+  })
+
+  describe('the record', () => {
+    it('keeps what the reader did lately and nothing older', () => {
+      const entry = (date: number) => ({ kind: 'talked_up' as const, from: 'm', to: 'w', date })
+      const out = settleNpcRomance(
+        input({
+          characters,
+          romance: romance({
+            wingman: [entry(DAY - WINGMAN_KEEP_DAYS), entry(DAY - WINGMAN_KEEP_DAYS + 1)]
+          })
+        }),
+        never
+      )
+      expect(out.romance.wingman).toEqual([entry(DAY - WINGMAN_KEEP_DAYS + 1)])
+      const old = settleNpcRomance(
+        input({ characters, romance: romance({ wingman: [entry(DAY - WINGMAN_KEEP_DAYS)] }) }),
+        never
+      )
+      expect(old.romance.wingman).toBeUndefined()
+    })
+
+    it('reads a save from before it as nothing done, and adds nothing to it', () => {
+      const before = romance({ crushes: { m: { to: 'w', since: 1 } } })
+      const out = settleNpcRomance(
+        input({
+          characters,
+          relationships: { [pairKeyOf('m', 'w')]: { affinity: 5 } },
+          romance: before
+        }),
+        never
+      )
+      expect(out.romance).toEqual(before)
+    })
   })
 })

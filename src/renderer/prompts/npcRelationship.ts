@@ -13,8 +13,10 @@ import {
   emptyNpcRomance,
   isAttractedTo,
   isRivalGrudge,
+  mayFallFor,
   npcPartnerOf,
   REJECTION_COOLDOWN_DAYS,
+  wouldSayYes,
   type NpcRomanceMap
 } from '@shared/npcRomance'
 import {
@@ -292,8 +294,8 @@ export interface NpcRomanceFacts {
   couples: Array<{ a: string; b: string; since: number }>
   /** Every ex pair on the save. */
   exes: Array<{ a: string; b: string; since: number; ended: number }>
-  /** Crushes held by somebody present. */
-  crushes: Array<{ from: string; to: string; since: number }>
+  /** Crushes held by somebody present, with the date the reader found out where he has. */
+  crushes: Array<{ from: string; to: string; since: number; found?: number }>
   /** Turned-down declarations inside the wait, with somebody present on either side. */
   rejections: Array<{ from: string; to: string; date: number }>
   /** Present crush holders whose crush is the reader's lover. */
@@ -355,7 +357,13 @@ export function npcRomanceFactsOf(
   for (const from of Object.keys(map.crushes).sort()) {
     if (!here.has(from)) continue
     const crush = map.crushes[from]
-    facts.crushes.push({ from, to: crush.to, since: crush.since })
+    const found = map.discovered?.[from]
+    facts.crushes.push({
+      from,
+      to: crush.to,
+      since: crush.since,
+      ...(found?.to === crush.to ? { found: found.date } : {})
+    })
     if (readerLovers.includes(crush.to)) facts.jealous.push({ from, lover: crush.to })
   }
   for (const key of Object.keys(map.rejections).sort()) {
@@ -422,11 +430,15 @@ export function npcRomanceLines(
     )
   }
 
-  for (const { from, to, since } of facts.crushes) {
+  for (const { from, to, since, found } of facts.crushes) {
     const [holder, object] = [person(from), person(to)]
     if (!holder || !object) continue
+    const knows =
+      found === undefined
+        ? `Only ${holder.firstName} knows`
+        : `Only ${holder.firstName} and the reader know (the reader found out ${daysAgo(found, today)})`
     lines.push(
-      `${holder.firstName} has had a secret crush on ${fullNameOf(object)} ${heldFor(since, today)}. Only ${holder.firstName} knows: ${object.firstName} does not, nobody else does, and ${pronounsOf(holder.gender).subject} tells no one without a strong reason in the scene. Show it only in subtle signs — nerves, lingering glances, badly hidden jealousy.`
+      `${holder.firstName} has had a secret crush on ${fullNameOf(object)} ${heldFor(since, today)}. ${knows}: ${object.firstName} does not, nobody else does, and ${pronounsOf(holder.gender).subject} tells no one without a strong reason in the scene. Show it only in subtle signs — nerves, lingering glances, badly hidden jealousy.`
     )
   }
   for (const { from, lover } of facts.jealous) {
@@ -524,6 +536,66 @@ export function npcSceneRomanceLines(
       : `Of the characters here, the only romantic confessions that can happen are: ${possible.join('; ')}. No other two of them can confess feelings or start dating.`
   )
   return lines
+}
+
+/**
+ * For a scene: how somebody here would answer if the reader told them of a crush on them he has
+ * found out about, whose holder is not here, by the rule the game answers such a telling with.
+ */
+export function npcRevealLines(
+  cast: readonly Character[],
+  map: NpcRomanceMap | undefined,
+  relationships: NpcRelationshipMap,
+  characters: Readonly<Record<string, Character | undefined>>,
+  readerLovers: readonly string[],
+  today: number
+): string[] {
+  if (!map?.discovered) return []
+  const here = new Set(cast.map((character) => character.charId))
+  const known = Object.fromEntries(
+    Object.values(characters).flatMap((c) => (c ? [[c.charId, c]] : []))
+  )
+  const context = { date: today, characters: known, readerLovers }
+  const lines: string[] = []
+  for (const from of Object.keys(map.discovered).sort()) {
+    const to = map.discovered[from].to
+    if (here.has(from) || !here.has(to) || map.crushes[from]?.to !== to) continue
+    if (readerLovers.includes(to)) continue
+    const [holder, object] = [characters[from], characters[to]]
+    if (!holder || !object) continue
+    const answer =
+      declarationOutcomeOf(map, from, to, context) === 'impossible'
+        ? 'nothing could come of it for now'
+        : wouldSayYes(map, relationships, from, to, context)
+          ? `${object.firstName} would be glad and say yes to ${holder.firstName}`
+          : `${object.firstName} would turn ${holder.firstName} down`
+    lines.push(
+      `The reader knows ${fullNameOf(holder)} has a secret crush on ${object.firstName}. If he tells ${object.firstName}, ${answer}.`
+    )
+  }
+  return lines
+}
+
+/**
+ * Whether a scene ledger is asked about romance between characters: somebody here is either end
+ * of a crush or in a couple, or could fall for somebody else here.
+ */
+export function ledgerAsksNpcRomance(
+  cast: readonly Character[],
+  map: NpcRomanceMap | undefined,
+  readerLovers: readonly string[],
+  today: number
+): boolean {
+  if (cast.length === 0 || !map) return false
+  const present = cast.map((character) => character.charId)
+  const targets = new Set(Object.values(map.crushes).map((crush) => crush.to))
+  if (present.some((id) => map.crushes[id] || targets.has(id) || npcPartnerOf(map, id))) return true
+  const context = {
+    date: today,
+    characters: Object.fromEntries(cast.map((c) => [c.charId, c])),
+    readerLovers
+  }
+  return present.some((from) => present.some((to) => mayFallFor(map, from, to, context)))
 }
 
 /**

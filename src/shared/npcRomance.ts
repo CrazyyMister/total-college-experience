@@ -72,6 +72,17 @@ export const DRIFT_MIN_SIGNS = 2
 /** How many days the reader's rival keeps his grudge for the reader taking his girlfriend. */
 export const RIVAL_DAYS = 30
 
+/** What the reader talking one character up to another adds to the pair. */
+export const TALK_UP_AFFINITY = 1
+/** What the reader badmouthing one character to another, or keeping them apart, costs the pair. */
+export const TALK_DOWN_AFFINITY_DROP = 2
+/** What talking somebody up multiplies the listener's crush odds by, on the extra roll it earns. */
+export const TALK_UP_CRUSH_FACTOR = 3
+/** How many days after the reader encouraged a crush it is declared at the two's next meeting. */
+export const ENCOURAGED_DAYS = 7
+/** How many days the reader's wingman actions stay on the map. */
+export const WINGMAN_KEEP_DAYS = 30
+
 /** One character's crush on another, keyed on the save by who holds it. */
 export interface NpcCrush {
   to: string
@@ -82,6 +93,8 @@ export interface NpcCrush {
    * by the days a drift stood, which pause it. Absent otherwise.
    */
   heldSince?: number
+  /** The date the reader encouraged its holder to confess; absent when he has not. */
+  encouraged?: number
 }
 
 /** A couple, keyed by `pairKeyOf`. */
@@ -131,6 +144,28 @@ export interface NpcDiscovery {
   date: number
 }
 
+/** What the reader can do as a wingman, as a scene ledger reports it. */
+export type WingmanKind = 'talked_up' | 'talked_down' | 'encouraged_confession' | 'revealed_crush'
+
+/** Every wingman kind, in the order the ledger is told them. */
+export const WINGMAN_KINDS: readonly WingmanKind[] = [
+  'talked_up',
+  'talked_down',
+  'encouraged_confession',
+  'revealed_crush'
+]
+
+/**
+ * One wingman action the game took: the reader talked `from` up or down to `to`, encouraged
+ * `from` to confess to `to`, or told `to` of `from`'s crush on them.
+ */
+export interface NpcWingmanEntry {
+  kind: WingmanKind
+  from: string
+  to: string
+  date: number
+}
+
 /** The whole of it, on the save beside the pair map. */
 export interface NpcRomanceMap {
   /** Keyed by the charId holding the crush: one crush each at most. */
@@ -142,19 +177,35 @@ export interface NpcRomanceMap {
   discovered?: Record<string, NpcDiscovery>
   /** Drifts under way, keyed by the reader's lover. Absent means none. */
   drifts?: Record<string, NpcDrift>
+  /** The wingman actions taken in the last {@link WINGMAN_KEEP_DAYS} days. Absent means none. */
+  wingman?: NpcWingmanEntry[]
 }
 
 /** The kinds of row a scene ledger reports between two roster characters. */
-export type NpcRomanceKind = 'declared_accepted' | 'declared_rejected' | 'broke_up' | 'discovered'
+export type NpcRomanceKind =
+  | 'declared_accepted'
+  | 'declared_rejected'
+  | 'broke_up'
+  | 'discovered'
+  | WingmanKind
 
 /**
  * What a finished scene showed between two roster characters, as charIds: a declaration and its
- * answer, a couple breaking up, or the reader finding out that `from` has a crush on `to`.
+ * answer, a couple breaking up, the reader finding out that `from` has a crush on `to`, or one of
+ * his wingman actions.
  */
 export type NpcSceneEvent =
   | { kind: 'declared'; from: string; to: string; accepted: boolean }
   | { kind: 'broke_up'; from: string; to: string }
   | { kind: 'discovered'; from: string; to: string }
+  | NpcWingmanEvent
+
+/** A wingman action as a scene reported it. */
+export interface NpcWingmanEvent {
+  kind: WingmanKind
+  from: string
+  to: string
+}
 
 /** One thing a settle did, for the development build's read-out. Nothing stores it. */
 export interface NpcRomanceLogEntry {
@@ -173,6 +224,8 @@ export interface NpcRomanceLogEntry {
     | 'drift_ended'
     | 'left_reader'
     | 'crush_faded'
+    | 'wingman'
+    | 'encouragement_lapsed'
   from: string
   to: string
   /** For a discarded scene event, what it was and why it could not stand. */
@@ -240,6 +293,8 @@ export interface NpcRomanceInput {
   loverStates?: Readonly<Record<string, ReaderLoverState>>
   /** The lovers a scene or a thread with the signs of their drift was held for this slot. */
   signed?: readonly string[]
+  /** The cast who came out of the scene liking the reader: two of them met as friends do. */
+  bonded?: readonly string[]
 }
 
 /** What a drift reads of the reader's lover. */
@@ -383,6 +438,98 @@ export function crushChanceOf(character: Character | undefined): number {
   return chance
 }
 
+/**
+ * Whether `from` could fall for `to` now: attracted, single, holding no crush, not the reader's
+ * lover, not exes, and not inside the wait after the same declaration was turned down.
+ */
+export function mayFallFor(
+  map: NpcRomanceMap,
+  from: string,
+  to: string,
+  context: DeclarationContext
+): boolean {
+  const { characters, readerLovers, date } = context
+  if (from === to || map.crushes[from] || readerLovers.includes(from)) return false
+  if (npcPartnerOf(map, from) !== null) return false
+  if (!isAttractedTo(characters[from], characters[to])) return false
+  if (map.exes[pairKeyOf(from, to)]) return false
+  const rejection = map.rejections[directedKeyOf(from, to)]
+  return !(rejection && date - rejection.date < REJECTION_COOLDOWN_DAYS)
+}
+
+/**
+ * Whether `to` says yes to `from`'s declaration: it can be answered at all, and `to` holds a crush
+ * on `from` back or stands at the accepting affinity with them.
+ */
+export function wouldSayYes(
+  map: NpcRomanceMap,
+  relationships: NpcRelationshipMap,
+  from: string,
+  to: string,
+  context: DeclarationContext
+): boolean {
+  if (declarationOutcomeOf(map, from, to, context) !== 'open') return false
+  const affinity = relationships[pairKeyOf(from, to)]?.affinity ?? 0
+  return map.crushes[to]?.to === from || affinity >= ACCEPT_AFFINITY
+}
+
+/** What {@link wingmanRefusalOf} reads besides the map. */
+export interface WingmanContext extends DeclarationContext {
+  /** The scene's cast. */
+  cast: readonly string[]
+}
+
+/** The talk-up's opposite and the talk-down's; nothing for the other two. */
+function opposedKindOf(kind: WingmanKind): WingmanKind | null {
+  if (kind === 'talked_up') return 'talked_down'
+  if (kind === 'talked_down') return 'talked_up'
+  return null
+}
+
+/**
+ * Why the game cannot take a wingman action as the map stands, or null when it can: whoever the
+ * reader spoke to must be in the scene, a talk-up never touches his lover, a confession he urges
+ * or a crush he tells of must exist and not be on his lover, a told crush must be answerable, and
+ * each kind lands once a day per pair, a talk-up and a talk-down of the same day cancelling the
+ * later one.
+ */
+export function wingmanRefusalOf(
+  map: NpcRomanceMap,
+  event: NpcWingmanEvent,
+  context: WingmanContext
+): string | null {
+  const { kind, from, to } = event
+  const { characters, readerLovers, cast, date } = context
+  if (from === to || !characters[from] || !characters[to]) return 'not two characters'
+  const here = (charId: string): boolean => cast.includes(charId)
+  const lover = (charId: string): boolean => readerLovers.includes(charId)
+  const key = pairKeyOf(from, to)
+  const today = (map.wingman ?? []).filter(
+    (entry) => entry.date === date && pairKeyOf(entry.from, entry.to) === key
+  )
+  if (today.some((entry) => entry.kind === kind)) return 'already done today'
+  const opposed = opposedKindOf(kind)
+  if (opposed && today.some((entry) => entry.kind === opposed)) {
+    return 'cancelled by the opposite action earlier today'
+  }
+  if (kind === 'talked_up') {
+    if (!here(to)) return 'the one spoken to is not in the scene'
+    if (lover(from) || lover(to)) return "the reader's lover"
+    return null
+  }
+  if (kind === 'talked_down') {
+    return here(from) || here(to) ? null : 'neither is in the scene'
+  }
+  if (map.crushes[from]?.to !== to) return 'no such crush'
+  if (lover(to)) return "a crush on the reader's lover"
+  if (kind === 'encouraged_confession') {
+    return here(from) ? null : 'the one urged is not in the scene'
+  }
+  if (!here(to)) return 'the one told is not in the scene'
+  if (declarationOutcomeOf(map, from, to, context) === 'impossible') return 'no declaration possible'
+  return null
+}
+
 /** A couple's odds of a fight this week, both partners' traits applied. */
 export function fightChanceOf(a: Character | undefined, b: Character | undefined): number {
   let chance = FIGHT_CHANCE
@@ -413,10 +560,30 @@ function metPairsOf(groups: readonly NpcEncounterGroup[], cast: readonly string[
   return [...met].sort()
 }
 
+/** Every pair among `members`, as sorted `pairKeyOf` keys. */
+function pairsAmong(members: readonly string[]): string[] {
+  const pairs = new Set<string>()
+  for (let i = 0; i < members.length; i++) {
+    for (let j = i + 1; j < members.length; j++) {
+      if (members[i] !== members[j]) pairs.add(pairKeyOf(members[i], members[j]))
+    }
+  }
+  return [...pairs].sort()
+}
+
+/** A scene event that is not one of the reader's wingman actions. */
+type ShownEvent = Exclude<NpcSceneEvent, NpcWingmanEvent>
+
+/** Whether a scene event is one of the reader's wingman actions. */
+export function isWingmanEvent(event: NpcSceneEvent): event is NpcWingmanEvent {
+  return (WINGMAN_KINDS as readonly string[]).includes(event.kind)
+}
+
 /**
- * One slot's romance: couples break up or fight, crushes fade, what the scene showed lands,
- * crushes held long enough are declared to someone met this slot and answered, and a positive
- * encounter may start a crush.
+ * One slot's romance: the reader's talk moves pairs, couples break up or fight, crushes fade,
+ * what the scene showed lands, crushes held long enough, or urged on by the reader, are declared
+ * to someone met this slot and answered, and a positive encounter or the reader's talk may start
+ * a crush.
  */
 export function settleNpcRomance(
   input: NpcRomanceInput,
@@ -430,7 +597,8 @@ export function settleNpcRomance(
     exes: { ...input.romance.exes },
     rejections: { ...input.romance.rejections },
     ...(input.romance.discovered ? { discovered: { ...input.romance.discovered } } : {}),
-    ...(input.romance.drifts ? { drifts: { ...input.romance.drifts } } : {})
+    ...(input.romance.drifts ? { drifts: { ...input.romance.drifts } } : {}),
+    ...(input.romance.wingman ? { wingman: [...input.romance.wingman] } : {})
   }
   const readerBreakups: ReaderBreakup[] = []
   const rivals: string[] = []
@@ -455,6 +623,59 @@ export function settleNpcRomance(
   const readerLovers = new Set(input.readerLovers)
   const affinityOf = (a: string, b: string): number =>
     relationships[pairKeyOf(a, b)]?.affinity ?? 0
+  const inScene = new Set(input.cast)
+  const context: DeclarationContext = { date, characters, readerLovers: input.readerLovers }
+  const wingmanContext: WingmanContext = { ...context, cast: input.cast }
+
+  // The reader's wingman actions apart from the rest, one per kind and pair.
+  const shown: ShownEvent[] = []
+  const wingman: NpcWingmanEvent[] = []
+  const seen = new Set<string>()
+  for (const event of input.sceneEvents ?? []) {
+    if (!isWingmanEvent(event)) {
+      shown.push(event)
+      continue
+    }
+    const once = `${event.kind}|${pairKeyOf(event.from, event.to)}`
+    if (seen.has(once)) {
+      note('scene', 'discarded', event.from, event.to, `${event.kind}: repeated`)
+      continue
+    }
+    seen.add(once)
+    wingman.push(event)
+  }
+  const record = (action: NpcWingmanEvent): void => {
+    romance.wingman = [...(romance.wingman ?? []), { ...action, date }]
+    note('scene', 'wingman', action.from, action.to, action.kind)
+  }
+  // Whether the game takes the action, noting why where it does not. A talk-up and a talk-down
+  // of the same pair in one scene cancel each other out.
+  const takes = (action: NpcWingmanEvent): boolean => {
+    const opposed = opposedKindOf(action.kind)
+    const why =
+      opposed !== null && seen.has(`${opposed}|${pairKeyOf(action.from, action.to)}`)
+        ? 'cancelled by the opposite action in the same scene'
+        : wingmanRefusalOf(romance, action, wingmanContext)
+    if (why === null) return true
+    note('scene', 'discarded', action.from, action.to, `${action.kind}: ${why}`)
+    return false
+  }
+
+  // Talk moves the pair first, so what it does to a couple or a crush lands in this same settle.
+  const talkedUp: NpcWingmanEvent[] = []
+  for (const action of wingman) {
+    if (action.kind !== 'talked_up' && action.kind !== 'talked_down') continue
+    if (!takes(action)) continue
+    const up = action.kind === 'talked_up'
+    shiftAffinity(
+      relationships,
+      action.from,
+      action.to,
+      up ? TALK_UP_AFFINITY : -TALK_DOWN_AFFINITY_DROP
+    )
+    record(action)
+    if (up) talkedUp.push(action)
+  }
 
   const breakUp = (key: string, a: string, b: string, byReader = false): void => {
     const couple = romance.couples[key]
@@ -496,17 +717,57 @@ export function settleNpcRomance(
     }
   }
 
+  // An encouragement the two never met to act on lapses, and the crush is back on the usual rules.
+  for (const from of Object.keys(romance.crushes).sort()) {
+    const { encouraged, ...rest } = romance.crushes[from]
+    if (encouraged === undefined || date - encouraged <= ENCOURAGED_DAYS) continue
+    romance.crushes[from] = rest
+    note('system', 'encouragement_lapsed', from, rest.to)
+  }
+
+  // A crush the reader urged on is marked, and he knows of it; the mark counts from the next settle.
+  const urgedNow = new Set<string>()
+  for (const action of wingman) {
+    if (action.kind !== 'encouraged_confession' || !takes(action)) continue
+    urgedNow.add(action.from)
+    romance.crushes[action.from] = { ...romance.crushes[action.from], encouraged: date }
+    romance.discovered = { ...romance.discovered, [action.from]: { to: action.to, date } }
+    record(action)
+  }
+
   const accept = (from: string, to: string): void => acceptDeclaration(romance, from, to, date)
   const turnDown = (from: string, to: string): void => {
     delete romance.crushes[from]
     romance.rejections[directedKeyOf(from, to)] = { date }
     shiftAffinity(relationships, from, to, -REJECTION_AFFINITY_DROP)
   }
+  // The pairs a declaration was settled between in the scene, so no roll adds a second.
+  const declared = new Set<string>()
+
+  // A crush the reader told its object of is answered now: as the scene showed it where it
+  // reported the answer and the rules allow that answer, by the usual rule otherwise.
+  for (const action of wingman) {
+    if (action.kind !== 'revealed_crush' || !takes(action)) continue
+    const { from, to } = action
+    const at = shown.findIndex(
+      (event) => event.kind === 'declared' && event.from === from && event.to === to
+    )
+    const reported = at === -1 ? undefined : shown.splice(at, 1)[0]
+    const outcome = declarationOutcomeOf(romance, from, to, context)
+    const yes =
+      reported?.kind === 'declared' && (!reported.accepted || outcome === 'open')
+        ? reported.accepted
+        : wouldSayYes(romance, relationships, from, to, context)
+    romance.discovered = { ...romance.discovered, [from]: { to, date } }
+    record(action)
+    if (yes) accept(from, to)
+    else turnDown(from, to)
+    declared.add(pairKeyOf(from, to))
+    note('scene', yes ? 'accepted' : 'rejected', from, to, 'the reader told')
+  }
 
   // What the scene showed, each event checked against the map as the ones before it left it.
-  const inScene = new Set(input.cast)
-  const context: DeclarationContext = { date, characters, readerLovers: input.readerLovers }
-  for (const event of input.sceneEvents ?? []) {
+  for (const event of shown) {
     const { from, to } = event
     const refuse = (why: string): void => note('scene', 'discarded', from, to, why)
     if (event.kind === 'declared') {
@@ -522,6 +783,7 @@ export function settleNpcRomance(
       }
       if (event.accepted) accept(from, to)
       else turnDown(from, to)
+      declared.add(pairKeyOf(from, to))
       note('scene', event.accepted ? 'accepted' : 'rejected', from, to)
     } else if (event.kind === 'broke_up') {
       const key = pairKeyOf(from, to)
@@ -547,10 +809,14 @@ export function settleNpcRomance(
 
   const taken = (charId: string): boolean =>
     readerLovers.has(charId) || npcPartnerOf(romance, charId) !== null
-  const met = metPairsOf(input.groups, input.cast)
+  // Who spent the slot together: the pairs met off the scene, and the cast with each other.
+  const castPairs = new Set(pairsAmong(input.cast))
+  const met = [...new Set([...metPairsOf(input.groups, input.cast), ...castPairs])].sort()
 
-  // Declarations, one roll per crush held long enough whose object was met this slot.
+  // Declarations, one roll per crush held long enough whose object was met this slot; a crush the
+  // reader urged on before this slot is declared at the first meeting, whatever its age.
   for (const key of met) {
+    if (declared.has(key)) continue
     const [a, b] = key.split('|')
     for (const [from, to] of [
       [a, b],
@@ -560,23 +826,25 @@ export function settleNpcRomance(
       if (!crush || crush.to !== to) continue
       // A crush on the reader's lover is kept to itself while she is his: no roll, no answer.
       if (readerLovers.has(to)) continue
-      if (date - crush.since < DECLARE_AFTER_DAYS) continue
+      const urged = crush.encouraged !== undefined && !urgedNow.has(from)
+      if (!urged && date - crush.since < DECLARE_AFTER_DAYS) continue
       if (coupleCountOf(romance) >= MAX_COUPLES) continue
-      if (rand() >= DECLARE_CHANCE) continue
+      if (!urged && rand() >= DECLARE_CHANCE) continue
 
       tally.declarations++
       const answersYes =
         !taken(to) &&
         isAttractedTo(characters[to], characters[from]) &&
         (romance.crushes[to]?.to === from || affinityOf(from, to) >= ACCEPT_AFFINITY)
+      const why = urged ? 'encouraged by the reader' : undefined
       if (answersYes) {
         accept(from, to)
         tally.accepted++
-        note('system', 'accepted', from, to)
+        note('system', 'accepted', from, to, why)
       } else {
         turnDown(from, to)
         tally.rejected++
-        note('system', 'rejected', from, to)
+        note('system', 'rejected', from, to, why)
       }
     }
   }
@@ -587,10 +855,12 @@ export function settleNpcRomance(
   const signed = new Set(input.signed ?? [])
   const loverStates = input.loverStates ?? {}
   const suitorContext: DeclarationContext = { date, characters, readerLovers: [] }
-  // Whether `from` could still declare to her and be answered, her being counted as free.
-  const suitorStands = (from: string, lover: string): boolean =>
+  // Whether `from` could still declare to her and be answered, her being counted as free, and
+  // stands at least at `closeness` with her.
+  const suitorStands = (from: string, lover: string, closeness: number): boolean =>
     romance.crushes[from]?.to === lover &&
-    declarationOutcomeOf(romance, from, lover, suitorContext) === 'open'
+    declarationOutcomeOf(romance, from, lover, suitorContext) === 'open' &&
+    affinityOf(from, lover) >= closeness
 
   for (const lover of Object.keys(romance.drifts ?? {}).sort()) {
     const drift = romance.drifts![lover]
@@ -608,7 +878,7 @@ export function settleNpcRomance(
       endDrift()
       continue
     }
-    if (!suitorStands(drift.to, lover)) {
+    if (!suitorStands(drift.to, lover, CRUSH_MIN_AFFINITY)) {
       endDrift()
       continue
     }
@@ -635,10 +905,7 @@ export function settleNpcRomance(
     if (!state || romance.drifts?.[lover] || !driftsFrom(state, date, false)) continue
     if (readerBreakups.some(({ charId }) => charId === lover)) continue
     const suitors = Object.keys(romance.crushes)
-      .filter(
-        (from) =>
-          suitorStands(from, lover) && affinityOf(from, lover) >= ACCEPT_AFFINITY
-      )
+      .filter((from) => suitorStands(from, lover, ACCEPT_AFFINITY))
       .sort((a, b) => romance.crushes[a].since - romance.crushes[b].since || (a < b ? -1 : 1))
     if (suitors.length === 0) continue
     romance.drifts = { ...romance.drifts, [lover]: { to: suitors[0], since: date, signs: 0 } }
@@ -666,26 +933,38 @@ export function settleNpcRomance(
     note('system', 'crush_faded', from, crush.to)
   }
 
-  // New crushes, off the encounters this slot's affinity settle stamped as positive.
+  // New crushes, off the encounters this slot's affinity settle stamped as positive, and between
+  // the cast who both came out of the scene liking the reader.
+  const bondedPairs = new Set(pairsAmong((input.bonded ?? []).filter((charId) => inScene.has(charId))))
   for (const key of met) {
     const pair = relationships[key]
-    if (!pair?.encounter || pair.encounter.date !== date || !pair.encounter.positive) continue
-    if (pair.affinity < CRUSH_MIN_AFFINITY) continue
+    if (!pair) continue
+    const positive = castPairs.has(key)
+      ? bondedPairs.has(key)
+      : pair.encounter?.date === date && pair.encounter.positive
+    if (!positive || pair.affinity < CRUSH_MIN_AFFINITY) continue
     if (romance.exes[key] || romance.couples[key]) continue
     const [a, b] = key.split('|')
     for (const [from, to] of [
       [a, b],
       [b, a]
     ] as const) {
-      if (romance.crushes[from] || taken(from)) continue
-      if (!isAttractedTo(characters[from], characters[to])) continue
-      const rejection = romance.rejections[directedKeyOf(from, to)]
-      if (rejection && date - rejection.date < REJECTION_COOLDOWN_DAYS) continue
+      if (!mayFallFor(romance, from, to, context)) continue
       if (rand() >= crushChanceOf(characters[from])) continue
       romance.crushes[from] = { to, since: date }
       tally.crushes++
       note('system', 'crush', from, to)
     }
+  }
+
+  // Talking somebody up to a listener drawn to them earns the listener an extra, likelier roll.
+  for (const { from, to } of talkedUp) {
+    if (romance.couples[pairKeyOf(from, to)] || affinityOf(from, to) < CRUSH_MIN_AFFINITY) continue
+    if (!mayFallFor(romance, to, from, context)) continue
+    if (rand() >= crushChanceOf(characters[to]) * TALK_UP_CRUSH_FACTOR) continue
+    romance.crushes[to] = { to: from, since: date }
+    tally.crushes++
+    note('scene', 'crush', to, from, 'talked up by the reader')
   }
 
   // A discovery outlives nothing: once the crush it names is gone, so is it.
@@ -696,6 +975,12 @@ export function settleNpcRomance(
   }
 
   if (romance.drifts && Object.keys(romance.drifts).length === 0) delete romance.drifts
+
+  // The wingman record keeps what the reader did lately, and nothing older.
+  if (romance.wingman) {
+    romance.wingman = romance.wingman.filter((entry) => date - entry.date < WINGMAN_KEEP_DAYS)
+    if (romance.wingman.length === 0) delete romance.wingman
+  }
 
   return { relationships, romance, tally, log, readerBreakups, rivals }
 }

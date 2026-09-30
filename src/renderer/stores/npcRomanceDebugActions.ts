@@ -9,7 +9,9 @@ import {
   directedKeyOf,
   isAttractedTo,
   npcPartnerOf,
-  REJECTION_COOLDOWN_DAYS
+  REJECTION_COOLDOWN_DAYS,
+  wingmanRefusalOf,
+  type WingmanKind
 } from '@shared/npcRomance'
 import { pronounsOf } from '@shared/pronouns'
 import { affectionFor } from '@shared/relationship'
@@ -345,4 +347,67 @@ export function debugBlocked(charId: string, on: boolean): DebugResult {
     1
   )
   return done(`${character.firstName} blocked the reader.`)
+}
+
+/** What each wingman button says it queued. */
+const WINGMAN_DONE: Record<WingmanKind, (x: string, y: string) => string> = {
+  talked_up: (x, y) => `The reader talks ${x} up to ${y}`,
+  talked_down: (x, y) => `The reader badmouths ${x} to ${y}`,
+  encouraged_confession: (x, y) => `The reader urges ${x} to confess to ${y}`,
+  revealed_crush: (x, y) => `The reader tells ${y} of ${x}’s crush`
+}
+
+/**
+ * Queues a wingman action for this scene's ending, read there beside what the ledger reported and
+ * judged by the same rules; refused now where those rules would refuse it as the map stands.
+ */
+export function debugWingman(kind: WingmanKind, from: string, to: string): DebugResult {
+  if (!import.meta.env.DEV) return NOT_DEV
+  const game = useGameStore.getState()
+  const { characters, npcRomance: map, date, cast } = game
+  if (!characters[from] || !characters[to] || from === to) return refused('Pick two characters.')
+  if (cast.length === 0) return refused('Only during a scene: the action waits for its ending.')
+  const pair = pairKeyOf(from, to)
+  if (loopState.debugWingman.some((e) => e.kind === kind && pairKeyOf(e.from, e.to) === pair)) {
+    return refused('Already queued for this scene.')
+  }
+  const why = wingmanRefusalOf(
+    map,
+    { kind, from, to },
+    { date, characters, readerLovers: readerLoversOf(game.charInfo), cast }
+  )
+  if (why !== null) return refused(`The rules refuse it: ${why}.`)
+  loopState.debugWingman = [...loopState.debugWingman, { kind, from, to }]
+  return done(
+    `${WINGMAN_DONE[kind](characters[from].firstName, characters[to].firstName)}: queued for this scene’s ending, applied at the boundary.`
+  )
+}
+
+/** Has two characters outside the scene spend the finished slot together, read at its ending. */
+export function debugMeet(a: string, b: string): DebugResult {
+  if (!import.meta.env.DEV) return NOT_DEV
+  const game = useGameStore.getState()
+  const { characters, cast } = game
+  if (!characters[a] || !characters[b] || a === b) return refused('Pick two characters.')
+  if (cast.includes(a) || cast.includes(b)) {
+    return refused('One of them is in the scene, where the two already count as together.')
+  }
+  loopState.debugMeetings = [...loopState.debugMeetings, [a, b]]
+  return done(
+    `${characters[a].firstName} and ${characters[b].firstName} spend this slot together, counted at the next ending.`
+  )
+}
+
+/** Moves the day the reader encouraged her crush back, ageing the encouragement towards lapsing. */
+export function debugAgeEncouraged(charId: string, days: number): DebugResult {
+  if (!import.meta.env.DEV) return NOT_DEV
+  const game = useGameStore.getState()
+  const crush = game.npcRomance.crushes[charId]
+  if (crush?.encouraged === undefined) return refused('That character holds no encouraged crush.')
+  const encouraged = Math.max(0, crush.encouraged - Math.max(0, days))
+  game.setNpcRomance({
+    ...game.npcRomance,
+    crushes: { ...game.npcRomance.crushes, [charId]: { ...crush, encouraged } }
+  })
+  return done(`The reader encouraged the crush ${game.date - encouraged} days ago.`)
 }

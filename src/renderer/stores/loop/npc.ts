@@ -192,14 +192,16 @@ export function rollNpcRelationshipSettle(
 
 /**
  * Rolls the finished slot's romance between the roster off the affinities just settled, with
- * what the scene showed applied first, and returns both maps, writing nothing. `charInfo` is the
+ * what the scene showed applied first and `bonded` the cast who came out of it liking the reader,
+ * and returns both maps, writing nothing. `charInfo` is the
  * ending's projection, so a girl the scene just made the reader's lover counts as taken.
  */
 export function rollNpcRomanceSettle(
   relationships: NpcRelationshipMap,
   groups: readonly NpcEncounterGroup[],
   charInfo: Readonly<Record<string, CharInfo | undefined>>,
-  sceneEvents: readonly NpcSceneEvent[] = []
+  sceneEvents: readonly NpcSceneEvent[] = [],
+  bonded: readonly string[] = []
 ): NpcRomanceOutcome {
   const game = useGameStore.getState()
   const readerLovers = game.chars.filter((charId) => charInfo[charId]?.flags?.isLover)
@@ -225,7 +227,8 @@ export function rollNpcRomanceSettle(
     characters: game.characters,
     sceneEvents,
     loverStates,
-    signed: driftSignsShown(readerLovers)
+    signed: driftSignsShown(readerLovers),
+    bonded
   })
 }
 

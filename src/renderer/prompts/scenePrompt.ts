@@ -24,12 +24,7 @@ import { MALE_OUTFIT_SKIN_EXPOSURE, OUTFIT_SKIN_EXPOSURE } from '@shared/tags'
 import { hasTrait } from '@shared/traits'
 import type { Weather } from '@shared/weather'
 import type { NpcRelationshipMap } from '@shared/npcRelationships'
-import {
-  declarationOutcomeOf,
-  npcPartnerOf,
-  type NpcRomanceKind,
-  type NpcRomanceMap
-} from '@shared/npcRomance'
+import type { NpcRomanceKind, NpcRomanceMap } from '@shared/npcRomance'
 import {
   type ActKind,
   allBackgrounds,
@@ -81,11 +76,13 @@ import { moodLine } from './moods'
 import { springBreakLines } from './springBreak'
 import {
   bestFriendLines,
+  ledgerAsksNpcRomance,
   npcBehaviorLines,
   npcPairLines,
   npcRomanceBehaviorLines,
   npcRomanceFactsOf,
   npcRomanceLines,
+  npcRevealLines,
   npcRomanceSection,
   npcSceneRomanceLines,
   readerLoversOf
@@ -645,7 +642,15 @@ function castRomanceSection(cast: readonly Character[], state: PromptState): str
       byCharId([...cast, ...state.roster]),
       state.date
     ),
-    ...npcSceneRomanceLines(cast, state.npcRomance, readerLovers, state.date)
+    ...npcSceneRomanceLines(cast, state.npcRomance, readerLovers, state.date),
+    ...npcRevealLines(
+      cast,
+      state.npcRomance,
+      state.npcRelationships,
+      byCharId([...cast, ...state.roster]),
+      readerLovers,
+      state.date
+    )
   ])
   return section.length > 0 ? ['', ...section] : []
 }
@@ -1687,27 +1692,15 @@ export const NPC_ROMANCE_GLOSS: ReadonlyArray<readonly [NpcRomanceKind, string]>
   ],
   ['declared_rejected', '"from" told "to" they have romantic feelings for them, and "to" turned them down.'],
   ['broke_up', '"from" and "to", who were a couple, broke up.'],
-  ['discovered', 'the reader found out that "from" has a secret crush on "to".']
+  ['discovered', 'the reader found out that "from" has a secret crush on "to".'],
+  ['talked_up', 'the reader spoke well of "from" to "to", talking "from" up as someone worth their time.'],
+  ['talked_down', 'the reader badmouthed "from" to "to", or tried to keep the two of them apart.'],
+  ['encouraged_confession', 'the reader urged "from" to confess their feelings to "to".'],
+  [
+    'revealed_crush',
+    'the reader told "to" that "from" has a crush on them. If "to" answered in the scene, also report declared_accepted or declared_rejected from "from" to "to".'
+  ]
 ]
-
-/**
- * Whether a ledger is asked about romance between characters: when two of the cast could confess,
- * or somebody here is in a couple or holds a crush.
- */
-function ledgerAsksRomance(cast: readonly Character[], state: PromptState): boolean {
-  if (cast.length === 0 || !state.npcRomance) return false
-  const map = state.npcRomance
-  const present = cast.map((character) => character.charId)
-  if (present.some((charId) => map.crushes[charId] || npcPartnerOf(map, charId))) return true
-  const context = {
-    date: state.date,
-    characters: Object.fromEntries(cast.map((c) => [c.charId, c])),
-    readerLovers: readerLoversOf(state.charInfo)
-  }
-  return present.some((from) =>
-    present.some((to) => declarationOutcomeOf(map, from, to, context) !== 'impossible')
-  )
-}
 
 /** The `STATS` section, in its two forms. */
 function statsSection(single: boolean): string[] {
@@ -1759,7 +1752,12 @@ export function buildLedgerPrompt(
   // Classes and shifts are scored by the app; every other hour with
   // company is judged here, one stat's worth.
   const castStats = cast.length > 0 && !classScene && state.jobId === null
-  const romance = ledgerAsksRomance(cast, state)
+  const romance = ledgerAsksNpcRomance(
+    cast,
+    state.npcRomance,
+    readerLoversOf(state.charInfo),
+    state.date
+  )
   // No cast, no plans; a plan settled by phone is the texting ledger's.
   const wantPlans = cast.length > 0
 
@@ -1828,6 +1826,7 @@ export function buildLedgerPrompt(
           'ROMANCE BETWEEN CHARACTERS',
           'Report what this scene showed happening between two characters. The reader is never "from" or "to".',
           ...NPC_ROMANCE_GLOSS.map(([kind, gloss]) => `- ${kind}: ${gloss}`),
+          'The last four are about what the reader said or did, even if nothing came of it yet; at most one row per kind for the same two characters.',
           'Only what actually happened IN THIS SCENE, and only what the ROMANCE BETWEEN CHARACTERS notes below allow. An empty "romance" list is the ordinary answer.',
           ''
         ]

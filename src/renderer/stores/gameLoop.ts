@@ -18,7 +18,7 @@ import {
 } from '@shared/playerStats'
 import { factoidLine, kindOf, projectProgress, projectProgressLine } from '@shared/academics'
 import { giftActionLine, itemDefOf } from '@shared/shop'
-import type { NpcSlotOverlay } from '@shared/npcRelationships'
+import type { NpcEncounterGroup, NpcSlotOverlay } from '@shared/npcRelationships'
 import type { NpcRomanceMap, ReaderBreakup } from '@shared/npcRomance'
 import { posterRomanceOf, type GuaranteedPosters } from '@shared/npcRomancePosts'
 import type { GossipTopic } from '@shared/npcRomanceGossip'
@@ -1635,8 +1635,14 @@ async function fetchEndingOpening(
   // everything below narrates off a projection and writes nothing.
   const projected = projectLedger(game.charInfo, ledger, game.date)
 
-  // The run-ins the affinity settle counts, which are dice and so are rolled once.
-  const groups = rollSlotEncounterGroups()
+  // The run-ins the affinity settle counts, which are dice and so are rolled once, and the
+  // development build's forced meetings.
+  const groups: NpcEncounterGroup[] = [
+    ...rollSlotEncounterGroups(),
+    ...loopState.debugMeetings.map(
+      (members): NpcEncounterGroup => ({ kind: 'hangout', ref: 'agora', members })
+    )
+  ]
 
   // The finished slot's three settles, banked below for the boundary to apply.
   const rumor = rollRumorPass(ledger, projected.charInfo)
@@ -1658,7 +1664,8 @@ async function fetchEndingOpening(
     rollNpcRelationshipSettle(bondedCharIds(ledger), groups),
     groups,
     seen,
-    ledgerNpcRomance(ledger)
+    [...ledgerNpcRomance(ledger), ...loopState.debugWingman],
+    bondedCharIds(ledger)
   )
   loopState.romanceLog = romanceLog
   // The lovers who leave him and the men he displaced, as the boundary will leave them.
@@ -2544,6 +2551,8 @@ async function crossSlotBoundary(): Promise<void> {
     // The ending that read the buttons' couples as news has been applied.
     loopState.debugRomanceBefore = null
     loopState.debugGossipLeak = null
+    loopState.debugWingman = []
+    loopState.debugMeetings = []
 
     // The one warning that what gets seen gets told, owed the first time anybody sees him with
     // a girl whose name he knows. Left unsent before BunnyBot has introduced itself, or over a
