@@ -21,13 +21,25 @@ import {
   charKeyOf,
   READER_SPEAKER,
   type Character,
+  type CharMemory,
   type GameSave,
   type Gender,
   type PlaythroughRecord,
   type SceneLine,
-  type StructuredRequest
+  type StructuredRequest,
+  type TimeSlot
 } from '@shared/types'
-import type { NpcSceneEvent } from '@shared/npcRomance'
+import { rollInitialNpcRelationships, settleNpcPairs } from '@shared/npcRelationships'
+import {
+  declarationOutcomeOf,
+  emptyNpcRomance,
+  mayFallFor,
+  npcPartnerOf,
+  settleNpcRomance,
+  WINGMAN_KINDS,
+  type NpcRomanceMap,
+  type NpcSceneEvent
+} from '@shared/npcRomance'
 import { posterRomanceOf, type GuaranteedPosters } from '@shared/npcRomancePosts'
 import type { GossipTopic } from '@shared/npcRomanceGossip'
 import { useAssetStore } from '../../src/renderer/stores/assetStore'
@@ -37,6 +49,7 @@ import {
   debugAffinity,
   debugCouple,
   debugCrush,
+  debugDiscover,
   debugDriftBack,
   debugLeakCrush,
   debugLover,
@@ -44,8 +57,11 @@ import {
 } from '../../src/renderer/stores/npcRomanceDebugActions'
 import { loopState } from '../../src/renderer/stores/loop/state'
 import {
+  applyNpcOverlay,
   applyReaderLosses,
+  rollNpcOverlayNow,
   rollNpcRomanceSettle,
+  rollSlotEncounterGroups,
   slotRomancePosters
 } from '../../src/renderer/stores/loop/npc'
 import { introGossipOf, slotGossipOf } from '../../src/renderer/stores/loop/gossip'
@@ -60,6 +76,7 @@ import {
   buildContinuationPrompt,
   buildLedgerPrompt,
   buildScenePrompt,
+  memoryLines,
   type PromptState,
   type ScenePromptState
 } from '../../src/renderer/prompts/scenePrompt'
@@ -71,8 +88,10 @@ import {
   type IntroPoster,
   type SlotIntroInput
 } from '../../src/renderer/prompts/slotIntroPrompt'
+import { ledgerAsksNpcRomance } from '../../src/renderer/prompts/npcRelationship'
 import { SETTING } from '../../src/renderer/prompts/setting'
-import { occasionsAt } from '../../src/renderer/prompts/occasions'
+import { GRADUATION_DATE, occasionsAt } from '../../src/renderer/prompts/occasions'
+import { weekdayOf } from '../../src/renderer/prompts/gameDate'
 import { shippedBackgrounds } from '../../src/renderer/views/bgAssets'
 
 /**
@@ -80,7 +99,10 @@ import { shippedBackgrounds } from '../../src/renderer/views/bgAssets'
  * them — scene, texting, ledger and slot opening — without calling the writer and without
  * writing anything: the test playthrough is loaded into the store in memory, each scenario is set
  * up through the development build's F9 actions and the romance settle a scene ending runs, and
- * the builders are called as the loop calls them. Tokens are estimated as characters ÷ 4.
+ * the builders are called as the loop calls them. Tokens are estimated as characters ÷ 4. Each
+ * scenario with men is measured twice, the second time with the marks the reader's wingman
+ * actions leave — their memories, filed as the boundary files them, and crushes found out — and
+ * the roster's semester is played to count how often a scene ledger is asked about its romance.
  */
 
 const ROOT = resolve(__dirname, '../..')
@@ -139,7 +161,8 @@ function f9(result: DebugResult): void {
 
 /**
  * One scene ending's romance settle, stored the way the boundary stores it, with the grudge
- * memories of any man the reader displaced. Returns who the next opening has posting for sure.
+ * memories of any man the reader displaced and what his wingman actions left anybody remembering.
+ * Returns who the next opening has posting for sure.
  */
 function sceneEnding(cast: string[] = [], events: NpcSceneEvent[] = []): GuaranteedPosters {
   const game = useGameStore.getState()
@@ -148,7 +171,7 @@ function sceneEnding(cast: string[] = [], events: NpcSceneEvent[] = []): Guarant
   const guaranteed = slotRomancePosters(out.romance, game.charInfo, game.date, game.time)
   game.setNpcRelationships(out.relationships)
   game.setNpcRomance(out.romance)
-  applyReaderLosses(out.readerBreakups, out.rivals)
+  applyReaderLosses(out.readerBreakups, out.rivals, out.readerMemories)
   useGameStore.setState({ cast: [] })
   loopState.debugRomanceBefore = null
   return guaranteed
@@ -177,7 +200,12 @@ const BLOCKS = [
   ['Abertura: instruções de romance nos posts', '6c'],
   ['Abertura: fofoca', '6d'],
   ['Abertura: instruções da fofoca', '6d'],
-  ['Abertura: campo fofoca no formato', '6d']
+  ['Abertura: campo fofoca no formato', '6d'],
+  ['Resumo: instruções de wingman', '7a'],
+  ['Resumo: tipos de wingman no formato', '7a'],
+  ['Paixão descoberta pelo jogador', '7a'],
+  ['Como responderia se contasse', '7a'],
+  ['Memórias de wingman', '7b']
 ] as const
 type Block = (typeof BLOCKS)[number][0]
 
@@ -191,8 +219,16 @@ const ROMANCE_LINES: ReadonlyArray<readonly [RegExp, Block]> = [
   [/ resents the reader for it/, 'Rival'],
   [/ turned (him|her|them) down\. Both of them remember it\./, 'Recusas recentes'],
   [/ are both here, and they are a couple\./, 'Casal presente na cena'],
-  [/^Of the characters here, the only romantic confessions|^Nobody here can confess romantic/, 'Confissões possíveis']
+  [/^Of the characters here, the only romantic confessions|^Nobody here can confess romantic/, 'Confissões possíveis'],
+  [/^The reader knows .+ has a secret crush on .+\. If he tells /, 'Como responderia se contasse']
 ]
+
+/** A memory line of the reader's wingman actions, as the four reasons word it. */
+const WINGMAN_MEMORY =
+  /^- .+: \S+ (loved|liked|disliked|hated) that the reader (helped \S+ get together with |helped bring \S+ and .+ together$|pushed \S+ to confess to .+, and \S+ turned \S+ down$|told .+ about \S+ crush on \S+, and \S+ turned \S+ down$|badmouthed \S+ to .+ behind \S+ back$)/
+
+/** What a crush line gained where the reader found out about it, against "Only X knows". */
+const FOUND_OUT = / and the reader know \(the reader found out [^)]*\)/
 
 /** Every line of ours in a scene, texting or ledger message, and the block it belongs to. */
 function classifyLine(line: string): Block | null {
@@ -203,6 +239,7 @@ function classifyLine(line: string): Block | null {
   if (/^Towards \S+, (his|her|their) (partner|secret crush): /.test(line)) {
     return 'Comportamento com parceiro/paixão'
   }
+  if (WINGMAN_MEMORY.test(line)) return 'Memórias de wingman'
   for (const [pattern, block] of ROMANCE_LINES) if (pattern.test(line)) return block
   return null
 }
@@ -239,12 +276,18 @@ function measure(request: StructuredRequest): Measure {
       inRomanceRules = true
     }
     if (inRomanceRules) {
-      add('Resumo: instruções de romance', line.length + 1)
+      const wingman =
+        WINGMAN_KINDS.some((kind) => line.startsWith(`- ${kind}: `)) || line.startsWith('The last four are about')
+      add(wingman ? 'Resumo: instruções de wingman' : 'Resumo: instruções de romance', line.length + 1)
       if (line === '') inRomanceRules = false
     } else {
       const block = classifyLine(line)
       if (block) {
-        add(block, line.length + 1)
+        // A crush the reader found out about is told apart by what its line gained.
+        const found = block === 'Paixões de quem está presente' ? FOUND_OUT.exec(line) : null
+        const gained = found ? found[0].length - ' knows'.length : 0
+        if (gained > 0) add('Paixão descoberta pelo jogador', gained)
+        add(block, line.length + 1 - gained)
         ours.push(line)
         lastOurs = end
       }
@@ -253,7 +296,10 @@ function measure(request: StructuredRequest): Measure {
   })
   const romanceField = (request.schema.schema as { properties?: Record<string, unknown> }).properties?.romance
   if (request.cacheKey === 'ledger' && romanceField) {
-    add('Resumo: campo romance no formato', JSON.stringify({ romance: romanceField }).length + ',"romance"'.length)
+    // The four wingman kinds in the field's enum, each `,"kind"`.
+    const kinds = WINGMAN_KINDS.reduce((sum, kind) => sum + kind.length + 3, 0)
+    add('Resumo: campo romance no formato', JSON.stringify({ romance: romanceField }).length + ',"romance"'.length - kinds)
+    add('Resumo: tipos de wingman no formato', kinds)
   }
   return { total: totalOf(request), blocks, lastOurs, ours: ours.join('\n') }
 }
@@ -468,16 +514,80 @@ function measureIntro(
 
 interface ScenarioResult {
   name: string
+  /** Whether the reader's wingman actions have left their marks on the game measured. */
+  wingman: boolean
   scenes: Array<{ label: string; result: SceneMeasures }>
   texting: Array<{ label: string; result: Measure }>
   intro: Measure
   notes: string[]
 }
 
+type Filed = { charId: string; memory: CharMemory }
+
+/**
+ * Plays, in a game of its own, the scene endings that leave memories of the reader's wingman
+ * actions, and returns what the settle filed: the same memories, dated the same day, that a
+ * scenario then files through the boundary's own path.
+ */
+function wingmanMemoriesFrom(identities: readonly Identity[], play: (c: readonly string[]) => void): Filed[] {
+  const c = load(SAVE, identities)
+  const before = new Map(c.map((id) => [id, useGameStore.getState().charInfo[id]?.jealousyMemories ?? []]))
+  play(c)
+  const game = useGameStore.getState()
+  return c.flatMap((id) =>
+    (game.charInfo[id]?.jealousyMemories ?? [])
+      .filter((memory) => !before.get(id)?.includes(memory))
+      .map((memory) => ({ charId: id, memory }))
+  )
+}
+
+/** Files memories the way the boundary files a banked ending's. */
+function fileMemories(filed: readonly Filed[]): void {
+  applyReaderLosses([], [], filed)
+}
+
+const describeFiled = (filed: readonly Filed[]): string =>
+  filed.map(({ charId, memory }) => `${byId(charId).firstName}: ${memory.type} "${memory.desc}"`).join('; ')
+
+/** The couple of the scenario with four men, formed on the reader telling her of his crush. */
+function helpedCoupleOfFour(): Filed[] {
+  return wingmanMemoriesFrom(FOUR_MEN, (c) => {
+    f9(debugCrush(c[0], c[5], 8))
+    f9(debugAffinity(c[0], c[5], 5))
+    sceneEnding([c[5]], [{ kind: 'revealed_crush', from: c[0], to: c[5] }])
+  })
+}
+
+/**
+ * Each of the four reasons, in the roster with eight men: a couple formed on a crush he told of,
+ * a crush he told of turned down, two talk-downs found out through a friend of the victim who was
+ * there, and a confession he urged turned down.
+ */
+function wingmanMemoriesOfEight(): Filed[] {
+  return wingmanMemoriesFrom(EIGHT_MEN, (c) => {
+    f9(debugCrush(c[0], c[8], 8))
+    f9(debugAffinity(c[0], c[8], 5))
+    sceneEnding([c[8]], [{ kind: 'revealed_crush', from: c[0], to: c[8] }])
+    f9(debugCrush(c[4], c[11], 8))
+    f9(debugAffinity(c[4], c[11], 2))
+    sceneEnding([c[11]], [{ kind: 'revealed_crush', from: c[4], to: c[11] }])
+    f9(debugAffinity(c[4], c[3], 5))
+    sceneEnding([c[9], c[3]], [{ kind: 'talked_down', from: c[4], to: c[9] }])
+    f9(debugAffinity(c[5], c[3], 5))
+    sceneEnding([c[9], c[3]], [{ kind: 'talked_down', from: c[5], to: c[9] }])
+    f9(debugCrush(c[2], c[10], 8))
+    f9(debugAffinity(c[2], c[10], 2))
+    sceneEnding([c[2]], [{ kind: 'encouraged_confession', from: c[2], to: c[10] }])
+    // The two's next slot together, which declares the crush he urged.
+    sceneEnding([c[2], c[10]])
+  })
+}
+
 function defaultCast(): ScenarioResult {
   const chars = load(SAVE, [])
   return {
     name: 'Elenco padrão, sem homens',
+    wingman: false,
     scenes: [
       { label: `cena a dois (${byId(chars[5]).firstName}, ${byId(chars[6]).firstName})`, result: measureScene([chars[5], chars[6]]) },
       { label: 'cena a três', result: measureScene([chars[5], chars[6], chars[7]]) }
@@ -488,13 +598,16 @@ function defaultCast(): ScenarioResult {
   }
 }
 
-function menAndACouple(): ScenarioResult {
+/** With `helped`, the couple formed with the reader's help and both remember it. */
+function menAndACouple(helped: Filed[] | null): ScenarioResult {
   const c = load(SAVE, FOUR_MEN)
+  if (helped) fileMemories(helped)
   f9(debugCouple(c[0], c[5]))
   const guaranteed = slotRomancePosters(useGameStore.getState().npcRomance, useGameStore.getState().charInfo, useGameStore.getState().date, useGameStore.getState().time)
   const name = (i: number): string => byId(c[i]).firstName
   return {
-    name: `4 homens + 1 mulher atraída por mulheres; um casal (${name(0)} e ${name(5)})`,
+    name: `4 homens + 1 mulher atraída por mulheres; um casal (${name(0)} e ${name(5)})${helped ? ', formado com a ajuda do jogador' : ''}`,
+    wingman: helped !== null,
     scenes: [
       { label: `cena com o casal (${name(0)}, ${name(5)})`, result: measureScene([c[0], c[5]]) },
       { label: `cena a três (casal + ${name(1)})`, result: measureScene([c[0], c[5], c[1]]) },
@@ -505,7 +618,7 @@ function menAndACouple(): ScenarioResult {
       { label: `celular com ${name(6)} (fora do casal)`, result: measureTexting(c[6]) }
     ],
     intro: measureIntro([c[6], c[7]], guaranteed, null),
-    notes: []
+    notes: helped ? [`memórias de wingman: ${describeFiled(helped)}`] : []
   }
 }
 
@@ -519,7 +632,12 @@ function exesAndRival(c: readonly string[]): void {
   sceneEnding([c[4], c[10]], [{ kind: 'declared', from: c[4], to: c[10], accepted: false }])
 }
 
-function worstThreeCouples(): ScenarioResult {
+/**
+ * With `wingman`, the memories that land on the cast of its first scene and thread — the couple's
+ * gratitude and the two of the man with a crush there — his crush found out, and a crush on the
+ * woman of that couple found out whose holder is away.
+ */
+function worstThreeCouples(wingman: Filed[] | null): ScenarioResult {
   const c = load(SAVE, EIGHT_MEN)
   exesAndRival(c)
   f9(debugCouple(c[0], c[8]))
@@ -532,9 +650,22 @@ function worstThreeCouples(): ScenarioResult {
   f9(debugCrush(c[3], c[11], 8))
   f9(debugLeakCrush(c[5]))
   const gossip = slotGossipOf(useGameStore.getState().npcRomance, [], useGameStore.getState().charInfo, useGameStore.getState().date).topic
+  const notes = [`fofoca: ${gossip?.kind ?? 'nenhuma'}`]
+  if (wingman) {
+    const landing = wingman.filter(({ charId }) => [c[0], c[8], c[4]].includes(charId))
+    fileMemories(landing)
+    f9(debugDiscover(c[4]))
+    f9(debugCrush(c[2], c[8], 8))
+    f9(debugDiscover(c[2]))
+    notes.push(
+      `memórias de wingman: ${describeFiled(landing)}`,
+      `o jogador descobriu a paixão de ${byId(c[4]).firstName} (presente) e a de ${byId(c[2]).firstName} por ${byId(c[8]).firstName} (ele ausente, ela presente)`
+    )
+  }
   const name = (i: number): string => byId(c[i]).firstName
   return {
     name: '8 homens; 3 casais formados no mesmo fim de cena, 2 ex (um rival), 1 recusa recente, 3 paixões, 1 namorada do jogador',
+    wingman: wingman !== null,
     scenes: [
       { label: `casal + quem gosta dela (${name(0)}, ${name(8)}, ${name(4)})`, result: measureScene([c[0], c[8], c[4]]) },
       { label: `namorada + quem gosta dela + rival (${name(9)}, ${name(5)}, ${name(3)})`, result: measureScene([c[9], c[5], c[3]]) }
@@ -544,11 +675,12 @@ function worstThreeCouples(): ScenarioResult {
       { label: `celular com ${name(9)} (namorada)`, result: measureTexting(c[9]) }
     ],
     intro: measureIntro([c[4], c[5]], guaranteed, gossip),
-    notes: [`fofoca: ${gossip?.kind ?? 'nenhuma'}`]
+    notes
   }
 }
 
-function worstDrift(): ScenarioResult {
+/** With `wingman`, the suitor was badmouthed to the lover and found out, and his crush was found out. */
+function worstDrift(wingman: Filed[] | null): ScenarioResult {
   const c = load(SAVE, EIGHT_MEN)
   exesAndRival(c)
   f9(debugCouple(c[0], c[8]))
@@ -576,8 +708,20 @@ function worstDrift(): ScenarioResult {
     forFirstName: name(5),
     reason: 'coldness'
   }
+  const notes = [
+    `fofoca: ${gossip?.kind ?? 'nenhuma'}`,
+    `a abertura inclui, além disso, o término por texto da namorada (motivo: frieza)`,
+    `o botão de afeto do F9 gravou ${written} memórias de hoje na namorada para chegar a −16`
+  ]
+  if (wingman) {
+    const landing = wingman.filter(({ charId }) => charId === c[5])
+    fileMemories(landing)
+    f9(debugDiscover(c[5]))
+    notes.push(`memórias de wingman: ${describeFiled(landing)}`, `o jogador descobriu a paixão de ${name(5)}`)
+  }
   return {
     name: '8 homens; 2 casais formados no mesmo fim de cena, 2 ex (um rival), 1 recusa recente, 2 paixões, afastamento aberto da namorada',
+    wingman: wingman !== null,
     scenes: [
       { label: `namorada + pretendente + rival (${name(9)}, ${name(5)}, ${name(3)})`, result: measureScene([c[9], c[5], c[3]]) },
       { label: `casal + quem gosta dela (${name(0)}, ${name(8)}, ${name(4)})`, result: measureScene([c[0], c[8], c[4]]) }
@@ -587,12 +731,122 @@ function worstDrift(): ScenarioResult {
       { label: `celular com ${name(5)} (pretendente)`, result: measureTexting(c[5]) }
     ],
     intro: measureIntro([c[4], c[9]], guaranteed, gossip, [breakup]),
-    notes: [
-      `fofoca: ${gossip?.kind ?? 'nenhuma'}`,
-      `a abertura inclui, além disso, o término por texto da namorada (motivo: frieza)`,
-      `o botão de afeto do F9 gravou ${written} memórias de hoje na namorada para chegar a −16`
-    ]
+    notes
   }
+}
+
+// ─── The wingman memories ───────────────────────────────────────────────────────────────────
+
+/** What each memory the reader's wingman actions leave weighs as the line a prompt carries. */
+function wingmanMemoryCost(filed: readonly Filed[]): string[] {
+  const lines = [row(['Quem', 'Memória, como vai ao prompt', 'Caracteres', 'Tokens ≈']), row(['---', '---', '---', '---'])]
+  for (const { charId, memory } of filed) {
+    const line = memoryLines(byId(charId), [memory])[1]
+    lines.push(row([byId(charId).firstName, line, line.length + 1, tokens(line.length + 1)]))
+  }
+  return lines
+}
+
+// ─── How often the ledger asks about romance ────────────────────────────────────────────────
+
+const ASK_RUNS = 10
+
+/** The ledger's question as it stood before step 7: a crush holder or a couple here, or a declaration two here could make. */
+function askedBefore(cast: readonly string[], map: NpcRomanceMap, date: number, characters: Record<string, Character>): boolean {
+  if (cast.some((id) => map.crushes[id] || npcPartnerOf(map, id))) return true
+  const context = { date, characters: Object.fromEntries(cast.map((id) => [id, characters[id]])), readerLovers: [] }
+  return cast.some((from) => cast.some((to) => declarationOutcomeOf(map, from, to, context) !== 'impossible'))
+}
+
+/** The question proposed as D2: also whenever somebody here could fall for anybody on the roster. */
+function askedD2(cast: readonly string[], map: NpcRomanceMap, date: number, characters: Record<string, Character>, roster: readonly string[]): boolean {
+  if (ledgerAsksNpcRomance(cast.map((id) => characters[id]), map, [], date)) return true
+  const context = { date, characters, readerLovers: [] }
+  return cast.some((from) => roster.some((to) => mayFallFor(map, from, to, context)))
+}
+
+/** Every cast of one, two and three out of the roster. */
+function castsOf(roster: readonly string[]): string[][][] {
+  const ones = roster.map((id) => [id])
+  const twos = roster.flatMap((a, i) => roster.slice(i + 1).map((b) => [a, b]))
+  const threes = twos.flatMap(([a, b]) => roster.slice(roster.indexOf(b) + 1).map((x) => [a, b, x]))
+  return [ones, twos, threes]
+}
+
+/**
+ * The share of scene ledgers that ask for the romance field before step 7, now and under D2, by
+ * cast size: the roster's semester is played as `npm run sim:romance` plays it, and at every slot
+ * each cast of one, two and three is judged as the ledger would judge it, every cast as likely.
+ * Each row is [casts judged, asked before, asked now, asked under D2].
+ */
+function askFrequency(identities: readonly Identity[]): number[][] {
+  const counts = [0, 1, 2].map(() => [0, 0, 0, 0])
+  for (let run = 0; run < ASK_RUNS; run++) {
+    const roster = load('manual03.json', identities)
+    const byCast = castsOf(roster)
+    useGameStore.setState({
+      cast: [],
+      npcRelationships: rollInitialNpcRelationships(
+        roster.map((charId) => ({ charId, year: useGameStore.getState().charInfo[charId]?.year ?? 1 }))
+      ),
+      npcRomance: emptyNpcRomance(),
+      weekendOutings: {},
+      outingSlots: {}
+    })
+    for (let date = 0; date < GRADUATION_DATE; date++) {
+      for (const time of [0, 1] as TimeSlot[]) {
+        useGameStore.setState({ date, time })
+        applyNpcOverlay(rollNpcOverlayNow(date, time))
+        const groups = rollSlotEncounterGroups()
+        const state = useGameStore.getState()
+        const settled = settleNpcPairs({ date, relationships: state.npcRelationships, cast: [], groups, characters: state.characters })
+        const out = settleNpcRomance({
+          date,
+          endsWeek: weekdayOf(date) === 0 && time === 1,
+          relationships: settled,
+          romance: state.npcRomance,
+          groups,
+          cast: [],
+          readerLovers: [],
+          characters: state.characters
+        })
+        useGameStore.setState({ npcRelationships: out.relationships, npcRomance: out.romance })
+        const map = out.romance
+        byCast.forEach((casts, size) => {
+          for (const cast of casts) {
+            counts[size][0]++
+            if (askedBefore(cast, map, date, state.characters)) counts[size][1]++
+            if (ledgerAsksNpcRomance(cast.map((id) => state.characters[id]), map, [], date)) counts[size][2]++
+            if (askedD2(cast, map, date, state.characters, roster)) counts[size][3]++
+          }
+        })
+      }
+    }
+  }
+  return counts
+}
+
+function askReport(): string[] {
+  const out = [
+    `Média de ${ASK_RUNS} semestres por elenco; cada elenco de cena de 1, 2 e 3 pessoas, em cada período, conta igual.`,
+    '',
+    row(['Elenco', 'Pessoas na cena', 'Antes da etapa 7', 'Agora', 'Com a D2']),
+    row(['---', '---', '---', '---', '---'])
+  ]
+  const rosters: Array<[string, Identity[]]> = [
+    ['Padrão', []],
+    ['4 homens + 1 mulher por mulheres', FOUR_MEN],
+    ['8 homens', EIGHT_MEN]
+  ]
+  for (const [label, identities] of rosters) {
+    const counts = askFrequency(identities)
+    counts.forEach(([all, before, now, d2], size) => {
+      out.push(row([label, size + 1, pct(before, all), pct(now, all), pct(d2, all)]))
+    })
+    const mean = (i: number): string => `${((counts.reduce((sum, c) => sum + c[i] / c[0], 0) / 3) * 100).toFixed(1)}%`
+    out.push(row([label, '**média dos três tamanhos**', mean(1), mean(2), mean(3)]))
+  }
+  return out
 }
 
 // ─── The memory cap ─────────────────────────────────────────────────────────────────────────
@@ -635,10 +889,17 @@ function blockRows(label: string, m: Measure): string[] {
   return out
 }
 
+const titleOf = (scenario: ScenarioResult): string =>
+  `${scenario.name}${scenario.wingman ? ' — com o wingman em uso' : ''}`
+
+/** The part of a measure the steps of the wingman added. */
+const seventhOf = (m: Measure): number =>
+  BLOCKS.reduce((sum, [block, step]) => sum + (step.startsWith('7') ? (m.blocks[block] ?? 0) : 0), 0)
+
 function report(results: ScenarioResult[]): string {
   const out: string[] = ['', '# Medição de custo dos prompts', '']
   for (const scenario of results) {
-    out.push(`## ${scenario.name}`, '')
+    out.push(`## ${titleOf(scenario)}`, '')
     for (const note of scenario.notes) out.push(`- ${note}`)
     if (scenario.notes.length > 0) out.push('')
     out.push(row(['Chamada', 'Bloco (etapa)', 'Caracteres', 'Tokens ≈']), row(['---', '---', '---', '---']))
@@ -673,17 +934,18 @@ function summary(results: ScenarioResult[]): string {
     '',
     'Um período típico: a primeira cena medida (abertura, dois turnos, fechamento e resumo pós-cena), a abertura do período seguinte e uma conversa de celular.',
     '',
-    row(['Cenário', 'Tokens nossos', 'Tokens do período', 'Parte nossa', 'Nossos tokens no prefixo que se repete']),
-    row(['---', '---', '---', '---', '---'])
+    row(['Cenário', 'Tokens nossos', 'Destes, da etapa 7', 'Tokens do período', 'Parte nossa', 'Nossos tokens no prefixo que se repete']),
+    row(['---', '---', '---', '---', '---', '---'])
   ]
   for (const scenario of results) {
     const scene = scenario.scenes[0].result
     const calls = [scene.opening, scene.turn2, scene.turn3, scene.closing, scene.ledger, scenario.intro, scenario.texting[0].result]
     const ours = calls.reduce((sum, m) => sum + oursOf(m), 0)
+    const seventh = calls.reduce((sum, m) => sum + seventhOf(m), 0)
     const total = calls.reduce((sum, m) => sum + m.total, 0)
     // The turns after the first repeat the opening's prefix, ours included.
     const repeated = [scene.turn2, scene.turn3, scene.closing].reduce((sum, m) => sum + oursOf(m), 0)
-    out.push(row([scenario.name, tokens(ours), tokens(total), pct(ours, total), tokens(repeated)]))
+    out.push(row([titleOf(scenario), tokens(ours), tokens(seventh), tokens(total), pct(ours, total), tokens(repeated)]))
   }
   return out.join('\n')
 }
@@ -698,8 +960,36 @@ it(
     const bagsBefore = existsSync(GRABBAGS) ? readFileSync(GRABBAGS) : null
     const hashBefore = sha(GRABBAGS)
     try {
-      const results = [defaultCast(), menAndACouple(), worstThreeCouples(), worstDrift()]
-      const text = [report(results), summary(results), '', '## Memórias', '', ...memoryCheck().map((line) => `- ${line}`), ''].join('\n')
+      // Played first, each in a game of its own, since every scenario loads afresh.
+      const helped = helpedCoupleOfFour()
+      const eight = wingmanMemoriesOfEight()
+      const memoryCost = wingmanMemoryCost(eight)
+      const results = [
+        defaultCast(),
+        menAndACouple(null),
+        worstThreeCouples(null),
+        worstDrift(null),
+        menAndACouple(helped),
+        worstThreeCouples(eight),
+        worstDrift(eight)
+      ]
+      const text = [
+        report(results),
+        summary(results),
+        '',
+        '## Memórias',
+        '',
+        ...memoryCheck().map((line) => `- ${line}`),
+        '',
+        '## Memórias de wingman, uma de cada motivo',
+        '',
+        ...memoryCost,
+        '',
+        '## Com que frequência o resumo pós-cena pede o campo "romance"',
+        '',
+        ...askReport(),
+        ''
+      ].join('\n')
       process.stdout.write(text + '\n')
     } finally {
       const hashAfter = sha(GRABBAGS)
