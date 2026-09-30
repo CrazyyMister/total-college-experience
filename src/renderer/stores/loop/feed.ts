@@ -22,10 +22,12 @@ import { deliverBunnybotNow } from '../textingLoop'
 
 /**
  * Files the status updates the slot's opening came back with, picks the one stranger's post the
- * feed surfaces for the slot, and fills a feed too thin to read with more of them.
+ * feed surfaces for the slot, and fills a feed too thin to read with more of them. Answers
+ * whose posts were filed.
  */
-export function deliverSlotPosts(posts: SlotIntroResponse['posts']): void {
+export function deliverSlotPosts(posts: SlotIntroResponse['posts']): Set<string> {
   const fresh: TeaserCandidate[] = []
+  const filed = new Set<string>()
 
   for (const post of posts ?? []) {
     const game = useGameStore.getState()
@@ -41,6 +43,7 @@ export function deliverSlotPosts(posts: SlotIntroResponse['posts']): void {
       time: game.time,
       likes: rollPostLikes(npcFriendsOf(game.npcRelationships, charId, game.chars).length)
     })
+    filed.add(charId)
     // A stranger's post is a teaser candidate; blocked counts as contact, since the flag is
     // masked rather than cleared.
     const flags = game.charInfo[charId]?.flags
@@ -50,7 +53,7 @@ export function deliverSlotPosts(posts: SlotIntroResponse['posts']): void {
 
   // Replaced every slot, whether or not one was drawn: a teaser is never held over.
   const game = useGameStore.getState()
-  if (!game.feedExtras) return
+  if (!game.feedExtras) return filed
   const teaser = pickTeaser(fresh)
 
   // What the tab would show as it stands, and everything it could be filled out with: any post
@@ -80,6 +83,7 @@ export function deliverSlotPosts(posts: SlotIntroResponse['posts']): void {
   if (fill.length > 0) extras.fill = fill
   else delete extras.fill
   game.setFeedExtras(extras)
+  return filed
 }
 
 /**

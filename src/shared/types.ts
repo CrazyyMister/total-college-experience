@@ -8,6 +8,7 @@ import type { CharacterTrait } from './traits'
 import type { GiftPreferences, GiftReaction } from './shop'
 import type { NpcFriendship, NpcRelationshipMap, NpcSlotOverlay } from './npcRelationships'
 import type { NpcRomanceKind, NpcRomanceMap, ReaderBreakup } from './npcRomance'
+import type { DriftPost } from './npcRomancePosts'
 import type { PromptKind } from './promptKinds'
 import type { RumorPassOutcome } from './rumors'
 import type { DormId } from './dorms'
@@ -1151,6 +1152,11 @@ export interface SlotOpening {
   slotRumor?: { placeId: string; sentence: string }
   /** The status updates the opening's posters wrote, filed to their own feeds at step 1. */
   posts?: SlotIntroResponse['posts']
+  /**
+   * The drifts whose hint this opening had somebody post, each counted as a sign at step 1 if the
+   * post came back written. Absent for an opening with none.
+   */
+  driftPosts?: DriftPost[]
   /**
    * What campus saw of the scene that ended into this slot — rolled at the ending off
    * the ledger it just paid for, so the narration above can say what is being said.

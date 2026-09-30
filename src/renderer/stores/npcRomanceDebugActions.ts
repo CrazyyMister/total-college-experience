@@ -16,6 +16,7 @@ import { affectionFor } from '@shared/relationship'
 import { charKeyOf, type MemoryType } from '@shared/types'
 import { readerLoversOf } from '../prompts/npcRelationship'
 import { useGameStore } from './gameStore'
+import { loopState } from './loop/state'
 import { applyLedger } from './sceneSanitizer'
 import { unblockContact } from './textingLoop'
 
@@ -102,9 +103,11 @@ export function debugCouple(a: string, b: string): DebugResult {
     couples: { ...map.couples }
   }
   acceptDeclaration(romance, a, b, date)
+  // The next ending reads the couple as news against the map from before the first such button.
+  loopState.debugRomanceBefore ??= map
   game.setNpcRomance(romance)
   game.setNpcRelationships(withAffinityAtLeast(game.npcRelationships, a, b, ACCEPT_AFFINITY))
-  return done(`${characters[a].firstName} and ${characters[b].firstName} are a couple.`)
+  return done(`${characters[a].firstName} and ${characters[b].firstName} are a couple. The next scene's ending reads it as news.`)
 }
 
 /** One pair's affinity, held to the pair map's range. */

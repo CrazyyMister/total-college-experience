@@ -7,7 +7,7 @@ import type {
   SceneState
 } from '@shared/types'
 import type { JobShift } from '@shared/jobs'
-import type { NpcRomanceLogEntry } from '@shared/npcRomance'
+import type { NpcRomanceLogEntry, NpcRomanceMap } from '@shared/npcRomance'
 import type { ExamPeriod } from '@shared/academics'
 import type { HangoutPrefetch } from './hangouts'
 import type { Verdict } from './classify'
@@ -67,6 +67,12 @@ export const loopState = {
 
   /** What the ending's romance settle did, for the development read-out; never saved. */
   romanceLog: [] as NpcRomanceLogEntry[],
+
+  /**
+   * The romance map as it stood before the development build's test buttons first changed it
+   * since the last boundary, so the next ending reads their couples as news; never saved.
+   */
+  debugRomanceBefore: null as NpcRomanceMap | null,
 
   /** An exam's opening, in flight while the player answers; null after a reload. */
   examOpening: null as Promise<BankedOpening | null> | null,
@@ -290,6 +296,8 @@ export function resetLoopState(): void {
   // Whatever save is loaded next brings its own opening off disk.
   loopState.bankedOpening = null
   loopState.romanceLog = []
+  // Belongs to the game the buttons were pressed in.
+  loopState.debugRomanceBefore = null
   // An in-flight prefetch is simply abandoned; the next armed hangout makes its own call.
   loopState.hangoutPrefetch = null
   // Abandoned the same way; the bytes it holds are released separately, by `dropEndingArt`.

@@ -1,3 +1,4 @@
+import type { PosterRomance, RomanceNews } from '@shared/npcRomancePosts'
 import { affectionFor, dedupedMemoriesFor, emptyFlags } from '@shared/relationship'
 import { DEFAULT_PLAYER_STATS, type PlayerStats } from '@shared/playerStats'
 import { pronounsOf } from '@shared/pronouns'
@@ -78,6 +79,12 @@ export interface IntroPoster {
   texted: boolean
   /** Where she is, who with, and what she is there for, when the slot places her anywhere. */
   whereabouts?: { location: string; companions: NpcCompanions; haunt?: Haunt }
+  /** Her love life among the roster, when she has any to tell. */
+  romance?: PosterRomance
+  /** The couples of hers that formed or ended as this slot opened, which her post is about. */
+  news?: Array<{ kind: RomanceNews['kind']; name?: string }>
+  /** Set when her post is a drift's subtle hint, as the lover drifting or as the one drawn to. */
+  driftHint?: 'lover' | 'suitor'
 }
 
 /** Everything the builder reads; assembled by the loop, which owns the store. */
@@ -284,6 +291,64 @@ function breakupBlock(input: SlotIntroInput): string[] {
   ]
 }
 
+/** `"since today"`, `"since yesterday"`, `"for 12 days"`. */
+function togetherFor(since: number, today: number): string {
+  const days = today - since
+  if (days <= 0) return 'since today'
+  if (days === 1) return 'since yesterday'
+  return `for ${days} days`
+}
+
+/** `"today"`, `"yesterday"`, `"3 days ago"`. */
+function endedWhen(ended: number, today: number): string {
+  const days = today - ended
+  if (days <= 0) return 'today'
+  if (days === 1) return 'yesterday'
+  return `${days} days ago`
+}
+
+/** What rides one poster's key: her love life, what her post is about, and a drift's hint. */
+function posterNotes(poster: IntroPoster, today: number): string[] {
+  const notes: string[] = []
+  const { romance, news, driftHint } = poster
+  if (romance?.partner) {
+    notes.push(
+      `dating ${romance.partner.name ?? 'someone (do not name them)'} ${togetherFor(romance.partner.since, today)}`
+    )
+  }
+  if (romance?.ex) {
+    notes.push(
+      `broke up with ${romance.ex.name ?? 'someone (do not name them)'} ${endedWhen(romance.ex.ended, today)}`
+    )
+  }
+  if (romance?.crush) {
+    notes.push('has a secret crush on someone: at most a vague hint, never who it is')
+  }
+  for (const { kind, name } of news ?? []) {
+    const who = name ?? 'someone (do not name them)'
+    notes.push(
+      kind === 'together'
+        ? `THIS POST IS ABOUT: just started dating ${who}`
+        : `THIS POST IS ABOUT: just broke up with ${who}`
+    )
+  }
+  if (driftHint === 'lover') {
+    notes.push(
+      'THIS POST CARRIES A HINT: things have quietly cooled in their love life and they have been drawn to someone else. One subtle hint of it — restless, wistful, a little distant — with nothing decided, no name, nothing that points to anyone, and no mention of the reader'
+    )
+  } else if (driftHint === 'suitor') {
+    notes.push(
+      'THIS POST CARRIES A HINT: they have feelings for someone who is not free, and lately that someone has been getting closer. One subtle hint of it — wistful, hopeful, restless — with nothing decided, no name, nothing that points to anyone, and no mention of the reader'
+    )
+  }
+  return notes
+}
+
+/** Whether any poster has a love life or a romance note riding her key. */
+function anyPosterRomance(input: SlotIntroInput): boolean {
+  return input.posters.some((poster) => posterNotes(poster, input.date).length > 0)
+}
+
 /** The characters posting a status update this slot. */
 function posterBlock(input: SlotIntroInput): string[] {
   if (input.posters.length === 0) return []
@@ -291,7 +356,15 @@ function posterBlock(input: SlotIntroInput): string[] {
   return [
     'STATUS UPDATES',
     'Each of these characters is posting a status update on social media right now. Write one entry in "posts" for each, and nothing for anyone else. They are described under LOREBOOK.',
-    ...input.posters.map(({ charKey }) => `- ${charKey}`)
+    ...(anyPosterRomance(input)
+      ? [
+          'Where their love life is given beside a character, that is where it stands. Where a line beside them says what the post is about or what hint it carries, the post does that, in their own way.'
+        ]
+      : []),
+    ...input.posters.map((poster) => {
+      const notes = posterNotes(poster, input.date)
+      return notes.length > 0 ? `- ${poster.charKey} — ${notes.join('; ')}` : `- ${poster.charKey}`
+    })
   ]
 }
 
@@ -433,7 +506,11 @@ export function buildSlotIntroPrompt(
     ...(input.posters.length > 0
       ? [
           '',
-          'Then fill "posts", one entry per character under STATUS UPDATES. "char" is their key exactly as written there. "text" is the post itself: one or two short lines in their own voice, the way they would actually type it — lowercase, slang and emoji are fine if that is how they write. It is a post to nobody in particular, about their hour: what they are doing, where they are, what kind of mood they are in, something small they noticed. They are NOT writing to the reader and must not address him, mention him, or refer to meeting anyone. No narration and no stage directions.',
+          'Then fill "posts", one entry per character under STATUS UPDATES. "char" is their key exactly as written there. "text" is the post itself: one or two short lines in their own voice, the way they would actually type it — lowercase, slang and emoji are fine if that is how they write. It is a post to nobody in particular, about their hour: what they are doing, where they are, what kind of mood they are in, something small they noticed. They are NOT writing to the reader and must not address him or mention him.' +
+            (anyPosterRomance(input)
+              ? ' They may mention a partner, an ex or a new relationship given beside them, by the name given there and no other, and never name somebody given as "someone"; otherwise they do not refer to meeting anyone.'
+              : ' They do not refer to meeting anyone.') +
+            ' No narration and no stage directions.',
           'The narration in "lines" must not mention these posts — the reader has not opened his phone yet.'
         ]
       : [

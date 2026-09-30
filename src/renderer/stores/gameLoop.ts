@@ -19,7 +19,8 @@ import {
 import { factoidLine, kindOf, projectProgress, projectProgressLine } from '@shared/academics'
 import { giftActionLine, itemDefOf } from '@shared/shop'
 import type { NpcSlotOverlay } from '@shared/npcRelationships'
-import type { ReaderBreakup } from '@shared/npcRomance'
+import type { NpcRomanceMap, ReaderBreakup } from '@shared/npcRomance'
+import { posterRomanceOf, type GuaranteedPosters } from '@shared/npcRomancePosts'
 import { isSilentLine, isSlotSaveId } from '@shared/saveRules'
 import {
   charKeyOf,
@@ -198,11 +199,13 @@ import {
   applyNewFriendships,
   applyNpcOverlay,
   applyReaderLosses,
+  countDriftPostSigns,
   npcWhereaboutsFor,
   rollNpcOverlayNow,
   rollNpcRelationshipSettle,
   rollNpcRomanceSettle,
-  rollSlotEncounterGroups
+  rollSlotEncounterGroups,
+  slotRomancePosters
 } from './loop/npc'
 import { applyRumorPass, rollRumorPass } from './loop/rumors'
 import {
@@ -447,7 +450,10 @@ async function beginSlot(): Promise<void> {
   deliverSlotBreakups(opening.breakups)
 
   // The status updates the same call wrote, filed before the fold on the same terms.
-  deliverSlotPosts(opening.posts)
+  // A drift's hint counts as its sign once it is on the feed, dated today; after the boundary
+  // stored the map the drift was opened on.
+  const posted = deliverSlotPosts(opening.posts)
+  countDriftPostSigns(opening.driftPosts ?? [], posted)
 
   // Folded into the slot-save minted before the call went out, which is the start-of-slot
   // decision point.
@@ -633,6 +639,11 @@ async function fetchSlotIntro(
   pendingSummary?: string | null,
   npcOverlay: NpcSlotOverlay | null = null,
   view: PostLedgerView = liveView(),
+  /**
+   * The romance the ending settled into and who it has posting for sure; absent for an opening
+   * no ending precedes.
+   */
+  romance: { map: NpcRomanceMap; guaranteed: GuaranteedPosters } | null = null,
   call: { group?: string; stale?: () => boolean } = {}
 ): Promise<SlotOpening | null> {
   const run = currentRun()
@@ -646,13 +657,24 @@ async function fetchSlotIntro(
 
   const game = useGameStore.getState()
 
-  // Who posts a status update this slot, as charKeys — the whole roster, strangers included.
-  const postingKeys = new Set(
-    pickSlotPosters(game.chars, game.characters).flatMap((charId) => {
-      const character = game.characters[charId]
-      return character ? [charKeyOf(character.firstName, character.lastName)] : []
-    })
+  // Who posts a status update this slot, as charKeys — the whole roster, strangers included —
+  // the roll's picks and whoever the romance has posting for sure, in roster order.
+  const guaranteed = new Map(
+    (romance?.guaranteed.posters ?? []).map((poster) => [poster.charId, poster])
   )
+  const rolled = new Set(pickSlotPosters(game.chars, game.characters))
+  const postingKeys = new Set(
+    game.chars
+      .filter((charId) => rolled.has(charId) || guaranteed.has(charId))
+      .flatMap((charId) => {
+        const character = game.characters[charId]
+        return character ? [charKeyOf(character.firstName, character.lastName)] : []
+      })
+  )
+  // A first name the reader can put to somebody, or nothing.
+  const knownName = (charId: string): string | undefined =>
+    view.charInfo[charId]?.nameKnown ? game.characters[charId]?.firstName : undefined
+  const romanceMap = romance?.map ?? game.npcRomance
 
   // What is on this slot that somebody could ask him along to, and that he is free to go to.
   const occasion = askOccasionFor(date, time, view)
@@ -707,11 +729,23 @@ async function fetchSlotIntro(
     const info = view.charInfo[charId]
     if (!character || !info) continue
     const whereabouts = npcWhereaboutsFor(charId, date, time, npcOverlay, view.charInfo)
+    const loveLife = posterRomanceOf(romanceMap, charId, date, knownName)
+    const sure = guaranteed.get(charId)
     posters.push({
       charKey,
       character,
       info,
       texted: hasTexted(game.bunnyboard.conversations[charId]),
+      ...(loveLife ? { romance: loveLife } : {}),
+      ...(sure && sure.news.length > 0
+        ? {
+            news: sure.news.map(({ kind, with: other }) => {
+              const name = knownName(other)
+              return { kind, ...(name ? { name } : {}) }
+            })
+          }
+        : {}),
+      ...(sure?.driftHint ? { driftHint: sure.driftHint } : {}),
       ...(whereabouts
         ? {
             whereabouts: {
@@ -801,6 +835,14 @@ async function fetchSlotIntro(
         breakups: result.data.breakups,
         ...(occasion ? { askOccasionId: occasion.id } : {}),
         posts: result.data.posts,
+        // Only the hints of posters who made it into the prompt can come back written.
+        ...(romance && romance.guaranteed.driftPosts.length > 0
+          ? {
+              driftPosts: romance.guaranteed.driftPosts.filter(({ poster }) =>
+                posters.some(({ character }) => character.charId === poster)
+              )
+            }
+          : {}),
         events: [...events],
         cancellations: [...cancellations],
         // Banked with the narration it was rolled beside.
@@ -1635,6 +1677,7 @@ async function fetchEndingOpening(
     useGameStore.getState().sceneSummary,
     npcOverlay,
     view,
+    { map: npcRomance, guaranteed: slotRomancePosters(npcRomance, view.charInfo, date, time) },
     { group: ENDING_LLM_GROUP, stale: dropped }
   )
   // An abandoned opening banks nothing, the rolls above included; the player replays the
@@ -2453,6 +2496,8 @@ async function crossSlotBoundary(): Promise<void> {
     applyReaderLosses(banked.readerBreakups ?? [], banked.rivals ?? [])
     recordRomanceEvents(loopState.romanceLog)
     loopState.romanceLog = []
+    // The ending that read the buttons' couples as news has been applied.
+    loopState.debugRomanceBefore = null
 
     // The one warning that what gets seen gets told, owed the first time anybody sees him with
     // a girl whose name he knows. Left unsent before BunnyBot has introduced itself, or over a

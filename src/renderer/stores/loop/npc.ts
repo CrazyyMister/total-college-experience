@@ -21,8 +21,15 @@ import {
   type NpcRomanceOutcome,
   type NpcSceneEvent,
   type ReaderBreakup,
+  type NpcRomanceMap,
   type ReaderLoverState
 } from '@shared/npcRomance'
+import {
+  guaranteedPostersOf,
+  withDriftPostSigns,
+  type DriftPost,
+  type GuaranteedPosters
+} from '@shared/npcRomancePosts'
 import { affectionFor } from '@shared/relationship'
 import { upsertJealousyMemory } from '@shared/rumors'
 import type { CharInfo, Haunt, TimeSlot } from '@shared/types'
@@ -33,6 +40,7 @@ import { prevSlot, shiftWeekdayOf, weekdayOf, weekendSaturdayOf } from '../../pr
 import { isSummerOutingWeek } from '../../prompts/graduation'
 import { isSpringBreakOutingWeek } from '../../prompts/springBreak'
 import { useGameStore } from '../gameStore'
+import { loopState } from './state'
 import { rollNpcOverlay, type OutingWindow, type OverlayCharInput } from '../npcOverlay'
 import { rollDormRunIns, rollLooseRunIns, type RunInCharInput } from '../npcRunIns'
 import {
@@ -327,4 +335,41 @@ export function npcWhereaboutsFor(
 
   const atHaunt = !homebound && standing && location === standing.location
   return { location, knownNames, unknown, ...(atHaunt ? { haunt: standing } : {}) }
+}
+
+/**
+ * Who the opening of `date`/`time` has posting for sure, off the romance map before the ending's
+ * settle and the one it returned; the development build's buttons stand in for the map's couples
+ * from before they first made one. `charInfo` is the ending's projection.
+ */
+export function slotRomancePosters(
+  after: NpcRomanceMap,
+  charInfo: Readonly<Record<string, CharInfo | undefined>>,
+  date: number,
+  time: TimeSlot
+): GuaranteedPosters {
+  const game = useGameStore.getState()
+  const debugBefore = loopState.debugRomanceBefore
+  const before = debugBefore ? { ...game.npcRomance, couples: debugBefore.couples } : game.npcRomance
+  return guaranteedPostersOf({
+    before,
+    after,
+    visible: (charId) => {
+      const flags = charInfo[charId]?.flags
+      return flags?.gaveContactInfo === true && !flags.blocked
+    },
+    date,
+    time
+  })
+}
+
+/**
+ * Counts a sign on each drift whose hint post was filed this slot, dated today. Run after the
+ * boundary has stored the map the drift was opened on; idempotent.
+ */
+export function countDriftPostSigns(driftPosts: readonly DriftPost[], posted: ReadonlySet<string>): void {
+  if (driftPosts.length === 0) return
+  const game = useGameStore.getState()
+  const map = withDriftPostSigns(game.npcRomance, driftPosts, posted, game.date)
+  if (map !== game.npcRomance) game.setNpcRomance(map)
 }
