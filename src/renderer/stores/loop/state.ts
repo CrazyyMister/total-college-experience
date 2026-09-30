@@ -74,6 +74,12 @@ export const loopState = {
    */
   debugRomanceBefore: null as NpcRomanceMap | null,
 
+  /**
+   * The crush holder the development build's button has the next ending's gossip leak, whatever
+   * the crush's age and the odds; never saved.
+   */
+  debugGossipLeak: null as string | null,
+
   /** An exam's opening, in flight while the player answers; null after a reload. */
   examOpening: null as Promise<BankedOpening | null> | null,
 
@@ -298,6 +304,7 @@ export function resetLoopState(): void {
   loopState.romanceLog = []
   // Belongs to the game the buttons were pressed in.
   loopState.debugRomanceBefore = null
+  loopState.debugGossipLeak = null
   // An in-flight prefetch is simply abandoned; the next armed hangout makes its own call.
   loopState.hangoutPrefetch = null
   // Abandoned the same way; the bytes it holds are released separately, by `dropEndingArt`.

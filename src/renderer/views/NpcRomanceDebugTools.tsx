@@ -12,6 +12,7 @@ import {
   debugCrush,
   debugDiscover,
   debugDriftBack,
+  debugLeakCrush,
   debugLover,
   type DebugResult
 } from '../stores/npcRomanceDebugActions'
@@ -42,6 +43,7 @@ const TOOLS: readonly Tool[] = [
   { label: 'X’s drift began N days earlier', run: (x, _y, n) => debugDriftBack(x, n) },
   { label: 'X’s kept crush is N days older', run: (x, _y, n) => debugAgeHeld(x, n) },
   { label: 'The reader discovers X’s crush', run: (x) => debugDiscover(x) },
+  { label: 'The next scene leaks X’s crush', run: (x) => debugLeakCrush(x) },
   { label: 'X blocks the reader', run: (x) => debugBlocked(x, true) },
   { label: 'X unblocks the reader', run: (x) => debugBlocked(x, false) }
 ]

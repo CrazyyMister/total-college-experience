@@ -292,6 +292,30 @@ export function debugDiscover(charId: string): DebugResult {
   return done(`The reader knows ${character.firstName} has a crush on ${object}.`)
 }
 
+/**
+ * Has the next ending's gossip leak her crush whatever its age and the odds, the gossip's order
+ * and the names the reader must know still holding; forgotten at the boundary.
+ */
+export function debugLeakCrush(charId: string): DebugResult {
+  if (!import.meta.env.DEV) return NOT_DEV
+  const game = useGameStore.getState()
+  const character = game.characters[charId]
+  const crush = game.npcRomance.crushes[charId]
+  if (!character) return refused('Pick a character.')
+  if (!crush) return refused(`${character.firstName} holds no crush.`)
+  if (game.npcRomance.discovered?.[charId]) {
+    return refused(`The reader already knows of ${character.firstName}'s crush.`)
+  }
+  const object = game.characters[crush.to]?.firstName ?? 'somebody'
+  if (!game.charInfo[charId]?.nameKnown || !game.charInfo[crush.to]?.nameKnown) {
+    return refused(`The reader has to know both ${character.firstName}'s and ${object}'s names.`)
+  }
+  loopState.debugGossipLeak = charId
+  return done(
+    `The next scene's ending has ${character.firstName}'s crush on ${object} leak, unless a breakup or a drift is gossiped first.`
+  )
+}
+
 /** Has her block the reader or lift it, as a thread of hers would, with its system line. */
 export function debugBlocked(charId: string, on: boolean): DebugResult {
   if (!import.meta.env.DEV) return NOT_DEV

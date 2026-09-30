@@ -7,7 +7,7 @@ import { useModalShell } from '../components/useModalShell'
 import { TitleTab } from '../components/TitleTab'
 import { useGameStore } from '../stores/gameStore'
 import { lastScenePromptText } from '../stores/gameLoop'
-import { romanceEventLog, romanceSectionOf } from '../stores/npcRomanceDebug'
+import { pendingGossipLeak, romanceEventLog, romanceSectionOf } from '../stores/npcRomanceDebug'
 import { formatShortGameDate } from '../prompts/gameDate'
 import { gestures, lift, panelUnderTab, press, veilIn } from './motion'
 import '../vu_styles/NpcRomanceDebug.css'
@@ -48,6 +48,7 @@ function sectionsOf(): DebugSection[] {
   const affinity = (a: string, b: string): string =>
     `affinity ${game.npcRelationships[pairKeyOf(a, b)]?.affinity ?? '—'}`
   const { crushes, couples, exes, rejections, discovered = {}, drifts = {} } = game.npcRomance
+  const leak = pendingGossipLeak()
 
   return [
     {
@@ -125,6 +126,33 @@ function sectionsOf(): DebugSection[] {
         who: `${name(from)}'s crush on ${name(found.to)}`,
         facts: dated(found.date)
       }))
+    },
+    {
+      title: 'Gossip',
+      rows: [
+        ...(game.npcGossip.owed ?? []).map((lover) => ({
+          key: `owed:${lover}`,
+          who: `${name(lover)} left the reader in silence`,
+          facts: 'owed a gossip post'
+        })),
+        ...(leak
+          ? [
+              {
+                key: 'leak',
+                who: `${name(leak)}'s crush leaks at the next ending`,
+                facts: 'unless a breakup or a drift is gossiped first'
+              }
+            ]
+          : []),
+        ...game.npcGossip.posts
+          .slice(-5)
+          .reverse()
+          .map((post) => ({
+            key: post.id,
+            who: `@${post.handle}: ${post.text}`,
+            facts: dated(post.date)
+          }))
+      ]
     },
     {
       title: 'Events, latest first',

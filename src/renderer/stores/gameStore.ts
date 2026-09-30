@@ -64,6 +64,7 @@ import type {
   NpcSlotOverlay
 } from '@shared/npcRelationships'
 import { emptyNpcRomance, type NpcRomanceMap, type ReaderBreakup } from '@shared/npcRomance'
+import { emptyNpcGossip, type NpcGossip } from '@shared/npcRomanceGossip'
 import {
   type AddedClass,
   type AppError,
@@ -281,6 +282,8 @@ interface GameStoreState {
   npcFriendships: NpcFriendship[]
   /** The roster's crushes, couples, exes and rejections with each other. Persisted. */
   npcRomance: NpcRomanceMap
+  /** The anonymous gossip about the roster's romance, and the lovers still owed some. Persisted. */
+  npcGossip: NpcGossip
   /** Who is with whom this slot, stamped with the slot it describes. Persisted. */
   npcOverlay: NpcSlotOverlay | null
   /** What this slot's opening said was going on somewhere. Persisted. */
@@ -862,6 +865,8 @@ interface GameStoreState {
   setNpcRelationships: (relationships: NpcRelationshipMap) => void
   /** Replaces the whole romance map, which the settle pass folds at once like the pair map. */
   setNpcRomance: (romance: NpcRomanceMap) => void
+  /** Replaces the gossip record, which a slot's opening folds at once. */
+  setNpcGossip: (gossip: NpcGossip) => void
   /** Files who is with whom this slot, or clears it. */
   setNpcOverlay: (overlay: NpcSlotOverlay | null) => void
   /** Appends pairs that have just become friends for the first time. Never rewrites one. */
@@ -901,6 +906,8 @@ interface GameStoreState {
   toggleFeedLike: (charId: string, postId: string) => void
   /** Toggles the player's like on the day's random-student post. */
   toggleRandomPostLike: () => void
+  /** Likes or unlikes one gossip post. */
+  toggleGossipLike: (postId: string) => void
   /** Files the day's transient feed items, stamped with the day they belong to. */
   setFeedExtras: (extras: FeedExtras | null) => void
   /** Files the people the Friends tab offers this slot. */
@@ -1268,6 +1275,7 @@ const initialState = {
   npcRelationships: {} as NpcRelationshipMap,
   npcFriendships: [] as NpcFriendship[],
   npcRomance: emptyNpcRomance(),
+  npcGossip: emptyNpcGossip(),
   npcOverlay: null as NpcSlotOverlay | null,
   slotRumor: null as SlotRumor | null,
   lastSlotCast: null as { date: number; time: TimeSlot; charIds: string[] } | null,
@@ -1391,6 +1399,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       npcRelationships: save.npcRelationships,
       npcFriendships: save.npcFriendships ?? [],
       npcRomance: save.npcRomance ?? emptyNpcRomance(),
+      npcGossip: save.npcGossip ?? emptyNpcGossip(),
       npcOverlay: save.npcOverlay,
       slotRumor: save.slotRumor ?? null,
       lastSlotCast: save.lastSlotCast,
@@ -2263,6 +2272,21 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       }
     }),
 
+  toggleGossipLike: (postId) =>
+    set((state) => ({
+      npcGossip: {
+        ...state.npcGossip,
+        posts: state.npcGossip.posts.map((post) => {
+          if (post.id !== postId) return post
+          if (post.liked) {
+            const { liked: _liked, ...rest } = post
+            return rest
+          }
+          return { ...post, liked: true }
+        })
+      }
+    })),
+
   setFeedExtras: (extras) => set({ feedExtras: extras }),
 
   setGaveContactInfo: (charId) =>
@@ -2552,6 +2576,8 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
 
   setNpcRomance: (romance) => set({ npcRomance: romance }),
 
+  setNpcGossip: (gossip) => set({ npcGossip: gossip }),
+
   setNpcOverlay: (overlay) => set({ npcOverlay: overlay }),
 
   recordNpcFriendships: (pairs) =>
@@ -2678,6 +2704,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       npcRelationships: state.npcRelationships,
       npcFriendships: state.npcFriendships,
       npcRomance: state.npcRomance,
+      npcGossip: state.npcGossip,
       occasionsDeclined: state.occasionsDeclined,
       npcOverlay: state.npcOverlay,
       slotRumor: state.slotRumor,

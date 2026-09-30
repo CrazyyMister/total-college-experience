@@ -43,6 +43,7 @@ const SAVE_REQUIRED: Record<
     | 'saveId'
     | 'npcFriendships'
     | 'npcRomance'
+    | 'npcGossip'
     | 'slotRumor'
     | 'bunnybotSeenTipSent'
     | 'occasionsDeclined'

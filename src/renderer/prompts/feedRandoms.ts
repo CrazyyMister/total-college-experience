@@ -107,6 +107,12 @@ const FEED_HANDLES: readonly string[] = [
 /** The handle bag: the generated names, with every supporter's marbles spread among them. */
 export const FEED_HANDLE_POOL = feedHandlePool(FEED_HANDLES, SUPPORTER_HANDLES)
 
+/** Grab bag id for {@link GOSSIP_HANDLE_POOL}. */
+export const GOSSIP_HANDLE_BAG = 'gossip.handles'
+
+/** The anonymous gossip's handle bag: the generated names alone, never a supporter's. */
+export const GOSSIP_HANDLE_POOL = FEED_HANDLE_POOL.filter((one) => !one.supporter)
+
 export const FEED_MESSAGES: readonly FeedMessage[] = [
   'someone in the Kendall Library is eating an ENTIRE rotisserie chicken goddamn',
   'floor 4 vending machine gave me 2 bags of chips. not telling anyone which one',

@@ -1655,7 +1655,8 @@ const FeedPost = memo(function FeedPost({
   post,
   stranger,
   requested,
-  random
+  random,
+  gossip
 }: {
   charId?: string
   emoji?: string
@@ -1668,6 +1669,8 @@ const FeedPost = memo(function FeedPost({
   requested?: boolean
   /** The day's own student, whose like is the slot's rather than a post on somebody's feed. */
   random?: boolean
+  /** An anonymous student's gossip, whose like is kept on the gossip post itself. */
+  gossip?: boolean
 }): JSX.Element {
   // Her page, her like and the request for her number, each addressed to the store from here
   // rather than handed down, so nothing but the post itself changes under the row.
@@ -1675,6 +1678,7 @@ const FeedPost = memo(function FeedPost({
   const add = stranger && charId ? () => sendFriendRequest(charId) : undefined
   const like = (): void => {
     if (random) useGameStore.getState().toggleRandomPostLike()
+    else if (gossip && post.id) useGameStore.getState().toggleGossipLike(post.id)
     else if (charId && post.id) useGameStore.getState().toggleFeedLike(charId, post.id)
   }
 
@@ -1821,6 +1825,7 @@ function feedRowKey(entry: FeedEntry): string {
     return `${entry.moment.kind}:${entry.moment.a}|${entry.moment.b}`
   }
   if (entry.kind === 'checkIn') return `checkin:${entry.charId}`
+  if (entry.kind === 'gossip') return entry.post.id
   return entry.kind === 'random' ? 'random-student' : entry.post.id
 }
 
@@ -1846,6 +1851,7 @@ function samePage(before: readonly FeedEntry[], now: readonly FeedEntry[]): bool
       return was.kind === 'checkIn' && was.charId === entry.charId && was.label === entry.label
     }
     if (entry.kind === 'random') return was.kind === 'random' && was.post === entry.post
+    if (entry.kind === 'gossip') return was.kind === 'gossip' && was.post === entry.post
     return was.kind === 'post' && was.post === entry.post && was.stranger === entry.stranger
   })
 }
@@ -1862,6 +1868,18 @@ function rowOf(entry: FeedEntry, requestsSent: readonly string[]): JSX.Element {
   }
   if (entry.kind === 'checkIn') {
     return <CheckInRow key={feedRowKey(entry)} name={entry.name} label={entry.label} />
+  }
+  if (entry.kind === 'gossip') {
+    // Drawn as the day's student is: the handle takes the name line.
+    return (
+      <FeedPost
+        key={feedRowKey(entry)}
+        emoji={entry.post.emoji}
+        name={entry.post.handle}
+        post={entry.post}
+        gossip
+      />
+    )
   }
   if (entry.kind === 'random') {
     // The handle is her whole identity, so it takes the name line.
@@ -1912,6 +1930,7 @@ function UpdatesFeed(): JSX.Element {
   const feedExtras = useGameStore((s) => s.feedExtras)
   const npcFriendships = useGameStore((s) => s.npcFriendships)
   const npcRomance = useGameStore((s) => s.npcRomance)
+  const npcGossip = useGameStore((s) => s.npcGossip)
   const requestsSent = useGameStore((s) => s.bunnyboard.requestsSent)
   const date = useGameStore((s) => s.date)
   const time = useGameStore((s) => s.time)
@@ -1957,6 +1976,7 @@ function UpdatesFeed(): JSX.Element {
       charInfo,
       npcFriendships,
       npcRomance,
+      gossip: npcGossip.posts,
       feedExtras,
       checkIns,
       date,
@@ -1968,6 +1988,7 @@ function UpdatesFeed(): JSX.Element {
     charInfo,
     npcFriendships,
     npcRomance,
+    npcGossip,
     feedExtras,
     date,
     time,

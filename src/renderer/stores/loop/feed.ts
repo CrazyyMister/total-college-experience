@@ -71,6 +71,7 @@ export function deliverSlotPosts(posts: SlotIntroResponse['posts']): Set<string>
       listed.length +
       visibleFriendships(game.npcFriendships, game.characters, game.charInfo).length +
       visibleRomanceMoments(game.npcRomance, game, game.characters, game.charInfo).length +
+      game.npcGossip.posts.length +
       (teaser ? 1 : 0) +
       (game.feedExtras.randomPost ? 1 : 0),
     showingCharIds: [...listed.map((entry) => entry.charId), ...(teaser ? [teaser.charId] : [])],

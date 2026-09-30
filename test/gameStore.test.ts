@@ -1474,6 +1474,7 @@ describe('toGameSave', () => {
       'midtermStandingDone',
       'money',
       'npcFriendships',
+      'npcGossip',
       'npcOverlay',
       'npcRelationships',
       'npcRomance',

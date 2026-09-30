@@ -1,5 +1,6 @@
 import type { NpcRomanceLogEntry } from '@shared/npcRomance'
 import { NPC_ROMANCE_HEADING } from '../prompts/npcRelationship'
+import { loopState } from './loop/state'
 
 /**
  * What the development build's roster-romance read-out shows beyond the save: the latest romance
@@ -21,6 +22,11 @@ export function recordRomanceEvents(entries: readonly NpcRomanceLogEntry[]): voi
 /** The latest applied events, oldest first. */
 export function romanceEventLog(): readonly NpcRomanceLogEntry[] {
   return log
+}
+
+/** The crush holder the test button has the next ending's gossip leak, or null. */
+export function pendingGossipLeak(): string | null {
+  return loopState.debugGossipLeak
 }
 
 /** The romance section of a scene request's user message, one line per entry; empty without one. */

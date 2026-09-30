@@ -21,6 +21,7 @@ import { giftActionLine, itemDefOf } from '@shared/shop'
 import type { NpcSlotOverlay } from '@shared/npcRelationships'
 import type { NpcRomanceMap, ReaderBreakup } from '@shared/npcRomance'
 import { posterRomanceOf, type GuaranteedPosters } from '@shared/npcRomancePosts'
+import type { GossipTopic } from '@shared/npcRomanceGossip'
 import { isSilentLine, isSlotSaveId } from '@shared/saveRules'
 import {
   charKeyOf,
@@ -208,6 +209,13 @@ import {
   slotRomancePosters
 } from './loop/npc'
 import { applyRumorPass, rollRumorPass } from './loop/rumors'
+import {
+  deliverSlotGossip,
+  drawGossipAuthor,
+  gossipPostOf,
+  introGossipOf,
+  slotGossipOf
+} from './loop/gossip'
 import {
   endingGameOver,
   endingSave,
@@ -454,6 +462,9 @@ async function beginSlot(): Promise<void> {
   // stored the map the drift was opened on.
   const posted = deliverSlotPosts(opening.posts)
   countDriftPostSigns(opening.driftPosts ?? [], posted)
+  // The anonymous gossip, on the same terms: what it counts for is dated today, and the lovers
+  // who left him in silence are owed one until it comes back written.
+  deliverSlotGossip(opening)
 
   // Folded into the slot-save minted before the call went out, which is the start-of-slot
   // decision point.
@@ -643,7 +654,11 @@ async function fetchSlotIntro(
    * The romance the ending settled into and who it has posting for sure; absent for an opening
    * no ending precedes.
    */
-  romance: { map: NpcRomanceMap; guaranteed: GuaranteedPosters } | null = null,
+  romance: {
+    map: NpcRomanceMap
+    guaranteed: GuaranteedPosters
+    gossip: GossipTopic | null
+  } | null = null,
   call: { group?: string; stale?: () => boolean } = {}
 ): Promise<SlotOpening | null> {
   const run = currentRun()
@@ -792,6 +807,10 @@ async function fetchSlotIntro(
     occasions.length === 0 && askers.length === 0
       ? useGrabBagStore.getState().draw(RUMOR_PLACE_BAG, LOREBOOK, loreKeyOf)
       : undefined
+  // The gossip as the prompt tells it, and who posts it, drawn here for the same reason.
+  const gossipTopic = romance?.gossip ?? null
+  const gossip = gossipTopic ? introGossipOf(gossipTopic, view.charInfo) : null
+  const gossipAuthor = gossip ? drawGossipAuthor() : null
 
   // Built once and re-sent verbatim on retry; only a hand edit replaces it.
   let request = buildSlotIntroPrompt(
@@ -810,6 +829,7 @@ async function fetchSlotIntro(
       occasionLeadUps: occasionLeadUpLines(date, time, game.occasions),
       weather: game.weather,
       ...(rumorPlace ? { rumorPlace } : {}),
+      ...(gossip ? { gossip } : {}),
       springBreakAway: game.springBreakAway,
       ...(backgroundLore.length > 0 ? { backgroundLore } : {})
     },
@@ -829,6 +849,10 @@ async function fetchSlotIntro(
       // What the narration actually said about the place it was handed. A rumor about
       // an entry that is not a place, or one the narration never named, banks nothing.
       const said = rumorPlace?.id ? rumorSentenceFor(rumorPlace, written) : null
+      // The gossip is a post only when it came back written and naming nobody he cannot name.
+      const gossipPost = gossipAuthor
+        ? gossipPostOf(result.data.gossip?.text, gossipAuthor, view.charInfo, date, time)
+        : null
       return {
         lines: narrate([opening, ...written]),
         hangouts: result.data.hangouts,
@@ -849,6 +873,9 @@ async function fetchSlotIntro(
         ...(npcOverlay ? { npcOverlay } : {}),
         ...(said && rumorPlace?.id
           ? { slotRumor: { placeId: rumorPlace.id, sentence: said } }
+          : {}),
+        ...(gossipTopic && gossipAuthor
+          ? { gossip: { topic: gossipTopic, ...(gossipPost ? { post: gossipPost } : {}) } }
           : {})
       }
     }
@@ -1645,6 +1672,10 @@ async function fetchEndingOpening(
     npcRelationships
   }
 
+  // The lovers who left him with no way to text him, and what the slot's gossip is about.
+  const { topic: gossipTopic, silent } = slotGossipOf(npcRomance, readerBreakups, parted, date)
+  const silentBreakups = silent.length > 0 ? { silentBreakups: silent } : {}
+
   // Who is out with whom in the slot about to open, off the affinities settled above;
   // banked with the invitations so a reload opens the evening that was paid for.
   const npcOverlay = rollNpcOverlayNow(date, time, npcRelationships)
@@ -1663,7 +1694,8 @@ async function fetchEndingOpening(
       npcRelationships,
       npcRomance,
       readerBreakups,
-      rivals
+      rivals,
+      ...silentBreakups
     }
   }
 
@@ -1677,13 +1709,26 @@ async function fetchEndingOpening(
     useGameStore.getState().sceneSummary,
     npcOverlay,
     view,
-    { map: npcRomance, guaranteed: slotRomancePosters(npcRomance, view.charInfo, date, time) },
+    {
+      map: npcRomance,
+      guaranteed: slotRomancePosters(npcRomance, view.charInfo, date, time),
+      gossip: gossipTopic
+    },
     { group: ENDING_LLM_GROUP, stale: dropped }
   )
   // An abandoned opening banks nothing, the rolls above included; the player replays the
   // turn.
   return opening
-    ? { ...opening, rumorPass: rumor, crushes, npcRelationships, npcRomance, readerBreakups, rivals }
+    ? {
+        ...opening,
+        rumorPass: rumor,
+        crushes,
+        npcRelationships,
+        npcRomance,
+        readerBreakups,
+        rivals,
+        ...silentBreakups
+      }
     : null
 }
 
@@ -2498,6 +2543,7 @@ async function crossSlotBoundary(): Promise<void> {
     loopState.romanceLog = []
     // The ending that read the buttons' couples as news has been applied.
     loopState.debugRomanceBefore = null
+    loopState.debugGossipLeak = null
 
     // The one warning that what gets seen gets told, owed the first time anybody sees him with
     // a girl whose name he knows. Left unsent before BunnyBot has introduced itself, or over a

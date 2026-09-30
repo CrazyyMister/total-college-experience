@@ -9,6 +9,7 @@ import type { GiftPreferences, GiftReaction } from './shop'
 import type { NpcFriendship, NpcRelationshipMap, NpcSlotOverlay } from './npcRelationships'
 import type { NpcRomanceKind, NpcRomanceMap, ReaderBreakup } from './npcRomance'
 import type { DriftPost } from './npcRomancePosts'
+import type { GossipPost, GossipTopic, NpcGossip } from './npcRomanceGossip'
 import type { PromptKind } from './promptKinds'
 import type { RumorPassOutcome } from './rumors'
 import type { DormId } from './dorms'
@@ -1158,6 +1159,16 @@ export interface SlotOpening {
    */
   driftPosts?: DriftPost[]
   /**
+   * The anonymous gossip this opening had written, and the post it came back as; no post when it
+   * came back empty or naming somebody the reader cannot name. Absent for an opening with none.
+   */
+  gossip?: { topic: GossipTopic; post?: GossipPost }
+  /**
+   * The reader's lovers who leave him at that same boundary with no way to text him, owed a
+   * gossip post until one is written. Absent when there are none.
+   */
+  silentBreakups?: string[]
+  /**
    * What campus saw of the scene that ended into this slot — rolled at the ending off
    * the ledger it just paid for, so the narration above can say what is being said.
    */
@@ -1321,6 +1332,11 @@ export interface GameSave {
    * written before they had any, which reads as none.
    */
   npcRomance?: NpcRomanceMap
+  /**
+   * The anonymous gossip about the roster's romance on the feed, and the lovers still owed some.
+   * Absent in a save written before there was any, which reads as none.
+   */
+  npcGossip?: NpcGossip
   /**
    * The occasions he turned down an invitation to, or let one stand — nobody asks him to one
    * of these twice. Absent in a save written before occasions were asked about.
@@ -1983,6 +1999,8 @@ export interface SlotIntroResponse {
    * charKey; `text` is the post.
    */
   posts?: Array<{ char: string; text: string }>
+  /** The anonymous gossip post the opening asked for; `text` is the post. */
+  gossip?: { text: string }
 }
 
 /**

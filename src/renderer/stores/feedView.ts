@@ -1,5 +1,6 @@
 import type { NpcFriendship } from '@shared/npcRelationships'
 import type { NpcRomanceMap } from '@shared/npcRomance'
+import type { GossipPost } from '@shared/npcRomanceGossip'
 import {
   fullNameOf,
   type Character,
@@ -143,7 +144,7 @@ export interface FeedCheckIn {
 
 /**
  * One dated thing on the Updates feed: a post, the day two of them became friends, a couple
- * forming or ending, where somebody is right now, or the slot's own student.
+ * forming or ending, where somebody is right now, the slot's own student, or a student's gossip.
  */
 export type FeedEntry =
   | ({ kind: 'post'; stranger: boolean; name: string; handle?: string } & FeedPostEntry)
@@ -154,13 +155,14 @@ export type FeedEntry =
       kind: 'random'
       post: NonNullable<FeedExtras['randomPost']> & { date: number; time: TimeSlot }
     }
+  | { kind: 'gossip'; post: GossipPost }
 
 /** How many rows the Updates tab mounts at a time. */
 export const FEED_PAGE = 30
 
 /**
- * The whole feed in draw order: contacts' posts, strangers who became friends and couples who
- * formed or ended, newest first, woven with this slot's check-ins (capped at one more than the
+ * The whole feed in draw order: contacts' posts, strangers who became friends, couples who
+ * formed or ended and the gossip, newest first, woven with this slot's check-ins (capped at one more than the
  * day has posts) and closed by the day's random student. Pure over the slot, so the same slot always reads the same way.
  */
 export function updatesFeed(input: {
@@ -170,6 +172,8 @@ export function updatesFeed(input: {
   npcFriendships: readonly NpcFriendship[]
   /** The roster's romance, whose couples and exes are rows of their own; absent means none. */
   npcRomance?: NpcRomanceMap
+  /** The anonymous gossip posts, every one a row whoever it names; absent means none. */
+  gossip?: readonly GossipPost[]
   feedExtras: FeedExtras | null
   /** Everybody the slot owes a check-in, in roster order; the cap is applied here. */
   checkIns: readonly FeedCheckIn[]
@@ -218,6 +222,7 @@ export function updatesFeed(input: {
   for (const made of visibleRomanceMoments(input.npcRomance, { date, time }, characters, charInfo)) {
     entries.push({ kind: 'romance', ...made })
   }
+  for (const post of input.gossip ?? []) entries.push({ kind: 'gossip', post })
   entries.sort((a, b) => newestFirst(stampOf(a), stampOf(b)))
 
   // Every row this slot stamped, as one run in the sorted list. It is not the top of the list:

@@ -4,6 +4,7 @@ import { DEFAULT_PLAYER_STATS, type PlayerStats } from '@shared/playerStats'
 import { pronounsOf } from '@shared/pronouns'
 import {
   fullNameOf,
+  type Gender,
   type CalendarEvent,
   type Character,
   type CharInfo,
@@ -87,6 +88,15 @@ export interface IntroPoster {
   driftHint?: 'lover' | 'suitor'
 }
 
+/**
+ * The anonymous gossip post this slot carries, with the names it may use: the first name of each
+ * one it is about, absent for one the reader cannot name.
+ */
+export type IntroGossip =
+  | { kind: 'single'; lover: string; gender: Gender }
+  | { kind: 'drift'; lover: string; suitor?: string; suitorGender: Gender }
+  | { kind: 'crush'; from: string; to: string }
+
 /** Everything the builder reads; assembled by the loop, which owns the store. */
 export interface SlotIntroInput {
   /** The cloud-LLM cache key — the playthrough, exactly as the scene calls use it. */
@@ -143,6 +153,8 @@ export interface SlotIntroInput {
    * scene the reader spends the slot in; absent means the block is not written at all.
    */
   rumorPlace?: LoreEntry
+  /** The gossip post this slot carries; absent means the block is not written at all. */
+  gossip?: IntroGossip
 }
 
 /** The narration-only schema: no speaker, emotion, action or bg to emit. */
@@ -192,6 +204,12 @@ const SCHEMA = objectSchema('slot_intro', ['lines'], {
         text: { type: 'string' }
       }
     }
+  },
+  gossip: {
+    type: 'object',
+    additionalProperties: false,
+    required: ['text'],
+    properties: { text: { type: 'string' } }
   }
 })
 
@@ -224,6 +242,29 @@ function rumorBlock(input: SlotIntroInput): string[] {
     'SOMEWHERE TO GO',
     input.rumorPlace.text,
     '',
+  ]
+}
+
+/** What this slot's anonymous gossip is about. */
+function gossipBlock(input: SlotIntroInput): string[] {
+  const gossip = input.gossip
+  if (!gossip) return []
+  let about: string
+  if (gossip.kind === 'single') {
+    const p = pronounsOf(gossip.gender)
+    about = `${gossip.lover} is single again: ${p.possessive} relationship just ended.`
+  } else if (gossip.kind === 'drift') {
+    const suitor =
+      gossip.suitor ??
+      `${gossip.suitorGender === 'man' ? 'some guy' : 'some girl'} nobody can put a name to (do not name them)`
+    about = `${gossip.lover} has been seen getting close to ${suitor}, closer than just friends. Nothing is confirmed.`
+  } else {
+    about = `${gossip.from} has a crush on ${gossip.to}.`
+  }
+  return [
+    'CAMPUS GOSSIP',
+    'An anonymous student who does not know anybody involved personally is posting a piece of gossip on social media right now. What it is about:',
+    about
   ]
 }
 
@@ -438,6 +479,7 @@ export function buildSlotIntroPrompt(
 ): StructuredRequest {
   const waking = input.time === 0
   const rumor = rumorBlock(input)
+  const gossip = gossipBlock(input)
   const planned = anyPlans(input)
   const occasioned = anyOccasions(input)
 
@@ -452,6 +494,7 @@ export function buildSlotIntroPrompt(
     ...spaced(askerBlock(input)),
     ...spaced(breakupBlock(input)),
     ...spaced(posterBlock(input)),
+    ...spaced(gossip),
     ...spaced(rumor),
     'YOUR TURN',
     'Hey RITA, a new part of the reader\'s day is starting. Set the mood for them before they decide what to do with it.',
@@ -517,6 +560,17 @@ export function buildSlotIntroPrompt(
           // Refused out loud for "hangouts"'s reason.
           '',
           'Return nothing at all for "posts".'
+        ]),
+    ...(gossip.length > 0
+      ? [
+          '',
+          'Then fill "gossip" with the post under CAMPUS GOSSIP. "text" is one or two short lines the way a nosy student would type it — lowercase, slang and emoji are fine. It is gossip passed on, not a first-hand story. It names only the people named under CAMPUS GOSSIP, by the names given there, and nobody else. It never addresses the reader, never mentions him and never hints at him. No narration and no stage directions.',
+          'The narration in "lines" must not mention this gossip — the reader has not opened his phone yet.'
+        ]
+      : [
+          // Refused out loud for "hangouts"'s reason.
+          '',
+          'Return nothing at all for "gossip".'
         ])
   ].join('\n')
 
