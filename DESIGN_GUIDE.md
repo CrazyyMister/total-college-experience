@@ -97,8 +97,9 @@ scripts/                 the release pipeline: the transcode cache, the characte
   itch-page/             the store page's picture tool: the same staging over the trailer's plumbing, with
                          its own scenes and roster, screenshotting stills and recording the two GIFs
   sim/                   the hand-run simulations, run by their own vitest config and never by the suite:
-                         the roster's semester played off the test playthrough, reporting and asserting
-                         nothing
+                         the roster's semester played off the test playthrough, and what the men and the
+                         roster's romance add to each prompt, measured off the same playthrough in memory
+                         with no writer call; they report and assert nothing
 build/                   packaging inputs (the icon, the itch manifest, the release target); the generated
                          asset folders under it are gitignored
   afterSign.mjs          the manifest writer, run as electron-builder's afterSign hook, and the stamp the
