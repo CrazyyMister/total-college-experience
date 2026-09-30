@@ -434,3 +434,19 @@ export function debugAgeWingman(charId: string, days: number): DebugResult {
   })
   return done(`Their wingman actions are ${back} days older.`)
 }
+
+/** Moves an ex pair's dating and breakup back together, ageing the breakup past what prompts tell of. */
+export function debugAgeBreakup(a: string, b: string, days: number): DebugResult {
+  if (!import.meta.env.DEV) return NOT_DEV
+  const game = useGameStore.getState()
+  const key = pairKeyOf(a, b)
+  const ex = game.npcRomance.exes[key]
+  if (!ex) return refused('Those two are not exes.')
+  const back = Math.max(0, days)
+  const [since, ended] = [Math.max(0, ex.since - back), Math.max(0, ex.ended - back)]
+  game.setNpcRomance({
+    ...game.npcRomance,
+    exes: { ...game.npcRomance.exes, [key]: { ...ex, since, ended } }
+  })
+  return done(`They broke up on day ${ended}, ${game.date - ended} days ago.`)
+}

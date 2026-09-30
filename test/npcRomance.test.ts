@@ -1350,12 +1350,23 @@ describe('what the reader’s wingman actions leave remembered of him', () => {
           charId: 'm',
           date: DAY,
           type: 'hated',
-          desc: 'the reader badmouthed him to Chloe behind his back'
+          desc: 'the reader badmouthed him behind his back'
         }
       ])
       expect(out.romance.wingman).toEqual([
         { kind: 'talked_down', from: 'm', to: 'w', date: DAY, found: true }
       ])
+    })
+
+    it('files the same memory whoever heard it, so a later day refreshes it rather than adding one', () => {
+      const first = badmouth({})
+      const later = badmouth({
+        date: DAY + 2,
+        cast: ['x'],
+        relationships: { [pairKeyOf('m', 'x')]: { affinity: 4 } },
+        sceneEvents: [{ kind: 'talked_down', from: 'm', to: 'x' }]
+      })
+      expect(filed(later)).toEqual([{ ...filed(first)[0], date: DAY + 2 }])
     })
 
     it('reaches him through another friend in the scene', () => {

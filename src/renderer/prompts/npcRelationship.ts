@@ -11,6 +11,7 @@ import {
 import {
   declarationOutcomeOf,
   emptyNpcRomance,
+  EX_PROMPT_DAYS,
   isAttractedTo,
   isRivalGrudge,
   mayFallFor,
@@ -292,7 +293,7 @@ export const NPC_ROMANCE_HEADING = 'ROMANCE BETWEEN CHARACTERS'
 export interface NpcRomanceFacts {
   /** Every couple on the save. */
   couples: Array<{ a: string; b: string; since: number }>
-  /** Every ex pair on the save. */
+  /** Ex pairs whose breakup is recent, or with either of the two present. */
   exes: Array<{ a: string; b: string; since: number; ended: number }>
   /** Crushes held by somebody present, with the date the reader found out where he has. */
   crushes: Array<{ from: string; to: string; since: number; found?: number }>
@@ -314,8 +315,9 @@ export function readerLoversOf(charInfo: Readonly<Record<string, CharInfo | unde
 }
 
 /**
- * The romance a prompt carries for `present`: every couple and ex, since those are common
- * knowledge, and the crushes and recent turn-downs of those present alone.
+ * The romance a prompt carries for `present`: every couple, and the exes who broke up recently or
+ * have either of the two present, since those are common knowledge; and the crushes and recent
+ * turn-downs of those present alone.
  */
 export function npcRomanceFactsOf(
   map: NpcRomanceMap | undefined,
@@ -341,7 +343,9 @@ export function npcRomanceFactsOf(
   for (const key of Object.keys(map.exes).sort()) {
     const [a, b] = key.split('|')
     const ex = map.exes[key]
-    facts.exes.push({ a, b, since: ex.since, ended: ex.ended })
+    if (date - ex.ended < EX_PROMPT_DAYS || here.has(a) || here.has(b)) {
+      facts.exes.push({ a, b, since: ex.since, ended: ex.ended })
+    }
     if (ex.displaced !== undefined && here.has(ex.displaced) && isRivalGrudge(ex, date)) {
       facts.rivals.push({
         rival: ex.displaced,

@@ -29,7 +29,7 @@ const map: NpcRomanceMap = {
 }
 
 describe('what the romance section picks', () => {
-  it('carries every couple and every ex, whoever is present', () => {
+  it('carries every couple and a recent ex, whoever is present', () => {
     const facts = npcRomanceFactsOf(map, [], [], TODAY)
     expect(facts.couples).toEqual([{ a: 'a', b: 'b', since: 10 }])
     expect(facts.exes).toEqual([{ a: 'c', b: 'd', since: 2, ended: 20 }])

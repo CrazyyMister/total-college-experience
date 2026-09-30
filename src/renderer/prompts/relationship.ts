@@ -38,11 +38,11 @@ export interface RelationshipMedium {
 function notRomanceLines(character: Character, name: string, stats: PlayerStats): string[] {
   const p = pronounsOf(character.gender)
   const missing = missingCrushStatOf(character, stats)
+  const respect = missing
+    ? `the reader hasn't earned it yet (he needs to be ${STAT_REQUIREMENT_PHRASES[missing]}), so ${p.subject}'s a little dismissive of him`
+    : `the reader has earned it, and ${p.subject} warms to him quickly`
   return [
-    `${name} is not a romantic option for the reader: ${p.subject} won't flirt with him, date him, or make or accept romantic or sexual advances, and treats any from him as a joke or a misunderstanding.`,
-    missing
-      ? `${name} respects people with ${STAT_ATTRACTIONS[character.preferredStat]}, and the reader isn't there yet (he needs to be ${STAT_REQUIREMENT_PHRASES[missing]}), so ${name} is a little dismissive of him.`
-      : `${name} respects people with ${STAT_ATTRACTIONS[character.preferredStat]}, and the reader has earned it, so ${name} warms to him quickly.`
+    `${name} isn't a romantic option for the reader: ${p.subject} won't flirt with him and laughs off any advance. ${p.Subject} respects ${STAT_ATTRACTIONS[character.preferredStat]}, and ${respect}.`
   ]
 }
 

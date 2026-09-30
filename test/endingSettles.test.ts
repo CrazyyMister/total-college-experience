@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { globalSlotOf } from '@shared/jobs'
 import { pairKeyOf } from '@shared/npcRelationships'
+import { emptyNpcRomance, settleNpcRomance } from '@shared/npcRomance'
 import type { LedgerResponse } from '@shared/types'
 import { buildCharKeyToId, useGameStore } from '../src/renderer/stores/gameStore'
 import { projectLedger } from '../src/renderer/stores/sceneSanitizer'
@@ -166,7 +167,7 @@ describe('the reader’s losses', () => {
     lover()
     const memories = [
       { charId: 'a', memory: { date: 7, type: 'liked' as const, desc: 'the reader helped bring her and Eve together' } },
-      { charId: 'c', memory: { date: 7, type: 'hated' as const, desc: 'the reader badmouthed him to Sarah behind his back' } }
+      { charId: 'c', memory: { date: 7, type: 'hated' as const, desc: 'the reader badmouthed him behind his back' } }
     ]
     const projected = withReaderLosses(useGameStore.getState().charInfo, [], [], memories)
     applyReaderLosses([], [], memories)
@@ -177,6 +178,49 @@ describe('the reader’s losses', () => {
     expect(filed.a.jealousyMemories).toEqual([memories[0].memory])
     expect(filed.c.jealousyMemories).toEqual([memories[1].memory])
     expect(filed.a.memories).toEqual([])
+  })
+
+  describe('a badmouthing found out', () => {
+    // Eve, away, badmouthed to whichever of her friends is in the scene that day.
+    const foundOut = (date: number, listener: string) =>
+      settleNpcRomance(
+        {
+          date,
+          endsWeek: false,
+          relationships: { [pairKeyOf('c', listener)]: { affinity: 4 } },
+          romance: emptyNpcRomance(),
+          groups: [],
+          cast: [listener],
+          readerLovers: [],
+          characters: roster,
+          sceneEvents: [{ kind: 'talked_down', from: 'c', to: listener }]
+        },
+        () => 0.999
+      ).readerMemories
+    const oldFormat = { date: 3, type: 'hated' as const, desc: 'the reader badmouthed her to Mina behind her back' }
+
+    it('keeps one memory per victim whoever heard it, dated the latest time, however often it replays', () => {
+      applyReaderLosses([], [], foundOut(7, 'a'))
+      const later = foundOut(9, 'b')
+      applyReaderLosses([], [], later)
+      applyReaderLosses([], [], later)
+      expect(useGameStore.getState().charInfo.c.jealousyMemories).toEqual([
+        { date: 9, type: 'hated', desc: 'the reader badmouthed her behind her back' }
+      ])
+    })
+
+    it('leaves a memory of the older, per-listener wording as it was beside the one it now files', () => {
+      useGameStore.setState({ charInfo: { a: charInfo(), b: charInfo(), c: charInfo({ jealousyMemories: [oldFormat] }) } })
+      const first = foundOut(7, 'a')
+      const projected = withReaderLosses(useGameStore.getState().charInfo, [], [], first)
+      applyReaderLosses([], [], first)
+      expect(projected.c).toEqual(useGameStore.getState().charInfo.c)
+      applyReaderLosses([], [], foundOut(9, 'b'))
+      expect(useGameStore.getState().charInfo.c.jealousyMemories).toEqual([
+        oldFormat,
+        { date: 9, type: 'hated', desc: 'the reader badmouthed her behind her back' }
+      ])
+    })
   })
 
   it('dates the day a lover learned of a betrayal, in the projection and in the store', () => {

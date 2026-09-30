@@ -47,6 +47,7 @@ import { useGameStore } from '../../src/renderer/stores/gameStore'
 import {
   debugAffection,
   debugAffinity,
+  debugAgeBreakup,
   debugCouple,
   debugCrush,
   debugDiscover,
@@ -101,8 +102,10 @@ import { shippedBackgrounds } from '../../src/renderer/views/bgAssets'
  * up through the development build's F9 actions and the romance settle a scene ending runs, and
  * the builders are called as the loop calls them. Tokens are estimated as characters ÷ 4. Each
  * scenario with men is measured twice, the second time with the marks the reader's wingman
- * actions leave — their memories, filed as the boundary files them, and crushes found out — and
- * the roster's semester is played to count how often a scene ledger is asked about its romance.
+ * actions leave — their memories, filed as the boundary files them, and crushes found out; the
+ * worst cases once more with their exes' breakups aged past the month; one victim badmouthed to
+ * two listeners on two days; and the roster's semester is played to count how often a scene
+ * ledger is asked about its romance.
  */
 
 const ROOT = resolve(__dirname, '../..')
@@ -225,7 +228,7 @@ const ROMANCE_LINES: ReadonlyArray<readonly [RegExp, Block]> = [
 
 /** A memory line of the reader's wingman actions, as the four reasons word it. */
 const WINGMAN_MEMORY =
-  /^- .+: \S+ (loved|liked|disliked|hated) that the reader (helped \S+ get together with |helped bring \S+ and .+ together$|pushed \S+ to confess to .+, and \S+ turned \S+ down$|told .+ about \S+ crush on \S+, and \S+ turned \S+ down$|badmouthed \S+ to .+ behind \S+ back$)/
+  /^- .+: \S+ (loved|liked|disliked|hated) that the reader (helped \S+ get together with |helped bring \S+ and .+ together$|pushed \S+ to confess to .+, and \S+ turned \S+ down$|told .+ about \S+ crush on \S+, and \S+ turned \S+ down$|badmouthed \S+ behind \S+ back$)/
 
 /** What a crush line gained where the reader found out about it, against "Only X knows". */
 const FOUND_OUT = / and the reader know \(the reader found out [^)]*\)/
@@ -233,7 +236,7 @@ const FOUND_OUT = / and the reader know \(the reader found out [^)]*\)/
 /** Every line of ours in a scene, texting or ledger message, and the block it belongs to. */
 function classifyLine(line: string): Block | null {
   if (/^Gender: (man|woman) \(/.test(line)) return 'Gênero do personagem'
-  if (/ is not a romantic option for the reader: | respects people with /.test(line)) {
+  if (/ isn't a romantic option for the reader: /.test(line)) {
     return 'Não é opção romântica + respeito'
   }
   if (/^Towards \S+, (his|her|their) (partner|secret crush): /.test(line)) {
@@ -622,24 +625,37 @@ function menAndACouple(helped: Filed[] | null): ScenarioResult {
   }
 }
 
-/** The part of both worst cases that comes before the couples: two exes, a rival and a turn-down. */
-function exesAndRival(c: readonly string[]): void {
+/** How far back the exes of a worst case are aged, past the month a prompt tells of them unasked. */
+const AGED_EX_DAYS = 31
+
+/**
+ * The part of both worst cases that comes before the couples: two exes, a rival and a turn-down.
+ * With `aged`, both breakups are moved back {@link AGED_EX_DAYS} days by the F9 action, which also
+ * ends the rival's grudge.
+ */
+function exesAndRival(c: readonly string[], aged: boolean): void {
   f9(debugCouple(c[2], c[10]))
   f9(debugCouple(c[3], c[9]))
   f9(debugAffinity(c[2], c[10], -1))
   f9(debugLover(c[9], true))
   // The ending that breaks both couples up, and a scene where one turned a declaration down.
   sceneEnding([c[4], c[10]], [{ kind: 'declared', from: c[4], to: c[10], accepted: false }])
+  if (aged) {
+    f9(debugAgeBreakup(c[2], c[10], AGED_EX_DAYS))
+    f9(debugAgeBreakup(c[3], c[9], AGED_EX_DAYS))
+  }
 }
+
+const agedNote = (aged: boolean): string => (aged ? `, os 2 ex com o término ${AGED_EX_DAYS} dias atrás` : '')
 
 /**
  * With `wingman`, the memories that land on the cast of its first scene and thread — the couple's
  * gratitude and the two of the man with a crush there — his crush found out, and a crush on the
  * woman of that couple found out whose holder is away.
  */
-function worstThreeCouples(wingman: Filed[] | null): ScenarioResult {
+function worstThreeCouples(wingman: Filed[] | null, aged = false): ScenarioResult {
   const c = load(SAVE, EIGHT_MEN)
-  exesAndRival(c)
+  exesAndRival(c, aged)
   f9(debugCouple(c[0], c[8]))
   f9(debugCouple(c[1], c[11]))
   f9(debugCouple(c[6], c[7]))
@@ -664,7 +680,7 @@ function worstThreeCouples(wingman: Filed[] | null): ScenarioResult {
   }
   const name = (i: number): string => byId(c[i]).firstName
   return {
-    name: '8 homens; 3 casais formados no mesmo fim de cena, 2 ex (um rival), 1 recusa recente, 3 paixões, 1 namorada do jogador',
+    name: `8 homens; 3 casais formados no mesmo fim de cena, 2 ex (um rival), 1 recusa recente, 3 paixões, 1 namorada do jogador${agedNote(aged)}`,
     wingman: wingman !== null,
     scenes: [
       { label: `casal + quem gosta dela (${name(0)}, ${name(8)}, ${name(4)})`, result: measureScene([c[0], c[8], c[4]]) },
@@ -680,9 +696,9 @@ function worstThreeCouples(wingman: Filed[] | null): ScenarioResult {
 }
 
 /** With `wingman`, the suitor was badmouthed to the lover and found out, and his crush was found out. */
-function worstDrift(wingman: Filed[] | null): ScenarioResult {
+function worstDrift(wingman: Filed[] | null, aged = false): ScenarioResult {
   const c = load(SAVE, EIGHT_MEN)
-  exesAndRival(c)
+  exesAndRival(c, aged)
   f9(debugCouple(c[0], c[8]))
   f9(debugCouple(c[6], c[7]))
   f9(debugCrush(c[5], c[9], 8))
@@ -720,7 +736,7 @@ function worstDrift(wingman: Filed[] | null): ScenarioResult {
     notes.push(`memórias de wingman: ${describeFiled(landing)}`, `o jogador descobriu a paixão de ${name(5)}`)
   }
   return {
-    name: '8 homens; 2 casais formados no mesmo fim de cena, 2 ex (um rival), 1 recusa recente, 2 paixões, afastamento aberto da namorada',
+    name: `8 homens; 2 casais formados no mesmo fim de cena, 2 ex (um rival), 1 recusa recente, 2 paixões, afastamento aberto da namorada${agedNote(aged)}`,
     wingman: wingman !== null,
     scenes: [
       { label: `namorada + pretendente + rival (${name(9)}, ${name(5)}, ${name(3)})`, result: measureScene([c[9], c[5], c[3]]) },
@@ -745,6 +761,29 @@ function wingmanMemoryCost(filed: readonly Filed[]): string[] {
     lines.push(row([byId(charId).firstName, line, line.length + 1, tokens(line.length + 1)]))
   }
   return lines
+}
+
+/**
+ * One victim badmouthed on two days to two different listeners, each a friend of his in the scene,
+ * and what that leaves him remembering.
+ */
+function sabotageCheck(): string[] {
+  const c = load(SAVE, EIGHT_MEN)
+  const victim = c[4]
+  f9(debugAffinity(victim, c[9], 5))
+  sceneEnding([c[9]], [{ kind: 'talked_down', from: victim, to: c[9] }])
+  const firstDate = useGameStore.getState().date
+  useGameStore.setState({ date: firstDate + 1 })
+  f9(debugAffinity(victim, c[11], 5))
+  sceneEnding([c[11]], [{ kind: 'talked_down', from: victim, to: c[11] }])
+  const held = (useGameStore.getState().charInfo[victim]?.jealousyMemories ?? []).filter((memory) =>
+    memory.desc.startsWith('the reader badmouthed')
+  )
+  const line = held[0] ? memoryLines(byId(victim), [held[0]])[1] : ''
+  return [
+    `${byId(victim).firstName}, difamado para ${byId(c[9]).firstName} no dia ${firstDate} e para ${byId(c[11]).firstName} no dia ${firstDate + 1}, cada um amigo dele e presente: ${held.length} memória(s) de sabotagem (${held.map((memory) => `dia ${memory.date}: "${memory.desc}"`).join('; ')}).`,
+    `A memória vai ao prompt como "${line}" (${tokens(line.length + 1)} tokens), em toda cena, conversa e post com ele em que ela entra; pela regra da 7b seriam duas, uma por ouvinte.`
+  ]
 }
 
 // ─── How often the ledger asks about romance ────────────────────────────────────────────────
@@ -950,6 +989,26 @@ function summary(results: ScenarioResult[]): string {
   return out.join('\n')
 }
 
+/** Our tokens per period by block, for the blocks the cost adjustments touched and the rest together. */
+function periodBlocks(results: ScenarioResult[]): string {
+  const touched: Block[] = ['Não é opção romântica + respeito', 'Casais e ex (conhecimento comum)', 'Rival', 'Memórias de wingman']
+  const out = [
+    '## Por bloco, por período',
+    '',
+    row(['Cenário', ...touched, 'Demais blocos nossos']),
+    row(['---', ...touched.map(() => '---'), '---'])
+  ]
+  for (const scenario of results) {
+    const scene = scenario.scenes[0].result
+    const calls = [scene.opening, scene.turn2, scene.turn3, scene.closing, scene.ledger, scenario.intro, scenario.texting[0].result]
+    const sum = (block: Block): number => calls.reduce((all, m) => all + (m.blocks[block] ?? 0), 0)
+    const ours = calls.reduce((all, m) => all + oursOf(m), 0)
+    const rest = ours - touched.reduce((all, block) => all + sum(block), 0)
+    out.push(row([titleOf(scenario), ...touched.map((block) => tokens(sum(block))), tokens(rest)]))
+  }
+  return out.join('\n')
+}
+
 function sha(path: string): string | null {
   return existsSync(path) ? createHash('sha256').update(readFileSync(path)).digest('hex') : null
 }
@@ -971,11 +1030,15 @@ it(
         worstDrift(null),
         menAndACouple(helped),
         worstThreeCouples(eight),
-        worstDrift(eight)
+        worstDrift(eight),
+        worstThreeCouples(null, true),
+        worstDrift(null, true)
       ]
       const text = [
         report(results),
         summary(results),
+        '',
+        periodBlocks(results),
         '',
         '## Memórias',
         '',
@@ -984,6 +1047,10 @@ it(
         '## Memórias de wingman, uma de cada motivo',
         '',
         ...memoryCost,
+        '',
+        '## Duas sabotagens da mesma vítima, com ouvintes diferentes',
+        '',
+        ...sabotageCheck().map((line) => `- ${line}`),
         '',
         '## Com que frequência o resumo pós-cena pede o campo "romance"',
         '',

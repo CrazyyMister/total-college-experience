@@ -72,6 +72,8 @@ export const DRIFT_MIN_DAYS = 10
 export const DRIFT_MIN_SIGNS = 2
 /** How many days the reader's rival keeps his grudge for the reader taking his girlfriend. */
 export const RIVAL_DAYS = 30
+/** How many days after a breakup a prompt still tells of the exes with neither of them present. */
+export const EX_PROMPT_DAYS = 30
 
 /** What the reader talking one character up to another adds to the pair. */
 export const TALK_UP_AFFINITY = 1
@@ -425,7 +427,10 @@ export function rivalMemoryOf(character: Character | undefined, date: number): C
   return { date, type: 'hated', desc: `the reader started dating ${possessive} girlfriend` }
 }
 
-/** The memories a character keeps of the reader's wingman actions, in that character's pronouns. */
+/**
+ * The memories a character keeps of the reader's wingman actions, in that character's pronouns. A
+ * badmouthing names nobody who heard it, so each one found out refreshes the victim's one memory.
+ */
 function wingmanMemoryDesc(
   reason: WingmanMemoryReason,
   holder: Character | undefined,
@@ -445,7 +450,7 @@ function wingmanMemoryDesc(
     case 'told_turned_down':
       return `the reader told ${name} about ${own.possessive} crush on ${theirs.object}, and ${theirs.subject} turned ${own.object} down`
     case 'badmouthed':
-      return `the reader badmouthed ${own.object} to ${name} behind ${own.possessive} back`
+      return `the reader badmouthed ${own.object} behind ${own.possessive} back`
   }
 }
 
