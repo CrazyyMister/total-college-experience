@@ -47,6 +47,7 @@ import type {
 import { MAX_LOG_RECORD_CHARS } from '@shared/types'
 import type { ClassifierPromptRequest } from '@shared/classifier'
 import type { PhotoLabRequest, PhotoLabResult, PromptEdit } from '@shared/imagePrompt'
+import type { PhotoRef, PhotoRenderRequest } from '@shared/photos'
 import type { RoomVariant } from '@shared/room'
 import { appError, toAppError, truncate } from '@shared/errors'
 import {
@@ -139,6 +140,15 @@ import {
   readProfilePicture,
   writeProfilePicture
 } from './services/profilePictureService'
+import {
+  cancelAdultPhotos,
+  cancelAllPhotos,
+  cancelPlaythroughPhotos,
+  deleteTextPhotos,
+  listTextPhotos,
+  readTextPhoto,
+  renderTextPhoto
+} from './services/photoService'
 import { generateRoomImage } from './services/roomService'
 import { applySettingsPatch, getRendererSettings, getSettings } from './services/settingsService'
 import { getGrabBags, setGrabBags } from './services/grabBagService'
@@ -243,7 +253,12 @@ export function registerIpcHandlers(): void {
 
   // Neither channel carries a key: out is a presence flag, in is a patch.
   handle('settings:get', () => getRendererSettings())
-  handle('settings:set', (_event, patch: SettingsPatch) => applySettingsPatch(patch))
+  handle('settings:set', async (_event, patch: SettingsPatch) => {
+    const settings = await applySettingsPatch(patch)
+    // The adult photos stop the moment the setting withholds them, the one drawing included.
+    if (patch.noNsfwImages === true) await cancelAdultPhotos()
+    return settings
+  })
   // The grab bags' set-aside keys, read once at boot and written behind every draw.
   handle('grabBags:get', () => getGrabBags())
   handle('grabBags:set', (_event, bags: GrabBags) => setGrabBags(bags))
@@ -389,9 +404,25 @@ export function registerIpcHandlers(): void {
     deleteProfilePicture(playthroughId)
   )
 
-  handle('saves:deletePlaythrough', (_event, playthroughId: string) =>
-    deletePlaythrough(playthroughId)
+  // Its photos are cancelled and settled first, so none lands in a folder about to go.
+  handle('saves:deletePlaythrough', async (_event, playthroughId: string) => {
+    await cancelPlaythroughPhotos(playthroughId)
+    await deletePlaythrough(playthroughId)
+  })
+
+  // The photos characters text: drawn on the queue, read back as bytes.
+  handle('photos:render', (_event, request: PhotoRenderRequest) => renderTextPhoto(request))
+  handle('photos:read', (_event, playthroughId: string, ref: PhotoRef) =>
+    readTextPhoto(playthroughId, ref)
   )
+  handle('photos:files', (_event, playthroughId: string) => {
+    assertDevBuild()
+    return listTextPhotos(playthroughId)
+  })
+  handle('photos:deleteFiles', (_event, playthroughId: string, refs: PhotoRef[]) => {
+    assertDevBuild()
+    return deleteTextPhotos(playthroughId, refs)
+  })
 
   handle('comfy:start', () => startComfy())
   handle('comfy:stop', () => stopComfyByHand())
@@ -668,6 +699,8 @@ export function registerIpcHandlers(): void {
     })
     if (canceled || filePaths.length === 0) return false
 
+    // No photo may land in the saves folder the restore is about to replace.
+    await cancelAllPhotos()
     await importBackup(filePaths[0])
     return true
   })

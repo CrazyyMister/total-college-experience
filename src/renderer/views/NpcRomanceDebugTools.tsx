@@ -1,4 +1,5 @@
-import { useState, type JSX } from 'react'
+import { useEffect, useState, type JSX } from 'react'
+import { PHOTO_KINDS, type PhotoKind } from '@shared/photos'
 import { motion } from 'motion/react'
 import { SelectField } from '../components/SelectField'
 import { useGameStore } from '../stores/gameStore'
@@ -21,6 +22,8 @@ import {
   debugWingman,
   type DebugResult
 } from '../stores/npcRomanceDebugActions'
+import { debugArmPhoto, debugDeletePhotos, photoRowsOf } from '../stores/photoDebugActions'
+import { usePhotoStore } from '../stores/photoStore'
 import { gestures, lift, press } from './motion'
 
 /** The development build's test buttons for the roster's romance, under the read-out. */
@@ -88,6 +91,24 @@ export function NpcRomanceDebugTools({ onChanged }: NpcRomanceDebugToolsProps): 
     onChanged()
   }
 
+  const [kind, setKind] = useState<PhotoKind>('selfie')
+  // The photo files the playthrough holds, re-read whenever a button may have changed them.
+  const [files, setFiles] = useState<ReadonlySet<string>>(new Set())
+  const [filesTick, setFilesTick] = useState(0)
+  // Subscribed, so a job's state moving redraws the read-out.
+  usePhotoStore((s) => s.views)
+  useEffect(() => {
+    const playthroughId = useGameStore.getState().playthroughId
+    if (!playthroughId) return
+    let live = true
+    void window.api.photos.files(playthroughId).then((found) => {
+      if (live && found.ok) setFiles(new Set(found.data))
+    })
+    return () => {
+      live = false
+    }
+  }, [x, filesTick])
+
   return (
     <section className="vu-romance-debug-section">
       <h3 className="vu-romance-debug-title">Test buttons</h3>
@@ -117,6 +138,49 @@ export function NpcRomanceDebugTools({ onChanged }: NpcRomanceDebugToolsProps): 
             {tool.label}
           </motion.button>
         ))}
+      </div>
+      <h3 className="vu-romance-debug-title">Photos in X’s conversation</h3>
+      <ul className="vu-rows">
+        {photoRowsOf(x, files).map((row) => (
+          <li key={row.key} className="vu-row vu-romance-debug-row vu-romance-debug-row--wide">
+            <span className="vu-romance-debug-facts">{row.text}</span>
+          </li>
+        ))}
+      </ul>
+      <div className="vu-romance-debug-pickers">
+        <SelectField
+          id="romance-debug-photo-kind"
+          label="Photo"
+          value={kind}
+          onChange={(value) => setKind(value as PhotoKind)}
+          options={PHOTO_KINDS.map((one) => ({ value: one, label: one }))}
+        />
+      </div>
+      <div className="vu-romance-debug-tools">
+        <motion.button
+          className="vu-btn vu-paper vu-btn--panel"
+          type="button"
+          {...gestures(false, lift, press)}
+          onClick={() => {
+            setResult(debugArmPhoto(x, kind))
+            setFilesTick((tick) => tick + 1)
+          }}
+        >
+          X’s next reply sends a {kind} photo
+        </motion.button>
+        <motion.button
+          className="vu-btn vu-paper vu-btn--panel"
+          type="button"
+          {...gestures(false, lift, press)}
+          onClick={() => {
+            void debugDeletePhotos(x).then((deleted) => {
+              setResult(deleted)
+              setFilesTick((tick) => tick + 1)
+            })
+          }}
+        >
+          Delete X’s photo files
+        </motion.button>
       </div>
       {result && (
         <p

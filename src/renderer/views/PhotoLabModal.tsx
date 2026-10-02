@@ -22,6 +22,7 @@ import {
 } from '@shared/photos'
 import { fullNameOf, randomSeed, type Character } from '@shared/types'
 import { WEATHER_KINDS, type Weather } from '@shared/weather'
+import { CheckField } from '../components/CheckField'
 import { ChipListInput } from '../components/ChipListInput'
 import { SelectField } from '../components/SelectField'
 import { TitleTab } from '../components/TitleTab'
@@ -160,6 +161,7 @@ export function PhotoLabModal({
     character ? photoDraft(character, choice) : null
   )
   const [seedText, setSeedText] = useState(() => String(randomSeed()))
+  const [refine, setRefine] = useState(true)
   const [shots, setShots] = useState<LabShot[]>([])
   const [viewing, setViewing] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -196,13 +198,15 @@ export function PhotoLabModal({
       choice.kind,
       slugOf(choice.place),
       choice.night ? 'night' : 'day',
-      choice.weather
+      choice.weather,
+      ...(refine ? ['refined'] : [])
     ].join('-')
     const label = [
       KIND_LABELS[choice.kind],
       placeLabelOf(choice.place),
       choice.night ? 'night' : 'day',
-      WEATHER_LABELS[choice.weather]
+      WEATHER_LABELS[choice.weather],
+      ...(refine ? ['refined'] : [])
     ].join(' · ')
     const outfitLabel =
       outfitOptionsOf(character).find((one) => one.value === choice.outfit)?.label ??
@@ -223,6 +227,7 @@ export function PhotoLabModal({
       stem,
       prompts: buildPhotoPrompts(groups),
       seed,
+      refine,
       notes
     })
     if (!result.ok) {
@@ -359,6 +364,13 @@ export function PhotoLabModal({
         <div className="vu-photolab-main">
           <div className="vu-scroll-box vu-photolab-tags-box">
             <div className="vu-photolab-tags">
+              <CheckField
+                id="photolab-refine"
+                label="Refine pass"
+                note="Redraws the frame at a larger size before the face pass, as a sprite's base frame is."
+                checked={refine}
+                onChange={setRefine}
+              />
               {groups &&
                 PHOTO_GROUP_ORDER.map((key) => (
                   <label key={key} className="vu-field" htmlFor={`photolab-${key}`}>

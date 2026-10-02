@@ -199,6 +199,11 @@ export function getProfilePicturePath(playthroughId: string): string {
   return join(getPlaythroughPath(playthroughId), 'profile.png')
 }
 
+/** `/data/saves/{playthroughId}/photos` — the photos her texts carry, drawn by the game. */
+export function getPlaythroughPhotosPath(playthroughId: string): string {
+  return join(getPlaythroughPath(playthroughId), 'photos')
+}
+
 /** `/data/characters` */
 export function getCharactersPath(): string {
   return join(getDataPath(), 'characters')
@@ -327,6 +332,11 @@ export function getTempPath(): string {
 /** `/data/tmp/photo-lab` — the development build's photo lab renders, kept until it clears them. */
 export function getPhotoLabPath(): string {
   return join(getTempPath(), 'photo-lab')
+}
+
+/** `/data/tmp/photos` — where a text's photo is drawn before it is moved under its playthrough. */
+export function getPhotoTempPath(): string {
+  return join(getTempPath(), 'photos')
 }
 
 /** `/data/services/comfyui` — flattened portable build root. */

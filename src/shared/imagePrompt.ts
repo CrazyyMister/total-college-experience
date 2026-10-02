@@ -4,11 +4,14 @@ import {
   isAdultPhoto,
   LINGERIE_TAGS,
   NOBODY_NEGATIVE_TAGS,
+  PHOTO_BODY_NEGATIVE_TAGS,
   PHOTO_FRAMING_TAGS,
   PHOTO_PLACES,
+  photoOutfitAt,
   photoShowsHer,
   photoTimeTags,
   SEXY_EXPRESSION_TAGS,
+  type MessagePhoto,
   type PhotoKind,
   type PhotoOutfit
 } from './photos'
@@ -398,6 +401,7 @@ export function photoDraft(character: Character, choice: PhotoChoice): PhotoGrou
       ...CG_NEGATIVE_TAGS,
       ...(set ? negativeTagsFor(set) : []),
       ...(her ? genderNegativeOf(character) : NOBODY_NEGATIVE_TAGS),
+      ...(her ? PHOTO_BODY_NEGATIVE_TAGS : []),
       ...(character.negativeTags ?? [])
     ]
   }
@@ -420,6 +424,25 @@ export function buildPhotoPrompts(groups: PhotoGroups): PhotoPrompts {
   }
 }
 
+/**
+ * The photo a text carries, settled once: what it shows, under which seed, and the prompts that
+ * draw it, written now so a redraw needs nothing of her record. She wears what the place says.
+ */
+export function settleMessagePhoto(
+  character: Character,
+  kind: PhotoKind,
+  place: string,
+  night: boolean,
+  weather: Weather,
+  seed: number
+): MessagePhoto {
+  const outfit = photoOutfitAt(place)
+  const prompts = buildPhotoPrompts(
+    photoDraft(character, { kind, outfit, place, night, weather })
+  )
+  return { kind, seed, place, outfit, night, weather, prompts }
+}
+
 /** One render the photo lab asks for. */
 export interface PhotoLabRequest {
   /** The job's key and the lab's own handle on it. */
@@ -428,6 +451,8 @@ export interface PhotoLabRequest {
   stem: string
   prompts: PhotoPrompts
   seed: number
+  /** Drawn through the graph that refines the frame at a larger size before the face pass. */
+  refine: boolean
   /** The lines the text file beside the picture opens with: what was chosen in the lab. */
   notes: string[]
 }

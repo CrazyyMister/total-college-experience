@@ -536,6 +536,52 @@
   color: var(--vu-danger);
 }
 
+/* A photo rides the text it came with, inside her bubble: a line in the bookkeeping voice while
+   it is on its way or once it failed, then the picture, cropped to the bubble's own rounding. */
+.vu-bb-photo-note {
+  display: block;
+  margin-top: 6px;
+  color: var(--vu-text-muted);
+  font: italic 500 12px var(--font-mono);
+}
+
+.vu-bb-photo {
+  display: block;
+  width: 240px;
+  margin: 10px 0 4px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 14px;
+  background: none;
+}
+
+.vu-bb-photo > img,
+.vu-bb-viewer > img {
+  display: block;
+}
+
+.vu-bb-photo > img {
+  width: 100%;
+  height: auto;
+}
+
+/* The photo at full size over the phone, the picture alone on the dimming. */
+.vu-bb-viewer {
+  display: block;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 18px;
+  background: none;
+}
+
+/* The narrowest stage and its height, less the veil's padding. */
+.vu-bb-viewer > img {
+  max-width: 1396px;
+  max-height: 1036px;
+}
+
 /* Exactly "her queue is not empty" — never that a call is running. */
 .vu-bb-bubble--typing {
   display: flex;

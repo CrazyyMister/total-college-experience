@@ -40,10 +40,18 @@ export async function renderLabPhoto(
   await mkdir(dir, { recursive: true })
   const file = await freeName(dir, request.stem, request.seed)
 
-  await generatePhoto(request.prompts, request.seed, join(dir, file), `photo-lab / ${file}`, options)
+  await generatePhoto(
+    request.prompts,
+    request.seed,
+    request.refine,
+    join(dir, file),
+    `photo-lab / ${file}`,
+    options
+  )
 
   const text = [
     ...request.notes,
+    `Refine pass: ${request.refine ? 'yes' : 'no'}`,
     `Seed: ${request.seed}`,
     '',
     'Positive:',

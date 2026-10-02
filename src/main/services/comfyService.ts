@@ -100,7 +100,10 @@ const CG_NODE = {
   saveImage: '9'
 } as const
 
-/** Node ids overwritten in `assets/workflows/characterPhoto.json`. */
+/**
+ * Node ids overwritten in `assets/workflows/characterPhoto.json` and in
+ * `characterPhotoRefine.json`, the same graph with the base frame's refining pass.
+ */
 const PHOTO_NODE = {
   seed: '14',
   positivePrompt: '4',
@@ -1206,11 +1209,13 @@ export async function generateCg(
 
 /**
  * Renders one portrait photo from prompts already written to `destPath`; nothing is read from or
- * written to a character's folder, so any character can be drawn this way.
+ * written to a character's folder, so any character can be drawn this way. `refine` draws it
+ * through the graph that refines the frame at a larger size before the face pass.
  */
 export async function generatePhoto(
   prompts: PhotoPrompts,
   seed: number,
+  refine: boolean,
   destPath: string,
   label: string,
   options: JobOptions = {}
@@ -1218,7 +1223,7 @@ export async function generatePhoto(
   throwIfCancelled(options.signal)
   return runGenerationJob(
     {
-      workflowFile: 'characterPhoto.json',
+      workflowFile: refine ? 'characterPhotoRefine.json' : 'characterPhoto.json',
       nodes: PHOTO_NODE,
       prompts: { positive: prompts.positive, negative: prompts.negative },
       detailerPositive: prompts.detailerPositive,

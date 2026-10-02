@@ -333,6 +333,13 @@ export function buildApi(): VenusUniversityApi {
       generateOutfit: () => desktopOnly('comfy.generateOutfit'),
       fixHands: () => desktopOnly('comfy.fixHands')
     },
+    // A text's photo is drawn locally, which the browser cannot.
+    photos: {
+      render: () => desktopOnly('photos.render'),
+      read: () => desktopOnly('photos.read'),
+      files: () => desktopOnly('photos.files'),
+      deleteFiles: () => desktopOnly('photos.deleteFiles')
+    },
     // The development build's photo lab renders locally, which the browser cannot.
     photoLab: {
       render: () => desktopOnly('photoLab.render'),

@@ -127,6 +127,11 @@ const PERMANENT_CODES = new Set([
   // A night room job whose day image is not on disk yet, or is not an image.
   'ROOM_DAY_MISSING',
   'ROOM_DAY_INVALID',
+  // A text's photo whose name cannot be a file, whose render is not a PNG, or whose playthrough
+  // was deleted while it was drawn.
+  'PHOTO_NAME_INVALID',
+  'PHOTO_NOT_PNG',
+  'PHOTO_PLAYTHROUGH_GONE',
   // Cloud LLM
   // LLM_CREDITS_DEPLETED is deliberately absent: the request itself was fine and the
   // account is simply out of funds, so Retry after topping up is the right answer.

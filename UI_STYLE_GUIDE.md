@@ -125,6 +125,7 @@
 - `.vu-scene-divider` — the rule and mono word standing in the well's place while a reply is being read, a strip at the row's feet inside the well's own box.
 - `.vu-memrow` — a memory drawn as the sentence it is read as, her face and name, the verb as a select, "that", the words as a three-line field with the rest of the sentence standing level with its first line; one object for the boundary's question and the contact page's edit, on the `.vu-memedit` panel both wear.
 - `.vu-sticker` — a label on the thing rather than a line about it: a quiet mono half-pill hung over the corner of what it names, un-accented and shallowly leaned; its side is the caller's. `.vu-sticker--accent` fills it in the accent with the accent's ink, the title tab's colours, for a label that is the game's rather than the player's — the autosave stickers on the save pages wear it, the numbered slots do not.
+- A photo a text carries rides inside her bubble under its words: a quiet control cropped to a smaller rounding than the bubble's, the picture at a fixed width; while it is on its way, or once it failed, one muted italic mono line stands where it would be.
 - A tool palette is one control in N states rather than N switches: a row of rounded rectangles, icon over word, the one in force accent-filled, each `aria-pressed`.
 - Surfaces scale their radius to their own size and share no class; a screen's count beside its title is one of them.
 - A row of cells that is one object rounds its two ends and leaves the middle square.
@@ -384,6 +385,7 @@
 - The scene's mid-reply action box is a hover-revealed control rather than a label: the hover swaps the well in for the divider, the well being the control itself rather than a name for it, and it stands over the reply's last line until that line is turned.
 - The crossing, the stat chart's walk and the money card's count animate motion values imperatively and each owns its reduced-motion branch.
 - The course picker is the screen's own in-screen layer on the registrar, inheriting the theme, and is portalled from the add/drop modal.
+- The phone's photo viewer is a modal with no panel, tab or foot: the picture alone on the dimming, rounded and unshadowed, which a click anywhere or Escape puts away — a picture is its own answer.
 - The hand preview, the prompt editor and a busy or one-way confirm ignore Escape, a right-click and the dimming alike, there being nothing a dismissal could answer.
 - Hair labels, the repairs' chroma green and the merchants' colours are literals and do not follow the theme: each is a key or a brand rather than a job on a screen.
 - A merchant's two extra faces reach one element each, and the goods stay in the app's own three.

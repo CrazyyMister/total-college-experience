@@ -57,7 +57,8 @@ import {
 import { knownWhereabouts, type Whereabouts } from '../stores/whereabouts'
 import { useGameStore } from '../stores/gameStore'
 import { pickProfilePicture, removeProfilePicture } from '../stores/loop/profilePicture'
-import { useSettingsStore } from '../stores/settingsStore'
+import { noNsfwImagesOf, useSettingsStore } from '../stores/settingsStore'
+import { photoViewKey, shownPhotoOf, showPhoto, usePhotoStore } from '../stores/photoStore'
 import {
   acceptFriendRequest,
   answerHangout,
@@ -922,6 +923,26 @@ function ConversationView({
     useGameStore.getState().markConversationRead(charId)
   }, [charId, messages.length])
 
+  // The photo open over the phone, by its picture's URL.
+  const [viewing, setViewing] = useState<string | null>(null)
+  const noNsfwImages = useSettingsStore(noNsfwImagesOf)
+
+  // Opening the thread shows every photo in it, drawing the ones whose file is gone and trying a
+  // failed one again; so does the setting giving the adult ones back.
+  useEffect(() => {
+    const opened = useGameStore.getState().bunnyboard.conversations[charId]?.messages ?? []
+    for (const message of opened) {
+      if (message.photo !== undefined) void showPhoto(message, true)
+    }
+  }, [charId, noNsfwImages])
+
+  // A photo drawn in under a list that stood at its foot keeps the list there.
+  function onPhotoLoad(grown: number): void {
+    if (!scrollBox) return
+    const below = scrollBox.scrollHeight - scrollBox.clientHeight - scrollBox.scrollTop
+    if (below <= grown + 2) scrollBox.scrollTop = scrollBox.scrollHeight
+  }
+
   // Sticks to the newest message. State, not a ref: the portal host is attached late.
   useEffect(() => {
     if (scrollBox) scrollBox.scrollTop = scrollBox.scrollHeight
@@ -1007,7 +1028,7 @@ function ConversationView({
                   <span>{slotHalf(message.time)}</span>
                 </div>
               )}
-              <MessageBubble message={message} />
+              <MessageBubble message={message} onViewPhoto={setViewing} onPhotoLoad={onPhotoLoad} />
             </Fragment>
           )
         })}
@@ -1130,6 +1151,11 @@ function ConversationView({
 
       {/* A sibling of the app's own veil, so a click in it does not reach that veil's handler. */}
       <AnimatePresence propagate>
+        {viewing && (
+          <PhotoViewer key="photo" url={viewing} theme={theme} onClose={() => setViewing(null)} />
+        )}
+      </AnimatePresence>
+      <AnimatePresence propagate>
         {rescheduling && plan && (
           <RescheduleModal
             key="reschedule"
@@ -1211,8 +1237,16 @@ function Composer({
   )
 }
 
-/** One message bubble: the player's, the contact's, or a system line. */
-function MessageBubble({ message }: { message: ChatMessage }): JSX.Element {
+/** One message bubble: the player's, the contact's, or a system line; hers may carry a photo. */
+function MessageBubble({
+  message,
+  onViewPhoto,
+  onPhotoLoad
+}: {
+  message: ChatMessage
+  onViewPhoto: (url: string) => void
+  onPhotoLoad: (grown: number) => void
+}): JSX.Element {
   if (message.sender === 'system') {
     return (
       <div
@@ -1225,7 +1259,83 @@ function MessageBubble({ message }: { message: ChatMessage }): JSX.Element {
   return (
     <div className={`vu-bb-bubble vu-bb-bubble--${message.sender === 'player' ? 'mine' : 'theirs'}`}>
       {message.text}
+      {message.photo !== undefined && (
+        <BubblePhoto message={message} onView={onViewPhoto} onLoad={onPhotoLoad} />
+      )}
     </div>
+  )
+}
+
+/**
+ * The photo under her text: a line while it is being sent or once it failed, the picture once it
+ * is drawn, and nothing where it is not to be shown.
+ */
+function BubblePhoto({
+  message,
+  onView,
+  onLoad
+}: {
+  message: ChatMessage
+  onView: (url: string) => void
+  onLoad: (grown: number) => void
+}): JSX.Element | null {
+  const noNsfwImages = useSettingsStore(noNsfwImagesOf)
+  const playthroughId = useGameStore((s) => s.playthroughId)
+  const photo = shownPhotoOf(message, noNsfwImages)
+  const view = usePhotoStore((s) =>
+    photo && playthroughId ? s.views[photoViewKey(playthroughId, message.id, photo.seed)] : undefined
+  )
+  if (!photo || !view) return null
+  if (view.status === 'sending') return <span className="vu-bb-photo-note">Sending photo…</span>
+  if (view.status === 'failed') {
+    return <span className="vu-bb-photo-note">Photo didn&apos;t send</span>
+  }
+  return (
+    <motion.button
+      className="vu-bb-photo"
+      type="button"
+      aria-label="Open the photo"
+      {...gestures(false, quietLift, quietPress)}
+      onClick={() => onView(view.url)}
+    >
+      <img src={view.url} alt="" onLoad={(event) => onLoad(event.currentTarget.offsetHeight)} />
+    </motion.button>
+  )
+}
+
+/** A photo at full size over the phone; a click anywhere or Escape puts it away. */
+function PhotoViewer({
+  url,
+  theme,
+  onClose
+}: {
+  url: string
+  theme: 'day' | 'night'
+  onClose: () => void
+}): JSX.Element | null {
+  const { host, overlayProps } = useModalShell(onClose, 'none')
+  if (!host) return null
+  return createPortal(
+    <motion.div
+      className="vu-veil"
+      data-theme={theme}
+      variants={veilIn}
+      initial="hidden"
+      animate="shown"
+      exit="gone"
+      {...overlayProps}
+    >
+      <motion.button
+        className="vu-bb-viewer"
+        type="button"
+        aria-label="Close the photo"
+        variants={panelIn}
+        onClick={onClose}
+      >
+        <img src={url} alt="" />
+      </motion.button>
+    </motion.div>,
+    host
   )
 }
 

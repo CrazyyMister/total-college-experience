@@ -815,6 +815,11 @@ export interface ChatMessage {
   error?: boolean
   /** Her asking him out: the message every ask-out cooldown is counted off. */
   invite?: true
+  /**
+   * The photo her text carries, a `MessagePhoto` when written. Read only through
+   * `readMessagePhoto`, and kept as it was found whether or not it reads.
+   */
+  photo?: unknown
 }
 
 /** One Bunnyboard conversation with a contact, keyed by her charId. */

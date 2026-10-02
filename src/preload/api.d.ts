@@ -1,5 +1,6 @@
 import type { ClassifierPromptRequest, ClassifierVerdict } from '@shared/classifier'
 import type { PhotoLabRequest, PhotoLabResult, PromptEdit } from '@shared/imagePrompt'
+import type { PhotoRef, PhotoRenderRequest } from '@shared/photos'
 import type { RoomVariant } from '@shared/room'
 import type {
   Character,
@@ -400,6 +401,20 @@ export interface VenusUniversityApi {
     clear: () => Promise<Result<void>>
     /** Opens the lab's folder in the file browser. */
     openFolder: () => Promise<Result<void>>
+  }
+  /** The photos characters text, kept under each playthrough; none of it in the browser. */
+  photos: {
+    /**
+     * Queues one photo under `photo:{playthroughId}`, or answers the job already queued for it;
+     * resolves once its file is in place.
+     */
+    render: (request: PhotoRenderRequest) => Promise<Result<void>>
+    /** A photo's bytes, or `null` where its file is not there. */
+    read: (playthroughId: string, ref: PhotoRef) => Promise<Result<Uint8Array<ArrayBuffer> | null>>
+    /** The photo files a playthrough holds; the development build only. */
+    files: (playthroughId: string) => Promise<Result<string[]>>
+    /** Removes these photos' files; the development build only. */
+    deleteFiles: (playthroughId: string, refs: PhotoRef[]) => Promise<Result<void>>
   }
   jobs: {
     cancelGroup: (group: string) => Promise<Result<void>>

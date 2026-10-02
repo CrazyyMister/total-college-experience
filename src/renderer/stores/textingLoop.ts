@@ -63,7 +63,18 @@ import {
   type TextingResponse,
   type TimeSlot
 } from '@shared/types'
+import { settleMessagePhoto } from '@shared/imagePrompt'
+import {
+  isAdultPhoto,
+  photoPlaceOf,
+  photoSeed,
+  type MessagePhoto,
+  type PhotoKind
+} from '@shared/photos'
+import { weatherAt } from '@shared/weather'
 import { useBunnyboardStore } from './bunnyboardStore'
+import { resetPhotos, showPhoto } from './photoStore'
+import { noNsfwImagesOf, useSettingsStore } from './settingsStore'
 import { useGameStore } from './gameStore'
 import { prefetchHangoutScene, startHangoutScene } from './loop/hooks'
 import { createRetryGate } from './retryGate'
@@ -109,6 +120,50 @@ function companionsOf(charId: string): NpcCompanions {
     else unknown++
   }
   return { knownNames, unknown }
+}
+
+/**
+ * The photo kind the development build's test button has a contact's next reply carry, by charId;
+ * spent only when a photo is attached, and forgotten on leaving the game.
+ */
+const armedPhotos = new Map<string, PhotoKind>()
+
+/** Has `charId`'s next reply carry a photo of `kind`. */
+export function armPhoto(charId: string, kind: PhotoKind): void {
+  armedPhotos.set(charId, kind)
+}
+
+/** The photo kind armed for `charId`'s next reply, or null. */
+export function armedPhotoOf(charId: string): PhotoKind | null {
+  return armedPhotos.get(charId) ?? null
+}
+
+/** Whether the reply about to be asked of `charId` could come with a photo. */
+function photoMayCome(charId: string): boolean {
+  return armedPhotos.has(charId)
+}
+
+/**
+ * The photo her reply carries, settled as it lands: the kind armed, where the map places her (her
+ * room where it places her nowhere), the hour, the sky and a fresh seed. An adult kind armed
+ * while the setting withholds it is dropped instead.
+ */
+function replyPhotoFor(charId: string, character: Character): MessagePhoto | null {
+  const kind = armedPhotos.get(charId)
+  if (kind === undefined || character.gender === 'man') return null
+  if (isAdultPhoto(kind) && noNsfwImagesOf(useSettingsStore.getState())) {
+    armedPhotos.delete(charId)
+    return null
+  }
+  const game = useGameStore.getState()
+  return settleMessagePhoto(
+    character,
+    kind,
+    photoPlaceOf(charHiddenLocationNow(charId)),
+    game.time === 1,
+    weatherAt(game.weather, game.date, game.time),
+    photoSeed()
+  )
 }
 
 /** One in-flight texting turn per conversation, keyed by charId. */
@@ -506,10 +561,24 @@ async function runReply(
   // Every text goes through the pacer, one at a time at typing speed.
   // `released` counts what actually landed, which a retry must not repeat.
   let released = skip
-  const pacer = createTypingPacer(charId, (text) => {
-    released += 1
-    deliver(charId, chatMessage('contact', text))
-  })
+  // A photo is known only once the reply is whole, so her last text waits for it wherever one
+  // could come; it rides that last text when it does.
+  let photo: MessagePhoto | null = null
+  const pacer = createTypingPacer(
+    charId,
+    (text, last) => {
+      released += 1
+      const message = chatMessage('contact', text)
+      const attached = last && photo !== null
+      if (attached) {
+        message.photo = photo
+        armedPhotos.delete(charId)
+      }
+      deliver(charId, message)
+      if (attached) void showPhoto(message, false)
+    },
+    { holdLast: photoMayCome(charId) }
+  )
   const entry = { abandoned: false, pacer }
   inFlight.set(charId, entry)
 
@@ -563,6 +632,9 @@ async function runReply(
   if (summary) useGameStore.getState().setConversationSummary(charId, summary)
 
   const blocked = data.blocked === true
+
+  photo = blocked ? null : replyPhotoFor(charId, character)
+  pacer.finish()
 
   // The verdict can arm a hangout and force the thread open, so it waits for her last text.
   await pacer.drain()
@@ -885,6 +957,8 @@ export function resetTextingLoop(): void {
   }
   failedTurns.clear()
   hangoutGate.reset()
+  armedPhotos.clear()
+  resetPhotos()
 }
 
 /**

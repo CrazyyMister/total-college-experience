@@ -23,6 +23,11 @@ export const BOT_REPLY_MS = 1000
 export interface TypingPacer {
   /** Queues one finished text for release. */
   push: (text: string) => void
+  /**
+   * Says nothing more will be pushed, letting a held last text go; a pacer that holds nothing
+   * needs no call.
+   */
+  finish: () => void
   /** Resolves once everything queued has been released — or cancelled. */
   drain: () => Promise<void>
   /** Drops everything unreleased and stops the typing bubble. */
@@ -30,11 +35,14 @@ export interface TypingPacer {
 }
 
 /**
- * Creates a pacer for one conversation. `release` is what actually puts the text in the thread.
+ * Creates a pacer for one conversation. `release` is what actually puts the text in the thread,
+ * told whether it is the turn's last. With `holdLast`, the newest queued text waits until
+ * `finish`, so the last one is known for the last before it lands.
  */
 export function createTypingPacer(
   charId: string,
-  release: (text: string) => void
+  release: (text: string, last: boolean) => void,
+  options: { holdLast?: boolean } = {}
 ): TypingPacer {
   const queue: string[] = []
   const waiters: Array<() => void> = []
@@ -42,6 +50,9 @@ export function createTypingPacer(
   const startedAt = performance.now()
   let running = false
   let cancelled = false
+  let finished = !options.holdLast
+  /** Wakes a runner parked on a held text when another is pushed or the turn finishes. */
+  let wake: (() => void) | null = null
 
   function setTyping(typing: boolean): void {
     useBunnyboardStore.getState().setTyping(charId, typing)
@@ -50,6 +61,12 @@ export function createTypingPacer(
   function settle(): void {
     setTyping(false)
     for (const resolve of waiters.splice(0)) resolve()
+  }
+
+  function nudge(): void {
+    const resume = wake
+    wake = null
+    resume?.()
   }
 
   async function run(): Promise<void> {
@@ -62,8 +79,15 @@ export function createTypingPacer(
       const text = queue[0]!
       await new Promise((resolve) => setTimeout(resolve, typingDelayFor(text)))
       if (cancelled) break
+      // A held text waits, typing, for a text after it or for the turn to finish.
+      while (!finished && queue.length === 1 && !cancelled) {
+        await new Promise<void>((resolve) => {
+          wake = resolve
+        })
+      }
+      if (cancelled) break
       queue.shift()
-      release(text)
+      release(text, finished && options.holdLast === true && queue.length === 0)
     }
     running = false
     settle()
@@ -74,6 +98,11 @@ export function createTypingPacer(
       if (cancelled) return
       queue.push(text)
       if (!running) void run()
+      else nudge()
+    },
+    finish: () => {
+      finished = true
+      nudge()
     },
     drain: () => {
       if (cancelled || (!running && queue.length === 0)) return Promise.resolve()
@@ -82,6 +111,7 @@ export function createTypingPacer(
     cancel: () => {
       cancelled = true
       queue.length = 0
+      nudge()
       // The runner's own settle never comes if it is parked on a timer.
       if (!running) settle()
       else setTyping(false)
