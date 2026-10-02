@@ -64,17 +64,23 @@ import {
   type TimeSlot
 } from '@shared/types'
 import { settleMessagePhoto } from '@shared/imagePrompt'
+import { ROOM_LOCATION } from '@shared/locations'
 import {
+  chosenPhotoKind,
   isAdultPhoto,
+  photoOfferFor,
   photoPlaceOf,
   photoSeed,
   type MessagePhoto,
-  type PhotoKind
+  type PhotoKind,
+  type PhotoOffer
 } from '@shared/photos'
 import { weatherAt } from '@shared/weather'
 import { useBunnyboardStore } from './bunnyboardStore'
 import { resetPhotos, showPhoto } from './photoStore'
-import { noNsfwImagesOf, useSettingsStore } from './settingsStore'
+import { noNsfwImagesOf, textPhotosOf, useSettingsStore } from './settingsStore'
+import { useSetupStore } from './setupStore'
+import { isWebBuild } from '../platform'
 import { useGameStore } from './gameStore'
 import { prefetchHangoutScene, startHangoutScene } from './loop/hooks'
 import { createRetryGate } from './retryGate'
@@ -138,28 +144,106 @@ export function armedPhotoOf(charId: string): PhotoKind | null {
   return armedPhotos.get(charId) ?? null
 }
 
-/** Whether the reply about to be asked of `charId` could come with a photo. */
-function photoMayCome(charId: string): boolean {
-  return armedPhotos.has(charId)
+/**
+ * The slot the development build's test button has the photo rule take a contact as at home on,
+ * by charId; it holds only on that slot, and is forgotten on leaving the game.
+ */
+const homeForPhotos = new Map<string, { date: number; time: TimeSlot }>()
+
+/** Has the photo rule take `charId` as at home for the rest of this slot. */
+export function setHomeForPhotos(charId: string): void {
+  const { date, time } = useGameStore.getState()
+  homeForPhotos.set(charId, { date, time })
+}
+
+/** Whether the test button has the photo rule take `charId` as at home this slot. */
+export function homeForPhotosOf(charId: string): boolean {
+  const held = homeForPhotos.get(charId)
+  const { date, time } = useGameStore.getState()
+  return held !== undefined && held.date === date && held.time === time
+}
+
+/** The slot one reply was asked on, and the photos it was offered then: null for none at all. */
+interface StampedOffer {
+  offer: PhotoOffer | null
+  date: number
+  time: TimeSlot
+}
+
+/** The offer each contact's latest reply was asked with, for the development build's read-out. */
+const lastOffers = new Map<string, PhotoOffer>()
+
+/** The photos `charId`'s latest reply was offered, or null where none was asked for. */
+export function lastPhotoOfferOf(charId: string): PhotoOffer | null {
+  return lastOffers.get(charId) ?? null
 }
 
 /**
- * The photo her reply carries, settled as it lands: the kind armed, where the map places her (her
- * room where it places her nowhere), the hour, the sky and a fresh seed. An adult kind armed
- * while the setting withholds it is dropped instead.
+ * Whether the game offers photos at all: never in the browser, nor without ComfyUI installed, nor
+ * with the player's setting off.
  */
-function replyPhotoFor(charId: string, character: Character): MessagePhoto | null {
-  const kind = armedPhotos.get(charId)
-  if (kind === undefined || character.gender === 'man') return null
-  if (isAdultPhoto(kind) && noNsfwImagesOf(useSettingsStore.getState())) {
+export function photosOffered(): boolean {
+  return (
+    !isWebBuild() &&
+    useSetupStore.getState().status?.comfyReady === true &&
+    textPhotosOf(useSettingsStore.getState())
+  )
+}
+
+/**
+ * The photos her reply may carry, worked out now off where the map places her and what she is
+ * to him — none where the game offers none at all — stamped with this slot.
+ */
+function photoOfferNow(charId: string, character: Character): StampedOffer {
+  const game = useGameStore.getState()
+  if (!photosOffered()) {
+    lastOffers.delete(charId)
+    return { offer: null, date: game.date, time: game.time }
+  }
+  const offer = photoOfferFor({
+    gender: character.gender,
+    flags: game.charInfo[charId]?.flags ?? emptyFlags(),
+    location: homeForPhotosOf(charId) ? ROOM_LOCATION : charHiddenLocationNow(charId),
+    away: charAwayNow(charId),
+    noNsfwImages: noNsfwImagesOf(useSettingsStore.getState())
+  })
+  lastOffers.set(charId, offer)
+  return { offer, date: game.date, time: game.time }
+}
+
+/** Whether the reply about to be asked of `charId` could come with a photo. */
+function photoMayCome(charId: string, offered: StampedOffer): boolean {
+  return armedPhotos.has(charId) || (offered.offer?.kinds.length ?? 0) > 0
+}
+
+/**
+ * The photo her reply carries, settled as it lands: the kind armed by the test button, or else
+ * the one she chose where this call offered it; drawn where the offer was worked out — her room
+ * where the map places her nowhere — at the hour, under the sky and with a fresh seed. An adult
+ * kind armed while the setting withholds it is dropped instead.
+ */
+function replyPhotoFor(
+  charId: string,
+  character: Character,
+  chosen: unknown,
+  offered: StampedOffer
+): MessagePhoto | null {
+  if (character.gender === 'man') return null
+  const armed = armedPhotos.get(charId)
+  if (armed !== undefined && isAdultPhoto(armed) && noNsfwImagesOf(useSettingsStore.getState())) {
     armedPhotos.delete(charId)
     return null
   }
+  const kind = armed ?? chosenPhotoKind(chosen, offered.offer?.kinds ?? [])
+  if (chosen !== undefined && chosen !== 'none' && armed === undefined && kind === null) {
+    console.warn('[texting] dropped a photo kind this reply was not offered:', chosen)
+  }
+  if (kind === null) return null
   const game = useGameStore.getState()
   return settleMessagePhoto(
     character,
     kind,
-    photoPlaceOf(charHiddenLocationNow(charId)),
+    offered.offer?.place ?? photoPlaceOf(charHiddenLocationNow(charId)),
     game.time === 1,
     weatherAt(game.weather, game.date, game.time),
     photoSeed()
@@ -181,6 +265,8 @@ const failedTurns = new Map<
     conversation: Conversation | undefined
     released: number
     invited: Conversation['pendingHangout'] | null
+    /** The slot the request was asked on, and the photos it offered. */
+    offered: StampedOffer
   }
 >()
 
@@ -501,48 +587,62 @@ export async function sendMessage(charId: string, text: string): Promise<void> {
   useBunnyboardStore.getState().setTextBusy(charId, true)
 
   try {
-    // Everyone else on the roster, for the lorebook's character entries.
-    const others = game.chars
-      .filter((id) => id !== charId)
-      .map((id) => game.characters[id])
-      .filter((other): other is Character => Boolean(other))
-
-    const request = buildTextingPrompt(
-      character,
-      game.charInfo[charId],
-      conversation,
-      trimmed,
-      {
-        date: game.date,
-        time: game.time,
-        stats: game.stats,
-        roster: others,
-        charInfo: game.charInfo,
-        npcRelationships: game.npcRelationships,
-        npcRomance: game.npcRomance,
-        classes: game.classes,
-        playerSchedule: game.playerSchedule,
-        playerJob: game.job,
-        occasions: game.occasions,
-        weather: game.weather,
-        // Where she is texting from; never a class or shift, as the composer is shut then.
-        charLocation: charHiddenLocationNow(charId),
-        // Who is with her: the same group the location came from.
-        charCompanions: companionsOf(charId),
-        // What she is there for, on a slot she is standing at her own haunt.
-        charHaunt: charStandingHauntNow(charId),
-        // The one absence a thread survives, so her block has to say it.
-        springBreakAway: game.springBreakAway
-      },
-      // The same reader block a scene gets, grades and all.
-      readerBlockOf(game)
-    )
-
-    await runReply(charId, character, conversation, sent, request, 0, invited)
+    const offered = photoOfferNow(charId, character)
+    const request = textingRequestOf(charId, character, conversation, trimmed, offered)
+    await runReply(charId, character, conversation, sent, request, 0, invited, offered)
   } finally {
     inFlight.delete(charId)
     useBunnyboardStore.getState().setTextBusy(charId, false)
   }
+}
+
+/** The texting request for her reply to `text`, read off the game as it stands now. */
+function textingRequestOf(
+  charId: string,
+  character: Character,
+  conversation: Conversation | undefined,
+  text: string,
+  offered: StampedOffer
+): Parameters<typeof window.api.llm.completeTexting>[0] {
+  const game = useGameStore.getState()
+  // Everyone else on the roster, for the lorebook's character entries.
+  const others = game.chars
+    .filter((id) => id !== charId)
+    .map((id) => game.characters[id])
+    .filter((other): other is Character => Boolean(other))
+
+  return buildTextingPrompt(
+    character,
+    game.charInfo[charId],
+    conversation,
+    text,
+    {
+      date: game.date,
+      time: game.time,
+      stats: game.stats,
+      roster: others,
+      charInfo: game.charInfo,
+      npcRelationships: game.npcRelationships,
+      npcRomance: game.npcRomance,
+      classes: game.classes,
+      playerSchedule: game.playerSchedule,
+      playerJob: game.job,
+      occasions: game.occasions,
+      weather: game.weather,
+      // Where she is texting from; never a class or shift, as the composer is shut then.
+      charLocation: charHiddenLocationNow(charId),
+      // Who is with her: the same group the location came from.
+      charCompanions: companionsOf(charId),
+      // What she is there for, on a slot she is standing at her own haunt.
+      charHaunt: charStandingHauntNow(charId),
+      // The one absence a thread survives, so her block has to say it.
+      springBreakAway: game.springBreakAway,
+      // The photos she may send with this reply, worked out by the game.
+      photoOffer: offered.offer
+    },
+    // The same reader block a scene gets, grades and all.
+    readerBlockOf(game)
+  )
 }
 
 /**
@@ -556,7 +656,8 @@ async function runReply(
   sent: ChatMessage,
   request: Parameters<typeof window.api.llm.completeTexting>[0],
   skip: number,
-  invited: Conversation['pendingHangout'] | null
+  invited: Conversation['pendingHangout'] | null,
+  offered: StampedOffer
 ): Promise<void> {
   // Every text goes through the pacer, one at a time at typing speed.
   // `released` counts what actually landed, which a retry must not repeat.
@@ -577,7 +678,7 @@ async function runReply(
       deliver(charId, message)
       if (attached) void showPhoto(message, false)
     },
-    { holdLast: photoMayCome(charId) }
+    { holdLast: photoMayCome(charId, offered) }
   )
   const entry = { abandoned: false, pacer }
   inFlight.set(charId, entry)
@@ -616,7 +717,7 @@ async function runReply(
     // Whatever the stream queued is dropped; anything already released stays.
     pacer.cancel()
     // The turn parks on the thread's Retry, which re-sends this identical request.
-    failedTurns.set(charId, { request, sent, conversation, released, invited })
+    failedTurns.set(charId, { request, sent, conversation, released, invited, offered })
     useBunnyboardStore.getState().setTextFailed(charId, true)
     return
   }
@@ -633,7 +734,7 @@ async function runReply(
 
   const blocked = data.blocked === true
 
-  photo = blocked ? null : replyPhotoFor(charId, character)
+  photo = blocked ? null : replyPhotoFor(charId, character, data.photo, offered)
   pacer.finish()
 
   // The verdict can arm a hangout and force the thread open, so it waits for her last text.
@@ -676,7 +777,9 @@ function settleAnsweredInvitation(charId: string, occasionId?: string): void {
 
 /**
  * The thread's Retry on a failed turn: re-sends the identical request, skipping whatever
- * the failed attempt already released.
+ * the failed attempt already released — on the slot it was asked on. Should the slot have
+ * turned since, the photos it offered no longer hold, so they are worked out again and the
+ * request is written afresh off the game as it stands.
  */
 export async function retryFailedMessage(charId: string): Promise<void> {
   const failed = failedTurns.get(charId)
@@ -688,14 +791,21 @@ export async function retryFailedMessage(charId: string): Promise<void> {
   useBunnyboardStore.getState().setTextFailed(charId, false)
   useBunnyboardStore.getState().setTextBusy(charId, true)
   try {
+    const { date, time } = useGameStore.getState()
+    const sameSlot = failed.offered.date === date && failed.offered.time === time
+    const offered = sameSlot ? failed.offered : photoOfferNow(charId, character)
+    const request = sameSlot
+      ? failed.request
+      : textingRequestOf(charId, character, failed.conversation, failed.sent.text, offered)
     await runReply(
       charId,
       character,
       failed.conversation,
       failed.sent,
-      failed.request,
+      request,
       failed.released,
-      failed.invited
+      failed.invited,
+      offered
     )
   } finally {
     inFlight.delete(charId)
@@ -958,6 +1068,8 @@ export function resetTextingLoop(): void {
   failedTurns.clear()
   hangoutGate.reset()
   armedPhotos.clear()
+  homeForPhotos.clear()
+  lastOffers.clear()
   resetPhotos()
 }
 

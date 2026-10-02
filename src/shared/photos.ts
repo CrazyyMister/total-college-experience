@@ -1,11 +1,12 @@
 /**
- * The photos a character can send by text: the kinds, and the table of what each place looks like in a picture and what she wears there.
+ * The photos a character can send by text: the kinds, the table of what each place looks like in a
+ * picture and what she wears there, and the one rule of which kinds she may send.
  */
 
 import type { PhotoPrompts } from './imagePrompt'
-import { ROOM_LOCATION } from './locations'
+import { locationLabel, ROOM_LOCATION } from './locations'
 import { OUTFIT_SETS } from './outfits'
-import type { OutfitSet } from './types'
+import type { CharFlags, Gender, OutfitSet } from './types'
 import { WEATHER_KINDS, type Weather } from './weather'
 
 /** Every kind of photo, in a fixed order; a new kind is appended. */
@@ -72,6 +73,8 @@ export interface PhotoPlace {
   outdoors?: true
   /** Somewhere nobody else would see her. */
   private?: true
+  /** Somewhere with a mirror she would photograph herself in, besides the private places. */
+  mirror?: true
   /** The set she wears there; absent, her main outfit. */
   outfit?: 'pe' | 'swim'
 }
@@ -91,7 +94,7 @@ export const PHOTO_PLACES: Readonly<Record<string, PhotoPlace>> = {
   kendall_library: { tags: ['library', 'bookshelf', 'computer', 'indoors'] },
   lowrise_dorms: { tags: ['dormitory', 'lounge', 'couch', 'indoors'] },
   lumiere_fusion: { tags: ['restaurant', 'candle', 'wine_glass', 'indoors'] },
-  palaestra_stadium: { tags: ['gym', 'indoors'], outfit: 'pe' },
+  palaestra_stadium: { tags: ['gym', 'indoors'], outfit: 'pe', mirror: true },
   pino_cola_lounge: { tags: ['lounge', 'table_tennis', 'couch', 'indoors'] },
   reserve_bank_cafe: { tags: ['cafe', 'laptop', 'indoors'] },
   spring_mart: { tags: ['supermarket', 'shelf', 'indoors'] },
@@ -135,6 +138,148 @@ export function photoOutfitAt(placeId: string): PhotoOutfit {
 /** Where she is when the map places her nowhere, or somewhere no photo can show. */
 export function photoPlaceOf(location: string | null): string {
   return location !== null && PHOTO_PLACES[location] ? location : ROOM_LOCATION
+}
+
+/**
+ * Whether the sexy and nude kinds are for a girlfriend alone, rather than for every woman open
+ * with the reader. Off: a crush on him and friends with benefits may send them too.
+ */
+const ADULT_PHOTOS_GIRLFRIEND_ONLY = false
+
+/** Why a kind is not offered on a reply. */
+export type PhotoRefusal =
+  | 'a man sends no photos'
+  | 'she has him blocked'
+  | 'she is away for spring break'
+  | 'the map places her nowhere'
+  | 'no mirror where she is'
+  | 'not his girlfriend'
+  | 'not his girlfriend, crush or friend with benefits'
+  | 'a friendzone stands between them'
+  | 'not at home or somewhere private'
+  | 'the no-NSFW-images setting'
+
+/** What the photo rule reads of a woman and her hour. */
+export interface PhotoOfferInput {
+  gender: Gender
+  flags: Pick<
+    CharFlags,
+    'isLover' | 'hasCrush' | 'benefits' | 'friendZoned' | 'friendZonedBy' | 'blocked'
+  >
+  /** Where the map places her: a location id, `room`, or null where it places her nowhere. */
+  location: string | null
+  away: boolean
+  noNsfwImages: boolean
+}
+
+/**
+ * The kinds a reply may carry: the place they would be taken at — her room where the map places
+ * her nowhere — the kinds offered, in their fixed order, and why each other kind is not.
+ */
+export interface PhotoOffer {
+  /** A key of `PHOTO_PLACES`. */
+  place: string
+  kinds: PhotoKind[]
+  refused: Partial<Record<PhotoKind, PhotoRefusal>>
+}
+
+/** Why an adult kind is withheld from her, or null where she may send it. */
+function adultRefusal(input: PhotoOfferInput, place: PhotoPlace | undefined): PhotoRefusal | null {
+  const { flags } = input
+  const open = ADULT_PHOTOS_GIRLFRIEND_ONLY
+    ? flags.isLover
+    : flags.isLover || flags.hasCrush || flags.benefits
+  if (!open) {
+    return ADULT_PHOTOS_GIRLFRIEND_ONLY
+      ? 'not his girlfriend'
+      : 'not his girlfriend, crush or friend with benefits'
+  }
+  if (flags.friendZoned || flags.friendZonedBy) return 'a friendzone stands between them'
+  if (input.location === null || !place?.private) return 'not at home or somewhere private'
+  if (input.noNsfwImages) return 'the no-NSFW-images setting'
+  return null
+}
+
+/**
+ * The one rule of which photos a woman may send on a reply: none from a man, from one who has him
+ * blocked or from one away for spring break; the mirror only at home, somewhere private or a
+ * place with a mirror; the sexy and nude kinds only from his girlfriend, a crush on him or a
+ * friend with benefits, with no friendzone either way, at home or somewhere private, and never
+ * under the no-NSFW-images setting. A place the map does not know is never home.
+ */
+export function photoOfferFor(input: PhotoOfferInput): PhotoOffer {
+  const placeId = photoPlaceOf(input.location)
+  // Only a place the table knows is ever home or private; one it does not know is drawn as her
+  // room.
+  const place = input.location === null ? undefined : PHOTO_PLACES[input.location]
+  const whole: PhotoRefusal | null =
+    input.gender === 'man'
+      ? 'a man sends no photos'
+      : input.flags.blocked
+        ? 'she has him blocked'
+        : input.away
+          ? 'she is away for spring break'
+          : null
+  const kinds: PhotoKind[] = []
+  const refused: Partial<Record<PhotoKind, PhotoRefusal>> = {}
+  for (const kind of PHOTO_KINDS) {
+    const refusal =
+      whole ??
+      (kind === 'mirror'
+        ? input.location === null
+          ? 'the map places her nowhere'
+          : place?.private || place?.mirror
+            ? null
+            : 'no mirror where she is'
+        : isAdultPhoto(kind)
+          ? adultRefusal(input, place)
+          : null)
+    if (refusal === null) kinds.push(kind)
+    else refused[kind] = refusal
+  }
+  return { place: placeId, kinds, refused }
+}
+
+/**
+ * The kind a reply chose, kept only where it is one this call offered; `none` and anything else
+ * are no photo.
+ */
+export function chosenPhotoKind(value: unknown, offered: readonly PhotoKind[]): PhotoKind | null {
+  return typeof value === 'string' && (offered as readonly string[]).includes(value)
+    ? (value as PhotoKind)
+    : null
+}
+
+/** What each kind is, as a line about it says. */
+const PHOTO_KIND_PHRASES: Readonly<Record<PhotoKind, string>> = {
+  selfie: 'a selfie',
+  mirror: 'a mirror selfie',
+  food: 'a photo of her food',
+  place: 'a photo of where she is',
+  sexy: 'a selfie in her lingerie',
+  nude: 'a nude selfie'
+}
+
+/**
+ * What a photo shows, in a few words written by the game off what it is — the kind, the place,
+ * the outfit and the half of the day — and never off the tags it was drawn from.
+ */
+export function photoPhrase(
+  photo: Pick<MessagePhoto, 'kind' | 'place' | 'outfit' | 'night'>
+): string {
+  const where = photo.place === ROOM_LOCATION ? 'in her room' : `at ${locationLabel(photo.place)}`
+  const dressed = photoShowsHer(photo.kind) && !isAdultPhoto(photo.kind)
+  const wearing = !dressed
+    ? ''
+    : photo.outfit === 'main'
+      ? ', in her usual clothes'
+      : photo.outfit === 'pe'
+        ? ', in her gym clothes'
+        : photo.outfit === 'swim'
+          ? ', in her swimsuit'
+          : ', in another of her outfits'
+  const when = photo.night ? 'at night' : 'during the day'
+  return `${PHOTO_KIND_PHRASES[photo.kind]} ${where}${wearing}, ${when}`
 }
 
 /** One photo's tag groups, each one a list the player may rewrite. */

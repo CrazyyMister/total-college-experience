@@ -9,9 +9,13 @@ import {
   settleMessagePhoto
 } from '@shared/imagePrompt'
 import {
+  chosenPhotoKind,
+  photoOfferFor,
+  type PhotoOfferInput,
   isPhotoFileName,
   isPhotoSeed,
   PHOTO_BODY_NEGATIVE_TAGS,
+  PHOTO_KINDS,
   photoFileMessageOf,
   photoFileName,
   photoSeed,
@@ -22,6 +26,7 @@ import {
 } from '@shared/photos'
 import { AUTOSAVE_ID, type ChatMessage, type SaveDraft } from '@shared/types'
 import { useGameStore } from '../src/renderer/stores/gameStore'
+import { emptyFlags } from '@shared/relationship'
 import { character, record } from './fixtures'
 
 let root = ''
@@ -295,5 +300,83 @@ describe('a photo through the save', () => {
     const [back] = await throughSave([sent])
     expect(back).toEqual(sent)
     expect(readMessagePhoto(back!.photo)).toBeNull()
+  })
+})
+
+describe('which photos she may send', () => {
+  /** A woman with no standing with the reader, in her room, the setting off. */
+  function her(over: Partial<PhotoOfferInput> = {}): PhotoOfferInput {
+    return {
+      gender: 'woman',
+      flags: emptyFlags(),
+      location: 'room',
+      away: false,
+      noNsfwImages: false,
+      ...over
+    }
+  }
+  const lover = { ...emptyFlags(), isLover: true }
+
+  it('offers anyone the everyday kinds, and the adult ones only to those open with him', () => {
+    expect(photoOfferFor(her()).kinds).toEqual(['selfie', 'mirror', 'food', 'place'])
+    const crush = { ...emptyFlags(), hasCrush: true }
+    for (const flags of [lover, crush, { ...emptyFlags(), benefits: true }]) {
+      expect(photoOfferFor(her({ flags })).kinds).toEqual([...PHOTO_KINDS])
+    }
+  })
+
+  it('withholds the adult kinds across a friendzone, crush and all', () => {
+    for (const zone of ['friendZoned', 'friendZonedBy'] as const) {
+      const offer = photoOfferFor(her({ flags: { ...emptyFlags(), hasCrush: true, [zone]: true } }))
+      expect(offer.kinds).toEqual(['selfie', 'mirror', 'food', 'place'])
+      expect(offer.refused.nude).toBe('a friendzone stands between them')
+    }
+  })
+
+  it('withholds the adult kinds away from home and the private places, nowhere included', () => {
+    expect(photoOfferFor(her({ flags: lover, location: 'hotel_dreams' })).kinds).toContain('nude')
+    for (const location of ['agora', 'not_a_place', null]) {
+      const offer = photoOfferFor(her({ flags: lover, location }))
+      expect(offer.kinds).not.toContain('sexy')
+      expect(offer.refused.sexy).toBe('not at home or somewhere private')
+    }
+    // Nowhere is drawn as her room, and is still no home.
+    expect(photoOfferFor(her({ flags: lover, location: null })).place).toBe('room')
+  })
+
+  it('withholds the adult kinds under the no-NSFW-images setting', () => {
+    const offer = photoOfferFor(her({ flags: lover, noNsfwImages: true }))
+    expect(offer.kinds).toEqual(['selfie', 'mirror', 'food', 'place'])
+    expect(offer.refused.sexy).toBe('the no-NSFW-images setting')
+  })
+
+  it('offers the mirror only at home, somewhere private or a place with one', () => {
+    for (const location of ['room', 'hotel_dreams', 'palaestra_stadium']) {
+      expect(photoOfferFor(her({ location })).kinds).toContain('mirror')
+    }
+    const park = photoOfferFor(her({ location: 'green_hill_park' }))
+    expect(park.refused.mirror).toBe('no mirror where she is')
+    expect(photoOfferFor(her({ location: null })).refused.mirror).toBe('the map places her nowhere')
+  })
+
+  it('offers nothing from a man, from one who blocked him or from one away on break', () => {
+    for (const input of [
+      her({ gender: 'man', flags: lover }),
+      her({ flags: { ...lover, blocked: true } }),
+      her({ flags: lover, away: true, location: null })
+    ]) {
+      const offer = photoOfferFor(input)
+      expect(offer.kinds).toEqual([])
+      expect(Object.keys(offer.refused)).toEqual([...PHOTO_KINDS])
+    }
+  })
+})
+
+describe('the kind a reply chose', () => {
+  it('keeps only a kind this call offered', () => {
+    expect(chosenPhotoKind('selfie', ['selfie', 'food'])).toBe('selfie')
+    for (const value of ['none', 'nude', 'portrait', '', 3, null, undefined]) {
+      expect(chosenPhotoKind(value, ['selfie', 'food'])).toBeNull()
+    }
   })
 })

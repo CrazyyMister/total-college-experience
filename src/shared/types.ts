@@ -875,6 +875,11 @@ export interface TextingResponse {
   summary?: string
   /** She wants the reader gone, and blocks him as this reply lands. */
   blocked?: boolean
+  /**
+   * The kind of photo she sends with this reply, or `none`; asked only where one is offered, and
+   * kept only where it is a kind that call offered.
+   */
+  photo?: string
 }
 
 /** The raw hangout-classifier reply, before {@link normalizeHangout} in the renderer. */
@@ -1780,6 +1785,11 @@ export interface Settings {
    * absent meaning it does.
    */
   warnEndingEdit?: boolean
+  /**
+   * Whether the women on the phone may text photos ComfyUI draws. Optional on disk, absent meaning
+   * they may; off, no reply is offered one and a photo whose file is gone is not redrawn.
+   */
+  textPhotos?: boolean
   /**
    * The version the update check pretends this build is. **Not a player setting** — hand-edited
    * like {@link serviceTier}, for exercising an update against a build already on itch.io.

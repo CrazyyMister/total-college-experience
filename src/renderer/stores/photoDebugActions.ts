@@ -1,4 +1,5 @@
 import {
+  PHOTO_KINDS,
   isAdultPhoto,
   photoCode,
   photoFileMessageOf,
@@ -12,7 +13,14 @@ import { useGameStore } from './gameStore'
 import type { DebugResult } from './npcRomanceDebugActions'
 import { forgetPhotos, photoViewKey, regenKey, usePhotoStore } from './photoStore'
 import { noNsfwImagesOf, useSettingsStore } from './settingsStore'
-import { armedPhotoOf, armPhoto } from './textingLoop'
+import {
+  armedPhotoOf,
+  armPhoto,
+  homeForPhotosOf,
+  lastPhotoOfferOf,
+  photosOffered,
+  setHomeForPhotos
+} from './textingLoop'
 
 /**
  * What the development build's photo buttons do to a game, and what its read-out says about the
@@ -33,8 +41,18 @@ export function debugArmPhoto(charId: string, kind: PhotoKind): DebugResult {
   if (isAdultPhoto(kind) && noNsfwImagesOf(useSettingsStore.getState())) {
     return refused(`The no-NSFW-images setting withholds the ${kind} photo.`)
   }
+  if (!photosOffered()) return refused('Photos are off: no ComfyUI, or the setting is off.')
   armPhoto(charId, kind)
   return done(`${character.firstName}'s next reply sends a ${kind} photo.`)
+}
+
+/** Has the photo rule take X as at home for the rest of this slot. */
+export function debugHomeForPhotos(charId: string): DebugResult {
+  if (!import.meta.env.DEV) return NOT_DEV
+  const character = useGameStore.getState().characters[charId]
+  if (!character) return refused('Pick a character.')
+  setHomeForPhotos(charId)
+  return done(`The photo rule takes ${character.firstName} as at home until the slot turns.`)
 }
 
 /** One photo in a conversation, as the read-out lists it. */
@@ -62,8 +80,26 @@ export function photoRowsOf(charId: string, files: ReadonlySet<string>): PhotoDe
   const playthroughId = useGameStore.getState().playthroughId ?? ''
   const { views, regens } = usePhotoStore.getState()
   const armed = armedPhotoOf(charId)
+  const offer = lastPhotoOfferOf(charId)
   const rows: PhotoDebugRow[] = [
-    { key: 'armed', text: `Next reply: ${armed === null ? 'no photo' : `a ${armed} photo`}` }
+    { key: 'armed', text: `Next reply: ${armed === null ? 'no photo armed' : `a ${armed} photo`}` },
+    {
+      key: 'home',
+      text: `At home for photos this slot: ${homeForPhotosOf(charId) ? 'yes' : 'as the map says'}`
+    },
+    {
+      key: 'offered',
+      text:
+        offer === null
+          ? 'Last reply: no photos offered at all'
+          : `Last reply offered at ${offer.place}: ${offer.kinds.join(', ') || 'nothing'}`
+    },
+    ...(offer === null
+      ? []
+      : PHOTO_KINDS.flatMap((kind) => {
+          const why = offer.refused[kind]
+          return why ? [{ key: `refused-${kind}`, text: `  ${kind} left out: ${why}` }] : []
+        }))
   ]
   for (const { messageId, photo } of photosOf(charId)) {
     const file = photoFileName({ messageId, seed: photo.seed, prompts: photo.prompts })

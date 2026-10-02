@@ -24,8 +24,9 @@ import { ComboField } from '../components/ComboField'
 import { SelectField } from '../components/SelectField'
 import { TextField } from '../components/TextField'
 import { CheckField } from '../components/CheckField'
+import { DeadNote } from '../components/DeadNote'
 import { SfwCheckList } from '../components/SfwCheckList'
-import { isWebBuild } from '../platform'
+import { DESKTOP_ONLY_NOTE, isWebBuild } from '../platform'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useAudioStore } from '../stores/audioStore'
 import { useUiStore } from '../stores/uiStore'
@@ -133,6 +134,7 @@ export function AppSettingsModal({ theme, onClose }: AppSettingsModalProps): JSX
   )
   // And before a line is rewritten while an ending is under way.
   const [warnEndingEdit, setWarnEndingEdit] = useState(settings?.warnEndingEdit !== false)
+  const [textPhotos, setTextPhotos] = useState(settings?.textPhotos !== false)
 
   // The typed fields, staged until Save. Each is the endpoint's own, seeded whichever provider
   // is stored, so a panel switched away and back finds them as they were.
@@ -389,6 +391,14 @@ export function AppSettingsModal({ theme, onClose }: AppSettingsModalProps): JSX
     setWarnEndingEdit(checked)
     void write({ warnEndingEdit: checked }).then(
       reseed((stored) => setWarnEndingEdit(stored.warnEndingEdit !== false))
+    )
+  }
+
+  /** Whether the women on the phone may text photos. */
+  function handleTextPhotosChange(checked: boolean): void {
+    setTextPhotos(checked)
+    void write({ textPhotos: checked }).then(
+      reseed((stored) => setTextPhotos(stored.textPhotos !== false))
     )
   }
 
@@ -677,6 +687,18 @@ export function AppSettingsModal({ theme, onClose }: AppSettingsModalProps): JSX
             {/* Each toggle carries what turning it on costs; the note is the whole of what the
                 app promises about either setting. */}
             <SfwCheckList sfw={sfw} onChange={handleSfwChange} />
+
+            {/* ComfyUI draws the photos, so the browser holds this dead under its one notice. */}
+            <DeadNote note={webBuild ? DESKTOP_ONLY_NOTE : null}>
+              <CheckField
+                id="settings-text-photos"
+                label="Characters text photos"
+                note="Women on your phone may send photos drawn by ComfyUI. Turning this off stops new photos; the ones already sent stay."
+                checked={textPhotos && !webBuild}
+                disabled={webBuild}
+                onChange={handleTextPhotosChange}
+              />
+            </DeadNote>
 
             <CheckField
               id="settings-warn-ending-edit"

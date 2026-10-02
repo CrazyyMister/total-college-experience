@@ -57,7 +57,7 @@ import {
 import { knownWhereabouts, type Whereabouts } from '../stores/whereabouts'
 import { useGameStore } from '../stores/gameStore'
 import { pickProfilePicture, removeProfilePicture } from '../stores/loop/profilePicture'
-import { noNsfwImagesOf, useSettingsStore } from '../stores/settingsStore'
+import { noNsfwImagesOf, textPhotosOf, useSettingsStore } from '../stores/settingsStore'
 import {
   forgetRegenFailures,
   photoViewKey,
@@ -946,14 +946,16 @@ function ConversationView({
   const [viewing, setViewing] = useState<string | null>(null)
   const noNsfwImages = useSettingsStore(noNsfwImagesOf)
 
+  const photosOn = useSettingsStore(textPhotosOf)
+
   // Opening the thread shows every photo in it, drawing the ones whose file is gone and trying a
-  // failed one again; so does the setting giving the adult ones back.
+  // failed one again; so does a setting giving the adult ones or the photos back.
   useEffect(() => {
     const opened = useGameStore.getState().bunnyboard.conversations[charId]?.messages ?? []
     for (const message of opened) {
       if (message.photo !== undefined) void showPhoto(message, true)
     }
-  }, [charId, noNsfwImages])
+  }, [charId, noNsfwImages, photosOn])
 
   // The message whose photo the tags modal is open over.
   const [regenerating, setRegenerating] = useState<ChatMessage | null>(null)
@@ -977,8 +979,9 @@ function ConversationView({
       )
     })
   )
-  // Only a woman's photo is ever redrawn, off her record where the photo keeps no draft.
-  const canRegenerate = !bot && character !== undefined
+  // Only a woman's photo is ever redrawn, off her record where the photo keeps no draft, and
+  // never with the photos turned off, which starts nothing on ComfyUI.
+  const canRegenerate = !bot && character !== undefined && photosOn
 
   // A photo drawn in under a list that stood at its foot keeps the list there.
   function onPhotoLoad(grown: number): void {

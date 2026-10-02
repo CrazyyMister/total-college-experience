@@ -66,6 +66,16 @@ You will need externally kept data for testing:
 - [ ] Load a save written before roster romance existed and check that it plays on, F9 showing nothing yet.
 - [ ] In a dev build, cast a couple together in a scene, press F9 and check that the romance text sent with the call names them as a couple; a declaration the scene writes that the rules cannot take shows in F9's events as discarded, with the reason.
 - [ ] Load a save from before couples recorded a fight date or the reader could find out about a crush, play a scene and check that it plays on without an error.
+- [ ] Ask a girl for a photo. Verify "Sending photo…" shows first, then the picture, and that clicking it opens it full size.
+- [ ] Ask a girl for a photo she would not send and verify she refuses, with no photo arriving.
+- [ ] With a girlfriend at home, ask her for a sexy photo. Verify a sexy photo arrives.
+- [ ] Quit to the menu, delete that photo's file from data/saves/<playthrough>/photos, load the save and open her conversation. Verify the photo is drawn again.
+- [ ] Ask for another photo, and while "Sending photo…" is up, quit to the menu and delete that playthrough. Verify its folder under data/saves is gone and does not come back once the photo would have finished.
+- [ ] While a photo is sending, end ComfyUI's python process in Task Manager. Verify the message says "Photo didn't send", then close and reopen the conversation and verify it sends.
+- [ ] Hover a photo, click Regenerate, change a tag and confirm. Verify the old picture stays until the new one replaces it, and that a save from before still shows the old one.
+- [ ] Regenerate a photo again with "Use a new random seed" unticked, keeping its seed, and one tag changed. Verify both files are in data/saves/<playthrough>/photos.
+- [ ] Open Regenerate on a photo whose tags were changed and click "Reset to default tags". Verify the tags go back to the ones the photo was first drawn with.
+- [ ] Turn off "Characters text photos" in Settings, ask a girl for a photo and verify none arrives. Turn it back on.
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 

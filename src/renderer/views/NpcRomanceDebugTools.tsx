@@ -22,7 +22,12 @@ import {
   debugWingman,
   type DebugResult
 } from '../stores/npcRomanceDebugActions'
-import { debugArmPhoto, debugDeletePhotos, photoRowsOf } from '../stores/photoDebugActions'
+import {
+  debugArmPhoto,
+  debugDeletePhotos,
+  debugHomeForPhotos,
+  photoRowsOf
+} from '../stores/photoDebugActions'
 import { usePhotoStore } from '../stores/photoStore'
 import { gestures, lift, press } from './motion'
 
@@ -167,6 +172,14 @@ export function NpcRomanceDebugTools({ onChanged }: NpcRomanceDebugToolsProps): 
           }}
         >
           X’s next reply sends a {kind} photo
+        </motion.button>
+        <motion.button
+          className="vu-btn vu-paper vu-btn--panel"
+          type="button"
+          {...gestures(false, lift, press)}
+          onClick={() => setResult(debugHomeForPhotos(x))}
+        >
+          X is at home this slot
         </motion.button>
         <motion.button
           className="vu-btn vu-paper vu-btn--panel"

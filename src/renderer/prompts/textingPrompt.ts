@@ -4,6 +4,14 @@ import type { NpcRelationshipMap } from '@shared/npcRelationships'
 import type { NpcRomanceMap } from '@shared/npcRomance'
 import { pronounsOf } from '@shared/pronouns'
 import {
+  isAdultPhoto,
+  photoOutfitAt,
+  photoPhrase,
+  readMessagePhoto,
+  type PhotoKind,
+  type PhotoOffer
+} from '@shared/photos'
+import {
   type Character,
   type CharInfo,
   type ClassEntry,
@@ -119,6 +127,11 @@ export interface TextingPromptState {
    * open through an absence, so this is what says she is texting from somewhere else.
    */
   springBreakAway?: readonly string[] | null
+  /**
+   * The photos her reply may carry, worked out by the game for this call; absent or empty, the
+   * prompt says nothing of photos and the schema has no field for one.
+   */
+  photoOffer?: PhotoOffer | null
 }
 
 /** A text's line breaks folded to spaces, so a message stays one prompt line. */
@@ -126,11 +139,20 @@ function flatText(text: string): string {
   return text.replace(/\s*\n+\s*/g, ' ')
 }
 
-/** `"YOU: hey"` / `"MINA: hey yourself"` / `"SYSTEM: ..."` — one history stub. */
-function messageStub(message: ChatMessage, firstName: string): string {
-  if (message.sender === 'player') return `YOU: ${flatText(message.text)}`
-  if (message.sender === 'system') return `SYSTEM: ${flatText(message.text)}`
-  return `${firstName.toUpperCase()}: ${flatText(message.text)}`
+/**
+ * `"YOU: hey"` / `"MINA: hey yourself"` / `"SYSTEM: ..."` — one history stub, and under one of
+ * hers that carried a photo, the game's line saying what she sent: written off what the photo
+ * is, never off its tags, and said whether or not the setting shows it.
+ */
+function messageStubs(message: ChatMessage, firstName: string): string[] {
+  if (message.sender === 'player') return [`YOU: ${flatText(message.text)}`]
+  if (message.sender === 'system') return [`SYSTEM: ${flatText(message.text)}`]
+  const name = firstName.toUpperCase()
+  const photo = message.photo === undefined ? null : readMessagePhoto(message.photo)
+  return [
+    `${name}: ${flatText(message.text)}`,
+    ...(photo ? [`[${name} SENT A PHOTO: ${photoPhrase(photo)}]`] : [])
+  ]
 }
 
 /**
@@ -146,7 +168,7 @@ export function stampedStubs(window: readonly ChatMessage[], firstName: string):
       lines.push(`[${stamp}]`)
       stamped = stamp
     }
-    lines.push(messageStub(message, firstName))
+    lines.push(...messageStubs(message, firstName))
   }
   return lines
 }
@@ -275,6 +297,39 @@ function meetUpLines(
   ]
 }
 
+/** The word the photo field answers with for no photo. */
+const NO_PHOTO = 'none'
+
+/**
+ * The PHOTOS block: each kind the game offers on this reply, with what it would show, and the
+ * one field she answers with. Nothing where nothing is offered.
+ */
+function photoLines(name: string, offer: PhotoOffer | null | undefined, night: boolean): string[] {
+  if (!offer || offer.kinds.length === 0) return []
+  const outfit = photoOutfitAt(offer.place)
+  const kinds = offer.kinds.map(
+    (kind) => `- "${kind}": ${photoPhrase({ kind, place: offer.place, outfit, night })}`
+  )
+  const adult = offer.kinds.some(isAdultPhoto)
+  return [
+    'PHOTOS',
+    `${name} can send the reader one photo with this reply. The app takes and sends it; you only pick the kind, in the "photo" field.`,
+    'The photos she could send right now, and what each would show:',
+    ...kinds,
+    PHOTO_WHEN,
+    `If ${name} would rather not, or the moment does not call for one, set "photo" to "${NO_PHOTO}". Refusing is fine: ${name} decides by ${name}'s personality and how ${name} feels about the reader.`,
+    ...(adult
+      ? [`The sexy and nude photos are only for someone ${name} is that close to; ${name} can still tease, stall or say no.`]
+      : []),
+    `${name}'s texts may mention the photo ("here", "look"), but never describe it beyond what is listed above, and never claim ${name} sent one without setting the field.`,
+    ''
+  ]
+}
+
+/** When she picks a photo at all. */
+const PHOTO_WHEN =
+  'Pick a kind only when the reader has asked for a photo in his newest message or the ones just before it; otherwise always set "photo" to "none".'
+
 /** Builds the texting turn request. `newMessage` is the reader's fresh text. */
 export function buildTextingPrompt(
   character: Character,
@@ -400,6 +455,7 @@ export function buildTextingPrompt(
     `Stay in ${p.possessive} voice and keep it text-length: this is a phone thread, not prose.`,
     ...meetUpLines(name, character.gender, state.charLocation, state.charHaunt, state.time, away),
     '',
+    ...photoLines(name, state.photoOffer, state.time === 1),
     'BLOCKING',
     `Set "blocked" to true only if these texts have pushed ${name} to cut the reader off completely. ${p.Subject} is done, and blocks him on Bunnyboard as ${p.possessive} last text lands.`,
     `${p.Possessive} final messages should read like somebody who is about to do that.`,
@@ -410,13 +466,16 @@ export function buildTextingPrompt(
     summary
       ? 'Then, for the "summary" field, fold the TEXTING SO FAR and the RECENT MESSAGES (plus your reply) into one merged recap.'
       : 'Then, for the "summary" field, condense the RECENT MESSAGES (plus your reply) into a single recap.',
-    `Write it in third person, refer to the MC as "the reader", and keep anything ${name} should still remember later. Don't include concrete dates, and leave out old or unimportant information.`
+    `Write it in third person, refer to the MC as "the reader", and keep anything ${name} should still remember later. Don't include concrete dates, and leave out old or unimportant information.`,
+    ...(state.photoOffer && state.photoOffer.kinds.length > 0
+      ? [`If ${name} sent a photo in this reply, the recap may say so and of which kind, nothing more.`]
+      : [])
   ].join('\n')
 
   return {
     system: TEXTING_PERSONA,
     user,
-    schema: textingSchema(),
+    schema: textingSchema(state.photoOffer?.kinds ?? []),
     // Constant, like the ledger's: nothing above the seam varies by save.
     cacheKey: 'texting',
     kind: 'texting'
@@ -425,16 +484,26 @@ export function buildTextingPrompt(
 
 /**
  * The `TextingResponse` schema: `messages` first so they stream ahead; the preview
- * reader stops at that array's `]`.
+ * reader stops at that array's `]`. The photo comes next where any is offered, so the
+ * summary written after it knows whether she sent one.
  */
-function textingSchema(): {
+function textingSchema(photoKinds: readonly PhotoKind[]): {
   name: string
   schema: Record<string, unknown>
 } {
-  return objectSchema('texting', ['messages', 'summary', 'blocked'], {
+  if (photoKinds.length === 0) {
+    return objectSchema('texting', ['messages', 'summary', 'blocked'], {
+      messages: { type: 'array', items: { type: 'string' } },
+      summary: { type: 'string' },
+      // Required: an optional boolean drifts into never being considered.
+      blocked: { type: 'boolean' }
+    })
+  }
+  return objectSchema('texting', ['messages', 'photo', 'summary', 'blocked'], {
     messages: { type: 'array', items: { type: 'string' } },
+    // Required, with a word for no photo, for the same reason as `blocked`.
+    photo: { type: 'string', enum: [NO_PHOTO, ...photoKinds] },
     summary: { type: 'string' },
-    // Required: an optional boolean drifts into never being considered.
     blocked: { type: 'boolean' }
   })
 }

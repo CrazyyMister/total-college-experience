@@ -12,7 +12,7 @@ import {
 import type { ChatMessage } from '@shared/types'
 import { isWebBuild } from '../platform'
 import { useGameStore } from './gameStore'
-import { noNsfwImagesOf, useSettingsStore } from './settingsStore'
+import { noNsfwImagesOf, textPhotosOf, useSettingsStore } from './settingsStore'
 
 /**
  * Where each photo a text carries stands on screen, keyed by playthrough, message and version:
@@ -111,7 +111,8 @@ async function readInto(
 }
 
 /**
- * Shows one message's photo: its file where it is on disk, and otherwise a job that draws it.
+ * Shows one message's photo: its file where it is on disk, and otherwise a job that draws it,
+ * unless the player's setting has the photos off.
  * One already sent or on its way is left alone; a failed one is tried again only on `retry`.
  * Only the job's own failure marks it failed; a cancelled one is forgotten.
  */
@@ -127,6 +128,11 @@ export async function showPhoto(message: ChatMessage, retry: boolean): Promise<v
   const asked = generation
   setView(key, { status: 'sending' })
   if (await readInto(key, playthroughId, message, photo, asked)) return
+  // With the photos turned off nothing starts ComfyUI: a photo whose file is gone shows nothing.
+  if (!textPhotosOf(useSettingsStore.getState())) {
+    setView(key, null)
+    return
+  }
 
   const drawn = await window.api.photos.render({
     playthroughId,
@@ -169,7 +175,7 @@ export async function regeneratePhoto(
   draft: PhotoGroups
 ): Promise<void> {
   const playthroughId = useGameStore.getState().playthroughId
-  if (!playthroughId) return
+  if (!playthroughId || !textPhotosOf(useSettingsStore.getState())) return
   const from = shownPhotoOf(message, noNsfwImagesOf(useSettingsStore.getState()))
   if (!from) return
   const key = regenKey(playthroughId, message.id)

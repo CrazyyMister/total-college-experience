@@ -33,6 +33,7 @@ const SETTINGS_REQUIRED: Record<
     | 'checkUpdates'
     | 'warnEndingInterrupt'
     | 'warnEndingEdit'
+    | 'textPhotos'
     | 'updateAsVersion'
     | 'updateFeed'
     | 'secondaryModel'
@@ -253,6 +254,8 @@ export function mergePatch(current: Settings, patch: SettingsPatch): Settings {
     // Absent stays absent, and absent is warning.
     warnEndingInterrupt: patch.warnEndingInterrupt,
     warnEndingEdit: patch.warnEndingEdit,
+    // Absent stays absent, and absent is the photos coming.
+    textPhotos: patch.textPhotos,
     noNsfwImages: patch.noNsfwImages,
     lessNsfwText: patch.lessNsfwText,
     // Absent stays absent, as the volumes below do, and absent is the sound playing.

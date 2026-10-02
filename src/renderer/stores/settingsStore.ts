@@ -122,6 +122,11 @@ export function noNsfwImagesOf(state: SettingsStoreState): boolean {
   return state.settings?.noNsfwImages === true
 }
 
+/** Whether the women on the phone may text photos: absent is yes. */
+export function textPhotosOf(state: SettingsStoreState): boolean {
+  return state.settings?.textPhotos !== false
+}
+
 /**
  * The current non-secret settings as a patch, for a caller changing one field. Named rather
  * than spread so the presence flags cannot ride along into a write.
@@ -147,6 +152,8 @@ export function patchOf(settings: RendererSettings): SettingsPatch {
     // Carried, or a save made from anywhere else would turn the ending warnings back on.
     warnEndingInterrupt: settings.warnEndingInterrupt,
     warnEndingEdit: settings.warnEndingEdit,
+    // Carried, or a save made from anywhere else would turn the photos back on.
+    textPhotos: settings.textPhotos,
     noNsfwImages: settings.noNsfwImages,
     lessNsfwText: settings.lessNsfwText,
     noNsfwSound: settings.noNsfwSound,
