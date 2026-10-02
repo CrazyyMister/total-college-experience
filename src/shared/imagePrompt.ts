@@ -11,7 +11,9 @@ import {
   photoShowsHer,
   photoTimeTags,
   SEXY_EXPRESSION_TAGS,
+  samePhotoGroups,
   type MessagePhoto,
+  type PhotoGroups,
   type PhotoKind,
   type PhotoOutfit
 } from './photos'
@@ -336,30 +338,6 @@ export interface PhotoChoice {
   weather: Weather
 }
 
-/** One photo's tag groups, each one a list the player may rewrite. */
-export interface PhotoGroups {
-  base: string[]
-  appearance: string[]
-  outfit: string[]
-  framing: string[]
-  expression: string[]
-  place: string[]
-  time: string[]
-  negative: string[]
-}
-
-/** The groups in the order the positive prompt is written in, the negative last. */
-export const PHOTO_GROUP_ORDER: readonly (keyof PhotoGroups)[] = [
-  'base',
-  'appearance',
-  'outfit',
-  'framing',
-  'expression',
-  'place',
-  'time',
-  'negative'
-]
-
 /** The three strings one photo render needs. */
 export interface PhotoPrompts {
   positive: string
@@ -437,10 +415,25 @@ export function settleMessagePhoto(
   seed: number
 ): MessagePhoto {
   const outfit = photoOutfitAt(place)
-  const prompts = buildPhotoPrompts(
-    photoDraft(character, { kind, outfit, place, night, weather })
-  )
-  return { kind, seed, place, outfit, night, weather, prompts }
+  const draft = photoDraft(character, { kind, outfit, place, night, weather })
+  return { kind, seed, place, outfit, night, weather, prompts: buildPhotoPrompts(draft), draft }
+}
+
+/**
+ * The same photo redrawn under `groups` and `seed`: its prompts written from those groups, the
+ * groups kept only where they part from `draft`, and what the photo is — its kind, place, outfit,
+ * hour and sky — left as it was settled. `draft` is the photo's own where it carries one.
+ */
+export function regeneratedPhoto(
+  photo: MessagePhoto,
+  groups: PhotoGroups,
+  seed: number,
+  draft: PhotoGroups
+): MessagePhoto {
+  const next: MessagePhoto = { ...photo, seed, prompts: buildPhotoPrompts(groups), draft }
+  if (samePhotoGroups(groups, draft)) delete next.groups
+  else next.groups = groups
+  return next
 }
 
 /** One render the photo lab asks for. */

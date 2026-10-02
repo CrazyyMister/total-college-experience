@@ -137,7 +137,55 @@ export function photoPlaceOf(location: string | null): string {
   return location !== null && PHOTO_PLACES[location] ? location : ROOM_LOCATION
 }
 
-/** One photo a text carries, settled when the reply lands: everything a redraw needs. */
+/** One photo's tag groups, each one a list the player may rewrite. */
+export interface PhotoGroups {
+  base: string[]
+  appearance: string[]
+  outfit: string[]
+  framing: string[]
+  expression: string[]
+  place: string[]
+  time: string[]
+  negative: string[]
+}
+
+/** The groups in the order the positive prompt is written in, the negative last. */
+export const PHOTO_GROUP_ORDER: readonly (keyof PhotoGroups)[] = [
+  'base',
+  'appearance',
+  'outfit',
+  'framing',
+  'expression',
+  'place',
+  'time',
+  'negative'
+]
+
+/** What each group is called over its own well. */
+export const PHOTO_GROUP_LABELS: Readonly<Record<keyof PhotoGroups, string>> = {
+  base: 'Base',
+  appearance: 'Appearance',
+  outfit: 'Outfit',
+  framing: 'Framing',
+  expression: 'Expression',
+  place: 'Place',
+  time: 'Time and weather',
+  negative: 'Negative'
+}
+
+/** The groups a photo of this kind is drawn from; one with nobody in it has none of hers. */
+export function photoGroupsOf(kind: PhotoKind): readonly (keyof PhotoGroups)[] {
+  return photoShowsHer(kind)
+    ? PHOTO_GROUP_ORDER
+    : PHOTO_GROUP_ORDER.filter(
+        (key) => key !== 'appearance' && key !== 'outfit' && key !== 'expression'
+      )
+}
+
+/**
+ * One photo a text carries, settled when the reply lands: everything a redraw needs. A
+ * regeneration changes only the seed, the prompts and the groups; what the photo is stays.
+ */
 export interface MessagePhoto {
   kind: PhotoKind
   seed: number
@@ -146,8 +194,12 @@ export interface MessagePhoto {
   outfit: PhotoOutfit
   night: boolean
   weather: Weather
-  /** The prompts as written when it was settled; a redraw sends exactly these. */
+  /** The prompts the version shown is drawn from; a redraw sends exactly these. */
   prompts: PhotoPrompts
+  /** The groups as the game first wrote them, which a regeneration's reset puts back. */
+  draft?: PhotoGroups
+  /** The groups of the version shown, where a regeneration rewrote them away from the draft. */
+  groups?: PhotoGroups
 }
 
 /** Whether a value is a seed a photo may carry: a whole number from 0 to the largest safe one. */
@@ -189,30 +241,106 @@ export function readMessagePhoto(value: unknown): MessagePhoto | null {
     prompts === null ||
     !isText(prompts.positive) ||
     typeof prompts.negative !== 'string' ||
-    !isText(prompts.detailerPositive)
+    !isText(prompts.detailerPositive) ||
+    (photo.draft !== undefined && !isPhotoGroups(photo.draft)) ||
+    (photo.groups !== undefined && !isPhotoGroups(photo.groups))
   ) {
     return null
   }
   return value as MessagePhoto
 }
 
+/** Whether a value is a photo's groups: every group present, each a list of tags. */
+function isPhotoGroups(value: unknown): value is PhotoGroups {
+  if (typeof value !== 'object' || value === null) return false
+  const groups = value as Record<string, unknown>
+  return PHOTO_GROUP_ORDER.every(
+    (key) =>
+      Array.isArray(groups[key]) &&
+      (groups[key] as unknown[]).every((tag) => typeof tag === 'string')
+  )
+}
+
+/** Whether two groups hold the same tags in the same order. */
+export function samePhotoGroups(a: PhotoGroups, b: PhotoGroups): boolean {
+  return PHOTO_GROUP_ORDER.every(
+    (key) => a[key].length === b[key].length && a[key].every((tag, i) => tag === b[key][i])
+  )
+}
+
+/**
+ * The 53-bit cyrb53 hash of a string: integer arithmetic on its UTF-16 code units alone, so it
+ * answers the same on every machine and in every version.
+ */
+function cyrb53(text: string): number {
+  let h1 = 0xdeadbeef
+  let h2 = 0x41c6ce57
+  for (let i = 0; i < text.length; i++) {
+    const ch = text.charCodeAt(i)
+    h1 = Math.imul(h1 ^ ch, 2654435761)
+    h2 = Math.imul(h2 ^ ch, 1597334677)
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507)
+  h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909)
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507)
+  h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909)
+  return 4294967296 * (2097151 & h2) + (h1 >>> 0)
+}
+
+/**
+ * A version's code: fourteen hex digits hashed off the three prompts that draw it, joined by a
+ * NUL no prompt holds. The same prompts always answer the same code.
+ */
+export function photoCode(prompts: PhotoPrompts): string {
+  const text = [prompts.positive, prompts.negative, prompts.detailerPositive].join('\u0000')
+  return cyrb53(text).toString(16).padStart(14, '0')
+}
+
+/** Whether two photos are the same version: the same seed and the same prompts. */
+export function samePhotoVersion(a: MessagePhoto, b: MessagePhoto): boolean {
+  return a.seed === b.seed && photoCode(a.prompts) === photoCode(b.prompts)
+}
+
+/**
+ * What a regeneration's finished file swaps a message's photo field for: `next` while the field
+ * still reads as the version the regeneration began from, and null otherwise — a field that no
+ * longer reads, or a version that has moved on, is left as it is.
+ */
+export function swappedPhoto(
+  current: unknown,
+  from: MessagePhoto,
+  next: MessagePhoto
+): MessagePhoto | null {
+  const photo = readMessagePhoto(current)
+  return photo !== null && samePhotoVersion(photo, from) ? next : null
+}
+
 /** A message id that may become part of a file name. */
 const PHOTO_MESSAGE_ID = /^[A-Za-z0-9-]{1,64}$/
 
-/** A photo's file under a playthrough's `photos` folder: `{messageId}-{seed}.png`. */
-const PHOTO_FILE = /^([A-Za-z0-9-]{1,64})-([0-9]{1,16})\.png$/
+/** A photo's file under a playthrough's `photos` folder: `{messageId}-{seed}-{code}.png`. */
+const PHOTO_FILE = /^([A-Za-z0-9-]{1,64})-([0-9]{1,16})-([0-9a-f]{14})\.png$/
 
-/** The file a message's photo is kept in, or null where the id or the seed cannot be one. */
-export function photoFileName(messageId: string, seed: number): string | null {
-  if (!PHOTO_MESSAGE_ID.test(messageId) || !isPhotoSeed(seed)) return null
-  return `${messageId}-${seed}.png`
+/**
+ * The file one version of a message's photo is kept in, its code hashed here off the prompts,
+ * or null where the id or the seed cannot be one.
+ */
+export function photoFileName(ref: PhotoRef): string | null {
+  if (!PHOTO_MESSAGE_ID.test(ref.messageId) || !isPhotoSeed(ref.seed)) return null
+  return `${ref.messageId}-${ref.seed}-${photoCode(ref.prompts)}.png`
 }
 
 /** Whether a name is exactly one a photo is kept under. */
 export function isPhotoFileName(name: string): boolean {
+  return photoFileMessageOf(name) !== null
+}
+
+/** The message a photo's file is a version of, or null for a name no photo is kept under. */
+export function photoFileMessageOf(name: string): string | null {
   const match = PHOTO_FILE.exec(name)
-  if (!match) return false
-  return photoFileName(match[1]!, Number(match[2])) === name
+  if (!match) return null
+  const seed = Number(match[2])
+  return isPhotoSeed(seed) && String(seed) === match[2] ? match[1]! : null
 }
 
 /** One text's photo to draw: whose playthrough, which message, and what it carries. */
@@ -224,8 +352,9 @@ export interface PhotoRenderRequest {
   prompts: PhotoPrompts
 }
 
-/** One photo named by its message and seed, as a file of it is. */
+/** One version of a message's photo, named by its message, its seed and its prompts' code. */
 export interface PhotoRef {
   messageId: string
   seed: number
+  prompts: PhotoPrompts
 }

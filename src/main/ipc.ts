@@ -144,6 +144,7 @@ import {
   cancelAdultPhotos,
   cancelAllPhotos,
   cancelPlaythroughPhotos,
+  cancelTextPhotos,
   deleteTextPhotos,
   listTextPhotos,
   readTextPhoto,
@@ -414,6 +415,9 @@ export function registerIpcHandlers(): void {
   handle('photos:render', (_event, request: PhotoRenderRequest) => renderTextPhoto(request))
   handle('photos:read', (_event, playthroughId: string, ref: PhotoRef) =>
     readTextPhoto(playthroughId, ref)
+  )
+  handle('photos:cancel', (_event, playthroughId: string, refs: PhotoRef[]) =>
+    cancelTextPhotos(playthroughId, refs)
   )
   handle('photos:files', (_event, playthroughId: string) => {
     assertDevBuild()

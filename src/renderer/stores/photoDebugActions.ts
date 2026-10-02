@@ -1,8 +1,16 @@
-import { isAdultPhoto, photoFileName, readMessagePhoto, type PhotoKind } from '@shared/photos'
+import {
+  isAdultPhoto,
+  photoCode,
+  photoFileMessageOf,
+  photoFileName,
+  readMessagePhoto,
+  type MessagePhoto,
+  type PhotoKind
+} from '@shared/photos'
 import { isWebBuild } from '../platform'
 import { useGameStore } from './gameStore'
 import type { DebugResult } from './npcRomanceDebugActions'
-import { forgetPhotos, photoViewKey, usePhotoStore } from './photoStore'
+import { forgetPhotos, photoViewKey, regenKey, usePhotoStore } from './photoStore'
 import { noNsfwImagesOf, useSettingsStore } from './settingsStore'
 import { armedPhotoOf, armPhoto } from './textingLoop'
 
@@ -36,37 +44,51 @@ export interface PhotoDebugRow {
 }
 
 /** The photos in X's conversation, oldest first, each read whole or not at all. */
-function photosOf(charId: string): { messageId: string; seed: number; kind: PhotoKind }[] {
+function photosOf(charId: string): { messageId: string; photo: MessagePhoto }[] {
   const messages = useGameStore.getState().bunnyboard.conversations[charId]?.messages ?? []
   return messages.flatMap((message) => {
     const photo = readMessagePhoto(message.photo)
-    return photo ? [{ messageId: message.id, seed: photo.seed, kind: photo.kind }] : []
+    return photo ? [{ messageId: message.id, photo }] : []
   })
 }
 
 /**
- * The read-out for X: the kind armed for the next reply, then each photo in the conversation with
- * its seed, whether its file is among `files` and where its job stands on screen.
+ * The read-out for X: the kind armed for the next reply, then each photo in the conversation as
+ * its version shown — its seed and code, whether its tags were rewritten, whether its file is
+ * among `files`, where its job and its regeneration stand on screen — and how many other
+ * versions of it `files` holds.
  */
 export function photoRowsOf(charId: string, files: ReadonlySet<string>): PhotoDebugRow[] {
   const playthroughId = useGameStore.getState().playthroughId ?? ''
-  const views = usePhotoStore.getState().views
+  const { views, regens } = usePhotoStore.getState()
   const armed = armedPhotoOf(charId)
   const rows: PhotoDebugRow[] = [
     { key: 'armed', text: `Next reply: ${armed === null ? 'no photo' : `a ${armed} photo`}` }
   ]
-  for (const photo of photosOf(charId)) {
-    const file = photoFileName(photo.messageId, photo.seed)
-    const view = views[photoViewKey(playthroughId, photo.messageId, photo.seed)]
+  for (const { messageId, photo } of photosOf(charId)) {
+    const file = photoFileName({ messageId, seed: photo.seed, prompts: photo.prompts })
+    const view = views[photoViewKey(playthroughId, messageId, photo)]
+    const regen = regens[regenKey(playthroughId, messageId)]
+    const others = [...files].filter(
+      (name) => name !== file && photoFileMessageOf(name) === messageId
+    )
+    const present = file !== null && files.has(file)
     rows.push({
-      key: `${photo.messageId}-${photo.seed}`,
-      text: `${photo.kind} · seed ${photo.seed} · file ${file !== null && files.has(file) ? 'present' : 'missing'} · job ${view?.status ?? 'none'}`
+      key: messageId,
+      text:
+        `${photo.kind} · seed ${photo.seed} · code ${photoCode(photo.prompts)} · ` +
+        `tags ${photo.groups ? 'rewritten' : 'as drawn'} · ` +
+        `file ${present ? 'present' : 'missing'} · job ${view?.status ?? 'none'} · ` +
+        `regeneration ${regen?.status ?? 'none'} · ${others.length} other version(s) on disk`
     })
   }
   return rows
 }
 
-/** Deletes the files of every photo in X's conversation, for its next opening to redraw them. */
+/**
+ * Deletes the file of the version shown of every photo in X's conversation, for its next opening
+ * to redraw them; their other versions stay.
+ */
 export async function debugDeletePhotos(charId: string): Promise<DebugResult> {
   if (!import.meta.env.DEV) return NOT_DEV
   const game = useGameStore.getState()
@@ -76,10 +98,10 @@ export async function debugDeletePhotos(charId: string): Promise<DebugResult> {
   const photos = photosOf(charId)
   const result = await window.api.photos.deleteFiles(
     playthroughId,
-    photos.map(({ messageId, seed }) => ({ messageId, seed }))
+    photos.map(({ messageId, photo }) => ({ messageId, seed: photo.seed, prompts: photo.prompts }))
   )
   if (!result.ok) return refused(result.error.message)
-  forgetPhotos(photos.map((photo) => photoViewKey(playthroughId, photo.messageId, photo.seed)))
+  forgetPhotos(photos.map(({ messageId, photo }) => photoViewKey(playthroughId, messageId, photo)))
   return done(
     `Deleted the files of ${photos.length} photo(s) of ${character.firstName}'s; opening the conversation redraws them.`
   )

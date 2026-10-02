@@ -151,6 +151,7 @@ const api: VenusUniversityApi = {
   photos: {
     render: (request) => ipcRenderer.invoke('photos:render', request),
     read: (playthroughId, ref) => ipcRenderer.invoke('photos:read', playthroughId, ref),
+    cancel: (playthroughId, refs) => ipcRenderer.invoke('photos:cancel', playthroughId, refs),
     files: (playthroughId) => ipcRenderer.invoke('photos:files', playthroughId),
     deleteFiles: (playthroughId, refs) =>
       ipcRenderer.invoke('photos:deleteFiles', playthroughId, refs)

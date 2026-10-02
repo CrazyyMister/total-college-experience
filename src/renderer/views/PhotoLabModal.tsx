@@ -1,22 +1,19 @@
 import { useEffect, useMemo, useRef, useState, type JSX } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'motion/react'
-import {
-  buildPhotoPrompts,
-  PHOTO_GROUP_ORDER,
-  photoDraft,
-  type PhotoChoice,
-  type PhotoGroups
-} from '@shared/imagePrompt'
+import { buildPhotoPrompts, photoDraft, type PhotoChoice } from '@shared/imagePrompt'
 import { LOCATIONS, ROOM_LOCATION } from '@shared/locations'
 import { expressionRel } from '@shared/characterFiles'
 import { CUSTOM_OUTFIT_SLOTS, outfitLabelOf, outfitTagsFor } from '@shared/outfits'
 import {
   isAdultPhoto,
+  PHOTO_GROUP_LABELS,
+  PHOTO_GROUP_ORDER,
   PHOTO_KINDS,
   PHOTO_PLACES,
   photoOutfitAt,
   photoShowsHer,
+  type PhotoGroups,
   type PhotoKind,
   type PhotoOutfit
 } from '@shared/photos'
@@ -42,18 +39,6 @@ const PHOTO_LAB_GROUP = 'photo-lab'
 
 /** How many seeds the batch button draws at once. */
 const BATCH_SEEDS = 4
-
-/** What each group is called over its own well. */
-const GROUP_LABELS: Record<keyof PhotoGroups, string> = {
-  base: 'Base',
-  appearance: 'Appearance',
-  outfit: 'Outfit',
-  framing: 'Framing',
-  expression: 'Expression',
-  place: 'Place',
-  time: 'Time and weather',
-  negative: 'Negative'
-}
 
 /** What each kind is called in its select. */
 const KIND_LABELS: Record<PhotoKind, string> = {
@@ -374,7 +359,7 @@ export function PhotoLabModal({
               {groups &&
                 PHOTO_GROUP_ORDER.map((key) => (
                   <label key={key} className="vu-field" htmlFor={`photolab-${key}`}>
-                    <span className="vu-field-label">{GROUP_LABELS[key]}</span>
+                    <span className="vu-field-label">{PHOTO_GROUP_LABELS[key]}</span>
                     <ChipListInput
                       id={`photolab-${key}`}
                       values={groups[key]}

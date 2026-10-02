@@ -58,7 +58,24 @@ import { knownWhereabouts, type Whereabouts } from '../stores/whereabouts'
 import { useGameStore } from '../stores/gameStore'
 import { pickProfilePicture, removeProfilePicture } from '../stores/loop/profilePicture'
 import { noNsfwImagesOf, useSettingsStore } from '../stores/settingsStore'
-import { photoViewKey, shownPhotoOf, showPhoto, usePhotoStore } from '../stores/photoStore'
+import {
+  forgetRegenFailures,
+  photoViewKey,
+  regeneratePhoto,
+  regenKey,
+  shownPhotoOf,
+  showPhoto,
+  usePhotoStore
+} from '../stores/photoStore'
+import { photoDraft } from '@shared/imagePrompt'
+import {
+  PHOTO_GROUP_LABELS,
+  photoGroupsOf,
+  photoSeed,
+  readMessagePhoto,
+  type PhotoGroups
+} from '@shared/photos'
+import { TagsModal } from './RegenerateModal'
 import {
   acceptFriendRequest,
   answerHangout,
@@ -99,7 +116,9 @@ import {
   quietPress,
   rowLift,
   rowPress,
+  revealed,
   slideInQuick,
+  spin,
   toggleLift,
   typingDot,
   veilIn
@@ -936,6 +955,31 @@ function ConversationView({
     }
   }, [charId, noNsfwImages])
 
+  // The message whose photo the tags modal is open over.
+  const [regenerating, setRegenerating] = useState<ChatMessage | null>(null)
+  // A regeneration that failed says so only until the thread closes.
+  useEffect(
+    () => () => {
+      const game = useGameStore.getState()
+      const closing = game.bunnyboard.conversations[charId]?.messages ?? []
+      if (game.playthroughId) forgetRegenFailures(game.playthroughId, closing.map((m) => m.id))
+    },
+    [charId]
+  )
+  // The hint under the head is said while a photo the hover acts on is on screen.
+  const playthroughId = useGameStore((s) => s.playthroughId)
+  const photoShown = usePhotoStore((s) =>
+    messages.some((message) => {
+      const photo = playthroughId ? shownPhotoOf(message, noNsfwImages) : null
+      return (
+        photo !== null &&
+        s.views[photoViewKey(playthroughId!, message.id, photo)]?.status === 'ready'
+      )
+    })
+  )
+  // Only a woman's photo is ever redrawn, off her record where the photo keeps no draft.
+  const canRegenerate = !bot && character !== undefined
+
   // A photo drawn in under a list that stood at its foot keeps the list there.
   function onPhotoLoad(grown: number): void {
     if (!scrollBox) return
@@ -1011,6 +1055,12 @@ function ConversationView({
         </span>
       </div>
 
+      {photoShown && canRegenerate && (
+        <p className="vu-hint vu-bb-photo-hint">
+          Click a photo to open it, or hover over it to regenerate it.
+        </p>
+      )}
+
       <div className="vu-bb-msgs" ref={setScrollBox}>
         {messages.map((message, index) => {
           // A divider opens the thread and repeats whenever the slot changes.
@@ -1028,7 +1078,12 @@ function ConversationView({
                   <span>{slotHalf(message.time)}</span>
                 </div>
               )}
-              <MessageBubble message={message} onViewPhoto={setViewing} onPhotoLoad={onPhotoLoad} />
+              <MessageBubble
+                message={message}
+                onViewPhoto={setViewing}
+                onPhotoLoad={onPhotoLoad}
+                onRegenerate={canRegenerate ? () => setRegenerating(message) : undefined}
+              />
             </Fragment>
           )
         })}
@@ -1156,6 +1211,18 @@ function ConversationView({
         )}
       </AnimatePresence>
       <AnimatePresence propagate>
+        {regenerating && character && (
+          <PhotoTagsModal
+            key="photo-tags"
+            charId={charId}
+            character={character}
+            message={regenerating}
+            theme={theme}
+            onClose={() => setRegenerating(null)}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence propagate>
         {rescheduling && plan && (
           <RescheduleModal
             key="reschedule"
@@ -1241,11 +1308,14 @@ function Composer({
 function MessageBubble({
   message,
   onViewPhoto,
-  onPhotoLoad
+  onPhotoLoad,
+  onRegenerate
 }: {
   message: ChatMessage
   onViewPhoto: (url: string) => void
   onPhotoLoad: (grown: number) => void
+  /** Opens the tags modal over this message's photo; absent where it is never redrawn. */
+  onRegenerate?: () => void
 }): JSX.Element {
   if (message.sender === 'system') {
     return (
@@ -1260,7 +1330,12 @@ function MessageBubble({
     <div className={`vu-bb-bubble vu-bb-bubble--${message.sender === 'player' ? 'mine' : 'theirs'}`}>
       {message.text}
       {message.photo !== undefined && (
-        <BubblePhoto message={message} onView={onViewPhoto} onLoad={onPhotoLoad} />
+        <BubblePhoto
+          message={message}
+          onView={onViewPhoto}
+          onLoad={onPhotoLoad}
+          onRegenerate={onRegenerate}
+        />
       )}
     </div>
   )
@@ -1268,38 +1343,127 @@ function MessageBubble({
 
 /**
  * The photo under her text: a line while it is being sent or once it failed, the picture once it
- * is drawn, and nothing where it is not to be shown.
+ * is drawn, and nothing where it is not to be shown. A drawn one raises the regenerate pill on a
+ * hover or focus, and keeps it up, dead and turning, while a regeneration is on its way.
  */
 function BubblePhoto({
   message,
   onView,
-  onLoad
+  onLoad,
+  onRegenerate
 }: {
   message: ChatMessage
   onView: (url: string) => void
   onLoad: (grown: number) => void
+  onRegenerate?: () => void
 }): JSX.Element | null {
   const noNsfwImages = useSettingsStore(noNsfwImagesOf)
   const playthroughId = useGameStore((s) => s.playthroughId)
   const photo = shownPhotoOf(message, noNsfwImages)
   const view = usePhotoStore((s) =>
-    photo && playthroughId ? s.views[photoViewKey(playthroughId, message.id, photo.seed)] : undefined
+    photo && playthroughId ? s.views[photoViewKey(playthroughId, message.id, photo)] : undefined
   )
+  const regen = usePhotoStore((s) =>
+    playthroughId ? s.regens[regenKey(playthroughId, message.id)] : undefined
+  )
+  const [over, setOver] = useState(false)
   if (!photo || !view) return null
   if (view.status === 'sending') return <span className="vu-bb-photo-note">Sending photo…</span>
   if (view.status === 'failed') {
     return <span className="vu-bb-photo-note">Photo didn&apos;t send</span>
   }
+  const running = regen?.status === 'running'
   return (
-    <motion.button
-      className="vu-bb-photo"
-      type="button"
-      aria-label="Open the photo"
-      {...gestures(false, quietLift, quietPress)}
-      onClick={() => onView(view.url)}
-    >
-      <img src={view.url} alt="" onLoad={(event) => onLoad(event.currentTarget.offsetHeight)} />
-    </motion.button>
+    <>
+      <motion.div
+        className="vu-bb-photo-frame"
+        animate={running || over ? 'shown' : 'hidden'}
+        onHoverStart={() => setOver(true)}
+        onHoverEnd={() => setOver(false)}
+        onFocus={() => setOver(true)}
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget)) setOver(false)
+        }}
+      >
+        <motion.button
+          className="vu-bb-photo"
+          type="button"
+          aria-label="Open the photo"
+          {...gestures(false, quietLift, quietPress)}
+          onClick={() => onView(view.url)}
+        >
+          <img src={view.url} alt="" onLoad={(event) => onLoad(event.currentTarget.offsetHeight)} />
+        </motion.button>
+        {onRegenerate && (
+          // A sibling of the picture, never inside it, so its click opens nothing.
+          <motion.button
+            className="vu-pic-action vu-bb-photo-action"
+            type="button"
+            disabled={running}
+            variants={revealed}
+            initial={false}
+            onClick={onRegenerate}
+          >
+            {running ? (
+              <>
+                <motion.span className="vu-ring" animate={spin} />
+                Regenerating
+              </>
+            ) : (
+              '↻ Regenerate'
+            )}
+          </motion.button>
+        )}
+      </motion.div>
+      {regen?.status === 'failed' && (
+        <span className="vu-bb-photo-note">Couldn&apos;t regenerate</span>
+      )}
+    </>
+  )
+}
+
+/**
+ * The tags one photo is redrawn from, open over the phone: its kind's groups as the version shown
+ * has them, Reset putting back the ones the game wrote — off her record where the photo keeps
+ * none — and a new random seed unless one is typed. Nothing of it is written to her record.
+ */
+function PhotoTagsModal({
+  charId,
+  character,
+  message,
+  theme,
+  onClose
+}: {
+  charId: string
+  character: Character
+  message: ChatMessage
+  theme: 'day' | 'night'
+  onClose: () => void
+}): JSX.Element | null {
+  const photo = readMessagePhoto(message.photo)
+  const [draft] = useState<PhotoGroups | null>(() =>
+    photo ? (photo.draft ?? photoDraft(character, photo)) : null
+  )
+  if (!photo || !draft) return null
+  const shown = photo.groups ?? draft
+  const keys = photoGroupsOf(photo.kind)
+  return (
+    <TagsModal
+      id="photo-tags"
+      theme={theme}
+      title="Regenerate photo"
+      groups={keys.map((key) => ({ key, label: PHOTO_GROUP_LABELS[key] }))}
+      values={shown}
+      defaults={draft}
+      seed={{ seed: photo.seed, random: true }}
+      onConfirm={(values, seed) => {
+        onClose()
+        const groups: PhotoGroups = { ...shown }
+        for (const key of keys) groups[key] = values[key]
+        void regeneratePhoto(charId, message, groups, seed ?? photoSeed(), draft)
+      }}
+      onCancel={onClose}
+    />
   )
 }
 

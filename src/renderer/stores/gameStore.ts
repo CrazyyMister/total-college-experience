@@ -12,6 +12,7 @@ import {
 } from '@shared/relationship'
 import { escapeRegExp } from '@shared/sentences'
 import { pronounsOf } from '@shared/pronouns'
+import { swappedPhoto, type MessagePhoto } from '@shared/photos'
 import { displaySlotsOf, retireCgs } from './stageDisplay'
 import {
   chargeAbsences,
@@ -741,6 +742,17 @@ interface GameStoreState {
    * `unreadDelta` is 1 for a message that should light the badge, 0 otherwise.
    */
   appendChatMessage: (charId: string, message: ChatMessage, unreadDelta: number) => void
+  /**
+   * Swaps one message's photo for a regeneration's `next`, judged against the message as it
+   * stands at this write, not as it stood when the regeneration was asked for: only while it
+   * still carries the version `from`. Whether it swapped.
+   */
+  swapMessagePhoto: (
+    charId: string,
+    messageId: string,
+    from: MessagePhoto,
+    next: MessagePhoto
+  ) => boolean
   /** The player opened the conversation — its unread count clears. */
   markConversationRead: (charId: string) => void
   /** Banks a texting turn's merged recap on the conversation. */
@@ -2129,6 +2141,22 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
         unread: chat.unread + unreadDelta
       }))
     ),
+
+  swapMessagePhoto: (charId, messageId, from, next) => {
+    let swapped = false
+    set((state) =>
+      patchConversation(state, charId, (chat) => {
+        const at = chat.messages.findIndex((message) => message.id === messageId)
+        const photo = at < 0 ? null : swappedPhoto(chat.messages[at]!.photo, from, next)
+        if (photo === null) return null
+        const messages = [...chat.messages]
+        messages[at] = { ...messages[at]!, photo }
+        swapped = true
+        return { ...chat, messages }
+      })
+    )
+    return swapped
+  },
 
   markConversationRead: (charId) =>
     set((state) =>

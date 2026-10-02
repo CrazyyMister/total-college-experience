@@ -19,7 +19,8 @@ import { getSettings } from './settingsService'
 
 /**
  * The photos characters text, on disk: each drawn into `data/tmp` and moved under its
- * playthrough's `photos` folder as `{messageId}-{seed}.png` only once it is whole, wanted and a PNG.
+ * playthrough's `photos` folder as `{messageId}-{seed}-{code}.png` only once it is whole, wanted
+ * and a PNG; each version of a photo has a file of its own.
  */
 
 /** One photo queued or drawing, keyed `{playthroughId}/{file}`. */
@@ -37,9 +38,18 @@ function groupOf(playthroughId: string): string {
   return `photo:${playthroughId}`
 }
 
-/** The file a photo is kept in, or a permanent failure for an id or seed that cannot name one. */
+/**
+ * The file a version of a photo is kept in, named here off its prompts, or a permanent failure
+ * for an id, a seed or prompts that cannot name one.
+ */
 function fileOf(ref: PhotoRef): string {
-  const file = photoFileName(ref.messageId, ref.seed)
+  const prompts = ref.prompts as Partial<Record<keyof PhotoRef['prompts'], unknown>> | undefined
+  const file =
+    typeof prompts?.positive === 'string' &&
+    typeof prompts.negative === 'string' &&
+    typeof prompts.detailerPositive === 'string'
+      ? photoFileName(ref)
+      : null
   if (file === null) {
     throw appError('PHOTO_NAME_INVALID', 'That photo cannot be named.', `${ref.messageId}-${ref.seed}`)
   }
@@ -151,6 +161,12 @@ export async function deleteTextPhotos(playthroughId: string, refs: PhotoRef[]):
       if (err.code !== 'ENOENT') throw err
     })
   }
+}
+
+/** Cancels these photos of a playthrough, the one drawing included, if they are queued at all. */
+export async function cancelTextPhotos(playthroughId: string, refs: PhotoRef[]): Promise<void> {
+  assertSafePlaythroughId(playthroughId)
+  await cancelKeys(groupOf(playthroughId), refs.map(fileOf))
 }
 
 /** Cancels a playthrough's photos, resolving once the one drawing has settled. */

@@ -112,12 +112,63 @@ export interface RegenerateModalProps {
   onCancel: () => void
 }
 
-/** The tags one render is about to be sent, opened for editing in front of it. */
+/** A character render's tags, opened for editing in front of it: its kind's groups, by name. */
 export function RegenerateModal({
+  edit,
+  defaults,
+  requireGroup,
+  onConfirm,
+  ...rest
+}: RegenerateModalProps): JSX.Element | null {
+  return (
+    <TagsModal
+      {...rest}
+      groups={PROMPT_GROUPS[edit.kind].map((key) => ({ key, label: LABELS[key] }))}
+      values={groupsOf(edit)}
+      defaults={groupsOf(defaults)}
+      requireGroup={requireGroup}
+      onConfirm={(values, seed, name) => onConfirm(withGroups(edit, values), seed, name)}
+    />
+  )
+}
+
+/** One well of the tags modal: the key its tags travel under, and what it is called. */
+export interface TagGroup<K extends string> {
+  key: K
+  label: string
+}
+
+export interface TagsModalProps<K extends string> {
+  id: string
+  theme: 'day' | 'night'
+  /** The tab's words, named for what is about to be replaced. */
+  title: string
+  /** The wells shown, in the order the prompt writes them. */
+  groups: readonly TagGroup<K>[]
+  /** The tags the render is about to send, by group, as the modal opens on them. */
+  values: Readonly<Partial<Record<K, readonly string[]>>>
+  /** The tags the render would send unedited, by group, which Reset puts back. */
+  defaults: Readonly<Partial<Record<K, readonly string[]>>>
+  seed: SeedPrefill
+  /** Asks for a name as well, for a set that is being made rather than replaced. */
+  name?: { value: string; placeholder: string; maxLength: number }
+  /** A group the render cannot be sent without: the submit is dead while its well is empty. */
+  requireGroup?: K
+  /** The primary's words, where the render is not a replacement. */
+  submitLabel?: string
+  /** The shown wells' tags as the player left them, the seed — `null` asks for a new random
+   *  one — and the trimmed name, `undefined` where the box is absent or blank. */
+  onConfirm: (values: Record<K, string[]>, seed: number | null, name?: string) => void
+  onCancel: () => void
+}
+
+/** The tags one render is about to be sent, opened for editing in front of it. */
+export function TagsModal<K extends string>({
   id,
   theme,
   title,
-  edit,
+  groups,
+  values: opened,
   defaults,
   seed,
   name,
@@ -125,12 +176,11 @@ export function RegenerateModal({
   submitLabel = 'Regenerate',
   onConfirm,
   onCancel
-}: RegenerateModalProps): JSX.Element | null {
-  const keys = PROMPT_GROUPS[edit.kind]
-  const [values, setValues] = useState<Record<PromptGroup, string[]>>(() => {
-    const held = groupsOf(edit)
-    const seeded = {} as Record<PromptGroup, string[]>
-    for (const key of Object.keys(LABELS) as PromptGroup[]) seeded[key] = [...(held[key] ?? [])]
+}: TagsModalProps<K>): JSX.Element | null {
+  const keys = groups.map((group) => group.key)
+  const [values, setValues] = useState<Record<K, string[]>>(() => {
+    const seeded = {} as Record<K, string[]>
+    for (const key of keys) seeded[key] = [...(opened[key] ?? [])]
     return seeded
   })
   const [seedText, setSeedText] = useState(() => String(seed.seed))
@@ -144,14 +194,13 @@ export function RegenerateModal({
     (requireGroup !== undefined && values[requireGroup].length === 0)
 
   // Reset has nothing to do while every shown well already holds its default.
-  const defaultGroups = groupsOf(defaults)
-  const atDefaults = keys.every((key) => sameTags(values[key], defaultGroups[key] ?? []))
+  const atDefaults = keys.every((key) => sameTags(values[key], defaults[key] ?? []))
 
   /** Puts every shown well back to its default; the seed and the name are left as they are. */
   const resetGroups = (): void =>
     setValues((prev) => {
       const next = { ...prev }
-      for (const key of keys) next[key] = [...(defaultGroups[key] ?? [])]
+      for (const key of keys) next[key] = [...(defaults[key] ?? [])]
       return next
     })
 
@@ -181,7 +230,7 @@ export function RegenerateModal({
           if (dead) return
           const typed = nameText.trim()
           onConfirm(
-            withGroups(edit, values),
+            values,
             random ? null : Number(seedText),
             name && typed !== '' ? typed : undefined
           )
@@ -196,9 +245,9 @@ export function RegenerateModal({
 
         <div className="vu-scroll-box">
           <div className="vu-regen-body">
-            {keys.map((key, i) => (
+            {groups.map(({ key, label }, i) => (
               <label key={key} className="vu-field" htmlFor={`${id}-${key}`}>
-                <span className="vu-field-label">{LABELS[key]}</span>
+                <span className="vu-field-label">{label}</span>
                 <ChipListInput
                   id={`${id}-${key}`}
                   values={values[key]}

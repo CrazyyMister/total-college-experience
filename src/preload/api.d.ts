@@ -411,6 +411,8 @@ export interface VenusUniversityApi {
     render: (request: PhotoRenderRequest) => Promise<Result<void>>
     /** A photo's bytes, or `null` where its file is not there. */
     read: (playthroughId: string, ref: PhotoRef) => Promise<Result<Uint8Array<ArrayBuffer> | null>>
+    /** Cancels these photos of a playthrough where they are queued, the one drawing included. */
+    cancel: (playthroughId: string, refs: PhotoRef[]) => Promise<Result<void>>
     /** The photo files a playthrough holds; the development build only. */
     files: (playthroughId: string) => Promise<Result<string[]>>
     /** Removes these photos' files; the development build only. */

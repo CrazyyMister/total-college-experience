@@ -337,6 +337,7 @@ export function buildApi(): VenusUniversityApi {
     photos: {
       render: () => desktopOnly('photos.render'),
       read: () => desktopOnly('photos.read'),
+      cancel: () => desktopOnly('photos.cancel'),
       files: () => desktopOnly('photos.files'),
       deleteFiles: () => desktopOnly('photos.deleteFiles')
     },
