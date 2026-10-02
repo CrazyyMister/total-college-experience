@@ -11,6 +11,7 @@ import {
   type SaveDialogReturnValue
 } from 'electron'
 import { randomUUID } from 'crypto'
+import { is } from '@electron-toolkit/utils'
 import type {
   AppError,
   Character,
@@ -45,7 +46,7 @@ import type {
 } from '@shared/types'
 import { MAX_LOG_RECORD_CHARS } from '@shared/types'
 import type { ClassifierPromptRequest } from '@shared/classifier'
-import type { PromptEdit } from '@shared/imagePrompt'
+import type { PhotoLabRequest, PhotoLabResult, PromptEdit } from '@shared/imagePrompt'
 import type { RoomVariant } from '@shared/room'
 import { appError, toAppError, truncate } from '@shared/errors'
 import {
@@ -104,10 +105,17 @@ import {
   fixHands,
   generateCg,
   generateSprite,
+  isRunning as comfyAnswers,
   setStateSink as setComfyStateSink,
   start as startComfy,
   stopByHand as stopComfyByHand
 } from './services/comfyService'
+import {
+  clearLabPhotos,
+  labPhotoFolder,
+  readLabPhoto,
+  renderLabPhoto
+} from './services/photoLabService'
 import { classifyCloud } from '@shared/llm/cloudClassifier'
 import { completeStructured, type StructuredRequest } from '@shared/llm/cloudLlm'
 import { listModels, testWriter } from '@shared/llm/endpointProbe'
@@ -459,6 +467,37 @@ export function registerIpcHandlers(): void {
     }
   )
 
+  // The development build's photo lab: refused outside it, queued under a group of its own so
+  // no character's card reports it, and timed from the server being up.
+  handle('photoLab:render', (_event, request: PhotoLabRequest) => {
+    assertDevBuild()
+    return enqueue<PhotoLabResult>({
+      group: PHOTO_LAB_GROUP,
+      key: request.id,
+      run: async ({ signal, report }) => {
+        const asked = Date.now()
+        const wasUp = await comfyAnswers()
+        report('Waiting for ComfyUI')
+        await startComfy((step) => report(step))
+        const up = Date.now()
+        const file = await renderLabPhoto(request, { signal, onProgress: report })
+        return { file, bootMs: wasUp ? null : up - asked, renderMs: Date.now() - up }
+      }
+    })
+  })
+  handle('photoLab:read', (_event, file: string) => {
+    assertDevBuild()
+    return readLabPhoto(file)
+  })
+  handle('photoLab:clear', () => {
+    assertDevBuild()
+    return clearLabPhotos()
+  })
+  handle('photoLab:openFolder', async () => {
+    assertDevBuild()
+    await openFolder(await labPhotoFolder(), 'Could not open the photo lab folder.')
+  })
+
   handle('jobs:cancelGroup', (_event, group: string) => cancelGroup(group))
 
   // The per-set axis: cancels one set's keys without touching the character's other work.
@@ -692,6 +731,14 @@ export function registerIpcHandlers(): void {
       event.sender.send('setup:installProgress', redactedProgress(progress))
     })
   })
+}
+
+/** The job group every photo lab render is queued under. */
+const PHOTO_LAB_GROUP = 'photo-lab'
+
+/** Refuses a development-only channel in a packaged build. */
+function assertDevBuild(): void {
+  if (!is.dev) throw appError('DEV_ONLY', 'This is only available in the development build.')
 }
 
 /** Reveals a folder, turning `shell.openPath`'s resolved message into a throw. */

@@ -9,6 +9,7 @@ import {
   buildCgPrompt,
   buildImagePrompt,
   buildOutfitBasePrompt,
+  type PhotoPrompts,
   type PromptEdit
 } from '@shared/imagePrompt'
 import { COMFY_HOST } from '@shared/setupManifest'
@@ -96,6 +97,15 @@ const CG_NODE = {
   detailerPositivePrompt: '50',
   negativePrompt: '5',
   poseImage: '39',
+  saveImage: '9'
+} as const
+
+/** Node ids overwritten in `assets/workflows/characterPhoto.json`. */
+const PHOTO_NODE = {
+  seed: '14',
+  positivePrompt: '4',
+  detailerPositivePrompt: '50',
+  negativePrompt: '5',
   saveImage: '9'
 } as const
 
@@ -200,7 +210,7 @@ function emit(state: ComfyRuntimeState, error?: AppError): void {
 let nodesVerified = false
 
 /** True when ComfyUI answers `/system_stats`. */
-async function isRunning(): Promise<boolean> {
+export async function isRunning(): Promise<boolean> {
   try {
     const response = await fetch(`${BASE_URL}/system_stats`, { signal: AbortSignal.timeout(2000) })
     return response.ok
@@ -1189,6 +1199,33 @@ export async function generateCg(
         : getCharacterCgPath(character.charId, position),
       label: `${character.charId} / cg:${position}`,
       logContext: `seed=${seed}${edit !== undefined ? ', edited' : ''}`
+    },
+    options
+  )
+}
+
+/**
+ * Renders one portrait photo from prompts already written to `destPath`; nothing is read from or
+ * written to a character's folder, so any character can be drawn this way.
+ */
+export async function generatePhoto(
+  prompts: PhotoPrompts,
+  seed: number,
+  destPath: string,
+  label: string,
+  options: JobOptions = {}
+): Promise<string> {
+  throwIfCancelled(options.signal)
+  return runGenerationJob(
+    {
+      workflowFile: 'characterPhoto.json',
+      nodes: PHOTO_NODE,
+      prompts: { positive: prompts.positive, negative: prompts.negative },
+      detailerPositive: prompts.detailerPositive,
+      seed,
+      destPath,
+      label,
+      logContext: `seed=${seed}`
     },
     options
   )

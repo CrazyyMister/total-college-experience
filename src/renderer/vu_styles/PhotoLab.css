@@ -1,0 +1,126 @@
+/* The development build's photo lab: the regenerate modal's frame, widened into a row of
+   choices over two columns — the tag wells and the renders they came back as. Imported from
+   the view module, never from index.css.
+
+   The veil, the wells, the selects, the gallery, the buttons and the foot are base.css's. */
+
+.vu-photolab {
+  --paper-offset: 12px 11px;
+  --paper-tilt: -0.8deg;
+  --paper-shadow: var(--vu-panel-shadow);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: min(1700px, 100% - 60px);
+  height: calc(100% - 100px);
+  padding: 78px 56px 28px 100px;
+  border-radius: 120px 0 0 120px;
+  color: var(--vu-text);
+  font-family: var(--font-body);
+}
+
+/* Every choice on one row, each select as wide as the row allows. */
+.vu-photolab-choices {
+  display: grid;
+  flex: none;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 14px;
+}
+
+/* A seed is a figure to be read digit by digit, so the box is mono. */
+.vu-photolab-seed {
+  font-family: var(--font-mono);
+}
+
+/* The wells on the left, the renders on the right; both scroll inside the panel. */
+.vu-photolab-main {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+  gap: 28px;
+  min-height: 0;
+}
+
+.vu-photolab-tags-box,
+.vu-photolab-shots-box {
+  flex-direction: column;
+  min-height: 0;
+}
+
+.vu-photolab-tags,
+.vu-photolab-shots {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+  padding: 4px 6px 34px;
+  overflow: hidden auto;
+}
+
+/* The prompt as it is sent, read rather than edited. */
+.vu-photolab-final {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.vu-photolab-prompt {
+  margin: 0 0 8px;
+  color: var(--vu-text-muted);
+  font: 500 12px/1.5 var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+/* Her neutral sprite beside the renders, small enough not to crowd them. */
+.vu-photolab-reference {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+}
+
+.vu-photolab-reference > img {
+  height: 220px;
+}
+
+.vu-photolab-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* A photo is a phone's portrait frame, not a CG's landscape one. */
+.vu-photolab-cell {
+  aspect-ratio: 832 / 1216;
+}
+
+.vu-photolab-meta {
+  color: var(--vu-text-muted);
+  font: 500 11px var(--font-mono);
+  text-align: center;
+}
+
+.vu-photolab-error {
+  color: var(--vu-danger);
+  font: 500 12.5px var(--font-body);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+/* One render at full size over the whole panel; a click anywhere puts it away. */
+.vu-photolab-view {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  border: 0;
+  border-radius: inherit;
+  background: var(--vu-ground);
+}
+
+.vu-photolab-view > img {
+  max-width: 100%;
+  max-height: 100%;
+}

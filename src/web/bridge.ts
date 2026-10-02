@@ -333,6 +333,13 @@ export function buildApi(): VenusUniversityApi {
       generateOutfit: () => desktopOnly('comfy.generateOutfit'),
       fixHands: () => desktopOnly('comfy.fixHands')
     },
+    // The development build's photo lab renders locally, which the browser cannot.
+    photoLab: {
+      render: () => desktopOnly('photoLab.render'),
+      read: () => desktopOnly('photoLab.read'),
+      clear: () => desktopOnly('photoLab.clear'),
+      openFolder: () => desktopOnly('photoLab.openFolder')
+    },
     jobs: {
       cancelGroup: (group) => result('cancel the jobs', () => cancelGroup(group)),
       cancelKeys: (group, keys) => result('cancel the jobs', () => cancelKeys(group, keys)),

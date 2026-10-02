@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type JSX } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState, type JSX } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { pictureKeySet } from '@shared/settingsRules'
 import { fullNameOf, type Character } from '@shared/types'
@@ -42,6 +42,11 @@ import {
 } from './motion'
 import { BackIcon, CloseIcon, DownloadIcon } from './screenIcons'
 import '../vu_styles/ManageCharacters.css'
+
+/** The photo lab, loaded only in the development build so the build that ships holds none. */
+const PhotoLab = import.meta.env.DEV
+  ? lazy(() => import('./PhotoLabModal').then((module) => ({ default: module.PhotoLabModal })))
+  : null
 
 /** The header chip's wording for each state it reports; a stopped server is a button instead. */
 const COMFY_PILL = {
@@ -104,6 +109,7 @@ export function ManageCharactersView(): JSX.Element {
   const [filling, setFilling] = useState(false)
   const [restoring, setRestoring] = useState(false)
   const [stopping, setStopping] = useState(false)
+  const [photoLab, setPhotoLab] = useState(false)
 
   // Drawn once per visit, from the dev switch or the machine clock.
   const [theme] = useState(heldScreenTheme)
@@ -122,6 +128,16 @@ export function ManageCharactersView(): JSX.Element {
     reshuffleSuggestions()
     void load()
   }, [load])
+
+  // Who the photo lab can draw: every woman on the shelf, shipped cast included, by name.
+  const photoLabCast = useMemo(
+    () =>
+      allOrder
+        .map((charId) => characters[charId])
+        .filter((character): character is Character => character?.gender === 'woman')
+        .sort((a, b) => fullNameOf(a).localeCompare(fullNameOf(b))),
+    [allOrder, characters]
+  )
 
   const deletingCharacter = deleting ? characters[deleting] : null
   const editingCharacter = editing ? characters[editing] : null
@@ -280,6 +296,17 @@ export function ManageCharactersView(): JSX.Element {
           >
             {restoring ? 'Restoring…' : 'Restore default characters'}
           </motion.button>
+          {/* The development build's photo lab; it needs ComfyUI as a new character does. */}
+          {PhotoLab && (
+            <motion.button
+              id="manage-photo-lab"
+              className="vu-pill"
+              {...gestures(false, quietLift, quietPress)}
+              onClick={() => (comfyInstalled ? setPhotoLab(true) : setNeedsComfy(true))}
+            >
+              Photo lab
+            </motion.button>
+          )}
           {/* The one that always has something to do: dead only while it is doing it. */}
           <motion.button
             id="manage-import"
@@ -387,6 +414,17 @@ export function ManageCharactersView(): JSX.Element {
               void createBlank(firstName, lastName, identity, personality)
             }}
           />
+        )}
+
+        {PhotoLab && photoLab && (
+          <Suspense key="photo-lab" fallback={null}>
+            <PhotoLab
+              theme={theme}
+              characters={photoLabCast}
+              nsfwAllowed={!noNsfwImages}
+              onClose={() => setPhotoLab(false)}
+            />
+          </Suspense>
         )}
 
         {needsComfy && (

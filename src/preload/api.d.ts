@@ -1,5 +1,5 @@
 import type { ClassifierPromptRequest, ClassifierVerdict } from '@shared/classifier'
-import type { PromptEdit } from '@shared/imagePrompt'
+import type { PhotoLabRequest, PhotoLabResult, PromptEdit } from '@shared/imagePrompt'
 import type { RoomVariant } from '@shared/room'
 import type {
   Character,
@@ -386,6 +386,20 @@ export interface VenusUniversityApi {
       paintLayer: string,
       seed: number
     ) => Promise<Result<HandFixResult>>
+  }
+  /**
+   * The development build's photo lab; every channel is refused in a packaged build and in the
+   * browser.
+   */
+  photoLab: {
+    /** Queues one render under the `photo-lab` group, keyed by `request.id`. */
+    render: (request: PhotoLabRequest) => Promise<Result<PhotoLabResult>>
+    /** The bytes of one picture the lab wrote, by the file name `render` answered. */
+    read: (file: string) => Promise<Result<Uint8Array<ArrayBuffer>>>
+    /** Empties the lab's folder. */
+    clear: () => Promise<Result<void>>
+    /** Opens the lab's folder in the file browser. */
+    openFolder: () => Promise<Result<void>>
   }
   jobs: {
     cancelGroup: (group: string) => Promise<Result<void>>

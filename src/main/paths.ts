@@ -324,6 +324,11 @@ export function getTempPath(): string {
   return join(getDataPath(), 'tmp')
 }
 
+/** `/data/tmp/photo-lab` — the development build's photo lab renders, kept until it clears them. */
+export function getPhotoLabPath(): string {
+  return join(getTempPath(), 'photo-lab')
+}
+
 /** `/data/services/comfyui` — flattened portable build root. */
 export function getComfyUiPath(): string {
   return join(getServicesPath(), 'comfyui')

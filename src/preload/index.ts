@@ -148,6 +148,12 @@ const api: VenusUniversityApi = {
     fixHands: (character, target, paintLayer, seed) =>
       ipcRenderer.invoke('comfy:fixHands', character, target, paintLayer, seed)
   },
+  photoLab: {
+    render: (request) => ipcRenderer.invoke('photoLab:render', request),
+    read: (file) => ipcRenderer.invoke('photoLab:read', file),
+    clear: () => ipcRenderer.invoke('photoLab:clear'),
+    openFolder: () => ipcRenderer.invoke('photoLab:openFolder')
+  },
   jobs: {
     cancelGroup: (group) => ipcRenderer.invoke('jobs:cancelGroup', group),
     cancelKeys: (group, keys) => ipcRenderer.invoke('jobs:cancelKeys', group, keys),

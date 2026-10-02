@@ -1,7 +1,20 @@
 import type { Character, Emotion, OutfitSet, Position } from './types'
 import { negativeTagsFor, outfitTagsFor } from './outfits'
+import {
+  isAdultPhoto,
+  LINGERIE_TAGS,
+  NOBODY_NEGATIVE_TAGS,
+  PHOTO_FRAMING_TAGS,
+  PHOTO_PLACES,
+  photoShowsHer,
+  photoTimeTags,
+  SEXY_EXPRESSION_TAGS,
+  type PhotoKind,
+  type PhotoOutfit
+} from './photos'
 import { CG_BASE_PROMPT, POSITION_TAGS } from './positions'
 import { EXPRESSION_EYES, EXPRESSION_MOUTH } from './tags'
+import type { Weather } from './weather'
 
 /**
  * Builds the production prompt strings for `comfyService`, out of the tag groups one render
@@ -307,4 +320,123 @@ export function buildOutfitBasePrompt(
   const groups = edit?.kind === 'sprite' ? edit : draft
 
   return { positive: spritePositive(groups, []), negative: groups.negative.join(', ') }
+}
+
+/** What one photo is of: who, what kind, in what, where and when. */
+export interface PhotoChoice {
+  kind: PhotoKind
+  /** What she wears; the two adult kinds dress her themselves. */
+  outfit: PhotoOutfit
+  /** A key of `PHOTO_PLACES`. */
+  place: string
+  night: boolean
+  weather: Weather
+}
+
+/** One photo's tag groups, each one a list the player may rewrite. */
+export interface PhotoGroups {
+  base: string[]
+  appearance: string[]
+  outfit: string[]
+  framing: string[]
+  expression: string[]
+  place: string[]
+  time: string[]
+  negative: string[]
+}
+
+/** The groups in the order the positive prompt is written in, the negative last. */
+export const PHOTO_GROUP_ORDER: readonly (keyof PhotoGroups)[] = [
+  'base',
+  'appearance',
+  'outfit',
+  'framing',
+  'expression',
+  'place',
+  'time',
+  'negative'
+]
+
+/** The three strings one photo render needs. */
+export interface PhotoPrompts {
+  positive: string
+  negative: string
+  /** The Face Detailer's positive: who she is and how she looks, nothing of the frame. */
+  detailerPositive: string
+}
+
+/** The groups one photo is drawn from; a photo with nobody in it carries none of her. */
+export function photoDraft(character: Character, choice: PhotoChoice): PhotoGroups {
+  const her = photoShowsHer(choice.kind)
+  const place = PHOTO_PLACES[choice.place]
+  const adult = isAdultPhoto(choice.kind)
+  const set: OutfitSet | null =
+    choice.kind === 'nude'
+      ? 'nude'
+      : choice.kind === 'sexy' || choice.outfit === 'main'
+        ? null
+        : choice.outfit
+  const outfit = !her
+    ? []
+    : choice.kind === 'sexy'
+      ? [...LINGERIE_TAGS]
+      : set === null
+        ? [...character.outfit]
+        : [...outfitTagsFor(character, set)]
+
+  return {
+    base: [...QUALITY_TAGS, her ? 'solo' : 'no_humans'],
+    appearance: her ? [...character.baseAppearance] : [],
+    outfit,
+    framing: [...PHOTO_FRAMING_TAGS[choice.kind]],
+    expression: her
+      ? [...character.expressionTags.happy, ...(adult ? SEXY_EXPRESSION_TAGS : [])]
+      : [],
+    place: [...(place?.tags ?? [])],
+    time: photoTimeTags(place, choice.night, choice.weather),
+    negative: [
+      ...CG_NEGATIVE_TAGS,
+      ...(set ? negativeTagsFor(set) : []),
+      ...(her ? genderNegativeOf(character) : NOBODY_NEGATIVE_TAGS),
+      ...(character.negativeTags ?? [])
+    ]
+  }
+}
+
+/** Writes a photo's groups as the prompts its graph is sent. */
+export function buildPhotoPrompts(groups: PhotoGroups): PhotoPrompts {
+  return {
+    positive: joinGroups([
+      groups.base,
+      groups.appearance,
+      groups.outfit,
+      groups.framing,
+      groups.expression,
+      groups.place,
+      groups.time
+    ]),
+    negative: groups.negative.join(', '),
+    detailerPositive: joinGroups([groups.base, groups.appearance, groups.expression])
+  }
+}
+
+/** One render the photo lab asks for. */
+export interface PhotoLabRequest {
+  /** The job's key and the lab's own handle on it. */
+  id: string
+  /** What the file is named before its seed: who, the kind, the version, the place and the hour. */
+  stem: string
+  prompts: PhotoPrompts
+  seed: number
+  /** The lines the text file beside the picture opens with: what was chosen in the lab. */
+  notes: string[]
+}
+
+/** One finished lab render: its file, and how long the server took to start and to draw it. */
+export interface PhotoLabResult {
+  file: string
+  /** How long ComfyUI took to start for this job; null where it was already up. */
+  bootMs: number | null
+  /** From the server being up to the picture on disk. */
+  renderMs: number
 }
