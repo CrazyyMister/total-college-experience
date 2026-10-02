@@ -67,10 +67,15 @@ import { settleMessagePhoto } from '@shared/imagePrompt'
 import { ROOM_LOCATION } from '@shared/locations'
 import {
   chosenPhotoKind,
+  invitationKindsOf,
+  invitationPhotoPick,
   isAdultPhoto,
   photoOfferFor,
   photoPlaceOf,
   photoSeed,
+  readInvitationPhoto,
+  type InvitationPhoto,
+  type InvitationPhotoCandidate,
   type MessagePhoto,
   type PhotoKind,
   type PhotoOffer
@@ -248,6 +253,127 @@ function replyPhotoFor(
     weatherAt(game.weather, game.date, game.time),
     photoSeed()
   )
+}
+
+/**
+ * The contacts the development build's test buttons have invite the reader at the next ending, by
+ * charId, each with the photo kind forced onto her invitation or null; forgotten at the boundary
+ * and on leaving the game.
+ */
+const forcedInvitations = new Map<string, PhotoKind | null>()
+
+/** Has `charId` invite the reader at the next ending, carrying a photo of `kind` where given. */
+export function forceInvitation(charId: string, kind: PhotoKind | null): void {
+  forcedInvitations.set(charId, kind)
+}
+
+/** The invitation the test buttons force for `charId`: undefined for none, else its photo kind. */
+export function forcedInvitationOf(charId: string): PhotoKind | null | undefined {
+  return forcedInvitations.get(charId)
+}
+
+/** What the latest opening decided of each invitation's photo, for the development build. */
+let invitationPhotoReport: string[] = []
+
+/** The latest opening's photo decision, one line per invitation. */
+export function invitationPhotoReportOf(): readonly string[] {
+  return invitationPhotoReport
+}
+
+/** One invitation an opening is asked for, as the photo decision reads it. */
+export interface InvitationPhotoAsker {
+  charId: string
+  /** Where the map places her in the slot the invitation opens, or null for nowhere. */
+  location: string | null
+  /** A reminder about a plan already made, which carries no photo. */
+  reminder: boolean
+}
+
+/**
+ * The one photo an opening's invitations carry, settled now for the slot `date`/`time` they open:
+ * only new invitations from somewhere the map places her, off the one photo rule with `charInfo`
+ * as the ending leaves it, cut to the kinds an invitation carries, then rolled; none where the
+ * game offers no photos at all.
+ */
+export function invitationPhotoFor(
+  askers: readonly InvitationPhotoAsker[],
+  date: number,
+  time: TimeSlot,
+  charInfo: Readonly<Record<string, CharInfo | undefined>>
+): InvitationPhoto | null {
+  const game = useGameStore.getState()
+  const name = (charId: string): string => game.characters[charId]?.firstName ?? charId
+  const report: string[] = []
+  invitationPhotoReport = report
+  if (!photosOffered()) {
+    if (askers.length > 0) report.push('No photos at all: no ComfyUI, the browser, or the setting is off')
+    return null
+  }
+  const candidates: InvitationPhotoCandidate[] = []
+  for (const { charId, location, reminder } of askers) {
+    const character = game.characters[charId]
+    if (!character) continue
+    if (reminder) {
+      report.push(`${name(charId)}: a reminder about a plan, no photo`)
+      continue
+    }
+    if (location === null) {
+      report.push(`${name(charId)}: the map places her nowhere, no photo`)
+      continue
+    }
+    const offer = photoOfferFor({
+      gender: character.gender,
+      flags: charInfo[charId]?.flags ?? emptyFlags(),
+      location,
+      away: charAwayNow(charId, date),
+      noNsfwImages: noNsfwImagesOf(useSettingsStore.getState())
+    })
+    const kinds = invitationKindsOf(offer.kinds)
+    const forced = forcedInvitations.get(charId) ?? undefined
+    report.push(
+      `${name(charId)} at ${offer.place}: may carry ${kinds.join(', ') || 'nothing'}` +
+        (forced ? `; ${forced} forced${kinds.includes(forced) ? '' : ', but the rule refuses it'}` : '')
+    )
+    candidates.push({ charId, kinds, ...(forced ? { forced } : {}) })
+  }
+  const pick = invitationPhotoPick(candidates)
+  if (pick === null) {
+    if (candidates.length > 0) report.push('The roll sent no photo')
+    return null
+  }
+  const character = game.characters[pick.charId]!
+  const location = askers.find(({ charId }) => charId === pick.charId)?.location ?? null
+  const photo = settleMessagePhoto(
+    character,
+    pick.kind,
+    photoPlaceOf(location),
+    time === 1,
+    weatherAt(game.weather, date, time),
+    photoSeed()
+  )
+  report.push(`${name(pick.charId)} sends a ${pick.kind} photo at ${photo.place}, seed ${photo.seed}`)
+  return { charId: pick.charId, photo }
+}
+
+/**
+ * Whether a banked invitation photo still holds as it is delivered: the game still offers photos
+ * and the one rule, read off her as she now stands where the map now places her, still offers
+ * its kind at its place.
+ */
+function invitationPhotoStands(charId: string, photo: MessagePhoto): boolean {
+  if (!photosOffered()) return false
+  const game = useGameStore.getState()
+  const character = game.characters[charId]
+  const location = charHiddenLocationNow(charId)
+  if (!character || location === null) return false
+  const offer = photoOfferFor({
+    gender: character.gender,
+    flags: game.charInfo[charId]?.flags ?? emptyFlags(),
+    location,
+    away: charAwayNow(charId),
+    noNsfwImages: noNsfwImagesOf(useSettingsStore.getState())
+  })
+  return offer.place === photo.place && invitationKindsOf(offer.kinds).includes(photo.kind)
 }
 
 /** One in-flight texting turn per conversation, keyed by charId. */
@@ -1070,6 +1196,8 @@ export function resetTextingLoop(): void {
   armedPhotos.clear()
   homeForPhotos.clear()
   lastOffers.clear()
+  forcedInvitations.clear()
+  invitationPhotoReport = []
   resetPhotos()
 }
 
@@ -1364,6 +1492,13 @@ export function pickSlotAskers(
   // A booked slot rolls nobody; the plan branch above stays outside this.
   if (booked) return picked
 
+  // The development build's forced invitations skip the roll and the quiet, never a block.
+  for (const charId of forcedInvitations.keys()) {
+    const flags = view.charInfo[charId]?.flags
+    if (!flags?.gaveContactInfo || flags.blocked || charUnavailableNow(charId, day, half)) continue
+    take(charId)
+  }
+
   const target = globalSlotOf(day, half)
   const conversations = game.bunnyboard.conversations
   // One invitation, then a spell of quiet, whoever sent it.
@@ -1423,12 +1558,20 @@ export function plannedWith(
 
 /**
  * Files the invitations the slot opening wrote. `occasionId` is the occasion its askers were
- * asking him to, stamped onto every one of them that is not a reminder about a plan.
+ * asking him to, stamped onto every one of them that is not a reminder about a plan;
+ * `invitationPhoto` is the banked photo one of them carries, attached only where it still holds.
+ * The invitations the test buttons forced are spent here.
  */
 export function deliverSlotHangouts(
   hangouts: SlotIntroResponse['hangouts'],
-  occasionId?: string
+  occasionId?: string,
+  invitationPhoto?: unknown
 ): void {
+  forcedInvitations.clear()
+  const banked = readInvitationPhoto(invitationPhoto)
+  if (invitationPhoto !== undefined && banked === null) {
+    console.warn('[texting] an invitation photo that does not read went unsent')
+  }
   for (const hangout of hangouts ?? []) {
     const game = useGameStore.getState()
     const charId = game.charKeyToId[hangout.char]
@@ -1446,9 +1589,16 @@ export function deliverSlotHangouts(
 
     // Two people who agreed to meet up have exchanged numbers.
     addContact(charId)
-    deliver(charId, chatMessage('contact', text))
     // A reminder about a plan already on the calendar is not an invitation and starts no cooldown.
     const reminder = plannedWith(charId, game.date, game.time) !== null
+    const message = chatMessage('contact', text)
+    const photo =
+      !reminder && banked?.charId === charId && invitationPhotoStands(charId, banked.photo)
+        ? banked.photo
+        : null
+    if (photo) message.photo = photo
+    deliver(charId, message)
+    if (photo) void showPhoto(message, false)
     if (!reminder) useGameStore.getState().markInvitation(charId)
     useGameStore.getState().setPendingHangout(charId, {
       description,

@@ -10,7 +10,9 @@ import {
 } from '@shared/imagePrompt'
 import {
   chosenPhotoKind,
+  invitationPhotoPick,
   photoOfferFor,
+  readInvitationPhoto,
   type PhotoOfferInput,
   isPhotoFileName,
   isPhotoSeed,
@@ -318,17 +320,17 @@ describe('which photos she may send', () => {
   const lover = { ...emptyFlags(), isLover: true }
 
   it('offers anyone the everyday kinds, and the adult ones only to those open with him', () => {
-    expect(photoOfferFor(her()).kinds).toEqual(['selfie', 'mirror', 'food', 'place'])
+    expect(photoOfferFor(her()).kinds).toEqual(['selfie', 'mirror', 'place'])
     const crush = { ...emptyFlags(), hasCrush: true }
     for (const flags of [lover, crush, { ...emptyFlags(), benefits: true }]) {
-      expect(photoOfferFor(her({ flags })).kinds).toEqual([...PHOTO_KINDS])
+      expect(photoOfferFor(her({ flags })).kinds).toEqual(['selfie', 'mirror', 'place', 'sexy', 'nude'])
     }
   })
 
   it('withholds the adult kinds across a friendzone, crush and all', () => {
     for (const zone of ['friendZoned', 'friendZonedBy'] as const) {
       const offer = photoOfferFor(her({ flags: { ...emptyFlags(), hasCrush: true, [zone]: true } }))
-      expect(offer.kinds).toEqual(['selfie', 'mirror', 'food', 'place'])
+      expect(offer.kinds).toEqual(['selfie', 'mirror', 'place'])
       expect(offer.refused.nude).toBe('a friendzone stands between them')
     }
   })
@@ -346,7 +348,7 @@ describe('which photos she may send', () => {
 
   it('withholds the adult kinds under the no-NSFW-images setting', () => {
     const offer = photoOfferFor(her({ flags: lover, noNsfwImages: true }))
-    expect(offer.kinds).toEqual(['selfie', 'mirror', 'food', 'place'])
+    expect(offer.kinds).toEqual(['selfie', 'mirror', 'place'])
     expect(offer.refused.sexy).toBe('the no-NSFW-images setting')
   })
 
@@ -357,6 +359,16 @@ describe('which photos she may send', () => {
     const park = photoOfferFor(her({ location: 'green_hill_park' }))
     expect(park.refused.mirror).toBe('no mirror where she is')
     expect(photoOfferFor(her({ location: null })).refused.mirror).toBe('the map places her nowhere')
+  })
+
+  it('offers food only somewhere that serves it, never her room or nowhere', () => {
+    for (const location of ['agora', 'cutetea', 'pastel_palace']) {
+      expect(photoOfferFor(her({ location })).kinds).toContain('food')
+    }
+    for (const location of ['room', 'lowrise_dorms', 'kendall_library']) {
+      expect(photoOfferFor(her({ location })).refused.food).toBe('no food where she is')
+    }
+    expect(photoOfferFor(her({ location: null })).refused.food).toBe('the map places her nowhere')
   })
 
   it('offers nothing from a man, from one who blocked him or from one away on break', () => {
@@ -377,6 +389,60 @@ describe('the kind a reply chose', () => {
     expect(chosenPhotoKind('selfie', ['selfie', 'food'])).toBe('selfie')
     for (const value of ['none', 'nude', 'portrait', '', 3, null, undefined]) {
       expect(chosenPhotoKind(value, ['selfie', 'food'])).toBeNull()
+    }
+  })
+})
+
+describe('the photo an invitation carries', () => {
+  const everything = [...PHOTO_KINDS]
+  /** A roll that answers each of `values` in turn, then the last one forever. */
+  const rolls = (...values: number[]) => () => (values.length > 1 ? values.shift()! : values[0]!)
+
+  it('never carries an adult kind, forced or rolled', () => {
+    expect(invitationPhotoPick([{ charId: 'a', kinds: ['sexy', 'nude'] }], () => 0)).toBeNull()
+    expect(
+      invitationPhotoPick([{ charId: 'a', kinds: everything, forced: 'nude' }], () => 0.99)
+    ).toBeNull()
+    for (let i = 0; i < 20; i++) {
+      const pick = invitationPhotoPick([{ charId: 'a', kinds: everything }], rolls(0, i / 20))
+      expect(['selfie', 'mirror', 'food', 'place']).toContain(pick?.kind)
+    }
+  })
+
+  it('sends at most one, from the first invitation to win the roll', () => {
+    const pick = invitationPhotoPick(
+      [
+        { charId: 'a', kinds: ['selfie'] },
+        { charId: 'b', kinds: ['selfie'] }
+      ],
+      rolls(0.9, 0.1, 0)
+    )
+    expect(pick).toEqual({ charId: 'b', kind: 'selfie' })
+    expect(invitationPhotoPick([{ charId: 'a', kinds: ['selfie'] }], () => 0.9)).toBeNull()
+  })
+
+  it('takes a forced kind only where the rule offers it', () => {
+    expect(
+      invitationPhotoPick([{ charId: 'a', kinds: ['selfie', 'place'], forced: 'place' }], () => 0.99)
+    ).toEqual({ charId: 'a', kind: 'place' })
+    expect(
+      invitationPhotoPick([{ charId: 'a', kinds: ['selfie'], forced: 'mirror' }], () => 0.99)
+    ).toBeNull()
+  })
+
+  it('reads a banked one whole, and anything else as no photo', () => {
+    const banked = { charId: 'a', photo: photo() }
+    expect(readInvitationPhoto(banked)).toEqual(banked)
+    for (const value of [
+      undefined,
+      null,
+      'a',
+      { charId: 'a' },
+      { charId: '', photo: photo() },
+      { charId: 'a', photo: { ...photo(), seed: -1 } },
+      { charId: 'a', photo: { ...photo(), kind: 'nude' } }
+    ]) {
+      expect(readInvitationPhoto(value)).toBeNull()
     }
   })
 })

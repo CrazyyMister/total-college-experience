@@ -48,6 +48,11 @@ export interface IntroAsker {
    * her own haunt. Absent for a slot nothing places her in, which is most of them.
    */
   whereabouts?: { location: string; companions: NpcCompanions; haunt?: Haunt }
+  /**
+   * What the photo her invitation goes out with shows, as the game words it. Absent for an
+   * invitation with no photo.
+   */
+  photo?: string
 }
 
 /** A lover the reader left this slot for somebody else, who is texting him to end it. */
@@ -284,6 +289,11 @@ function anyOccasions(input: SlotIntroInput): boolean {
   return input.askers.some(({ occasion }) => occasion !== undefined)
 }
 
+/** Whether any invitation this slot goes out with a photo. */
+function anyPhotos(input: SlotIntroInput): boolean {
+  return input.askers.some(({ photo }) => photo !== undefined)
+}
+
 /** The characters texting the reader an invitation this slot. */
 function askerBlock(input: SlotIntroInput): string[] {
   if (input.askers.length === 0) return []
@@ -301,14 +311,24 @@ function askerBlock(input: SlotIntroInput): string[] {
           'Where an occasion is listed beside a character, their text is about going to that occasion together — it is described under WHAT\'S GOING ON. They say what they want to do or see there and ask him to come with them, and their "description" names it, like "Going to the Winter Gala with Sarah".'
         ]
       : []),
-    ...input.askers.map(({ charKey, plan, occasion }) =>
-      // The plan and the occasion ride the key, not the lorebook entry.
-      plan
-        ? `- ${charKey} — already planned for this part of the day: ${plan.description}`
-        : occasion
-          ? `- ${charKey} — asking him to come to ${occasion.title} together`
-          : `- ${charKey}`
-    )
+    ...(anyPhotos(input)
+      ? [
+          'Where a photo is listed beside a character, their message goes out with that photo attached, already taken. The text may point to it in passing, but says nothing about what is in it beyond what is listed. A character with no photo listed does not mention sending one.'
+        ]
+      : []),
+    ...input.askers.map(({ charKey, plan, occasion, photo }) => {
+      // The plan, the occasion and the photo ride the key, not the lorebook entry.
+      const sent = photo ? `sends a photo with this text: ${photo}` : null
+      const notes = [
+        plan
+          ? `already planned for this part of the day: ${plan.description}`
+          : occasion
+            ? `asking him to come to ${occasion.title} together`
+            : null,
+        sent
+      ].filter((note): note is string => note !== null)
+      return notes.length > 0 ? `- ${charKey} — ${notes.join('; ')}` : `- ${charKey}`
+    })
   ]
 }
 

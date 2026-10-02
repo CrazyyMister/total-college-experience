@@ -23,6 +23,7 @@ import type { NpcRomanceMap, ReaderBreakup } from '@shared/npcRomance'
 import { posterRomanceOf, type GuaranteedPosters } from '@shared/npcRomancePosts'
 import type { GossipTopic } from '@shared/npcRomanceGossip'
 import { isSilentLine, isSlotSaveId } from '@shared/saveRules'
+import { photoPhrase } from '@shared/photos'
 import {
   charKeyOf,
   READER_SPEAKER,
@@ -139,6 +140,7 @@ import {
   deliverEventCancellations,
   deliverSlotBreakups,
   deliverSlotHangouts,
+  invitationPhotoFor,
   deliverVenusJobIntro,
   deliverVenusMessages,
   pickOccasionAsker,
@@ -452,7 +454,7 @@ async function beginSlot(): Promise<void> {
   deliverEventCancellations([...awayCancellations, ...opening.cancellations])
 
   // Before the fold, so the invitations are inside the start-of-slot save.
-  deliverSlotHangouts(opening.hangouts, opening.askOccasionId)
+  deliverSlotHangouts(opening.hangouts, opening.askOccasionId, opening.invitationPhoto)
 
   // The texts the girls he left wrote, filed on the same terms.
   deliverSlotBreakups(opening.breakups)
@@ -736,6 +738,24 @@ async function fetchSlotIntro(
     })
   }
 
+  // The one photo an invitation carries, settled before the request so a retry re-sends it,
+  // and told to the writer beside her key as the game words it.
+  const invitationPhoto = invitationPhotoFor(
+    askers.map(({ character, plan, whereabouts }) => ({
+      charId: character.charId,
+      location: whereabouts?.location ?? null,
+      reminder: plan !== undefined
+    })),
+    date,
+    time,
+    view.charInfo
+  )
+  const photoAskers = askers.map((asker) =>
+    invitationPhoto && asker.character.charId === invitationPhoto.charId
+      ? { ...asker, photo: photoPhrase(invitationPhoto.photo) }
+      : asker
+  )
+
   // Everybody the roll picked, askers included.
   const posters: IntroPoster[] = []
   for (const charKey of postingKeys) {
@@ -822,7 +842,7 @@ async function fetchSlotIntro(
       opening,
       lessNsfwText: lessNsfwTextNow(),
       recent: recentSummaries(date, time, pendingSummary),
-      askers,
+      askers: photoAskers,
       breakups,
       posters,
       occasions,
@@ -858,6 +878,7 @@ async function fetchSlotIntro(
         hangouts: result.data.hangouts,
         breakups: result.data.breakups,
         ...(occasion ? { askOccasionId: occasion.id } : {}),
+        ...(invitationPhoto ? { invitationPhoto } : {}),
         posts: result.data.posts,
         // Only the hints of posters who made it into the prompt can come back written.
         ...(romance && romance.guaranteed.driftPosts.length > 0

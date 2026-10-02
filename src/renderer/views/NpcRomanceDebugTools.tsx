@@ -25,6 +25,7 @@ import {
 import {
   debugArmPhoto,
   debugDeletePhotos,
+  debugForceInvitation,
   debugHomeForPhotos,
   photoRowsOf
 } from '../stores/photoDebugActions'
@@ -172,6 +173,22 @@ export function NpcRomanceDebugTools({ onChanged }: NpcRomanceDebugToolsProps): 
           }}
         >
           X’s next reply sends a {kind} photo
+        </motion.button>
+        <motion.button
+          className="vu-btn vu-paper vu-btn--panel"
+          type="button"
+          {...gestures(false, lift, press)}
+          onClick={() => setResult(debugForceInvitation(x, null))}
+        >
+          X invites the reader at the next ending
+        </motion.button>
+        <motion.button
+          className="vu-btn vu-paper vu-btn--panel"
+          type="button"
+          {...gestures(false, lift, press)}
+          onClick={() => setResult(debugForceInvitation(x, kind))}
+        >
+          X’s next-ending invitation carries a {kind} photo
         </motion.button>
         <motion.button
           className="vu-btn vu-paper vu-btn--panel"

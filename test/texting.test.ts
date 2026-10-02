@@ -38,6 +38,11 @@ import { registerHangoutEntry } from '../src/renderer/stores/loop/hooks'
 import { applyLedger } from '../src/renderer/stores/sceneSanitizer'
 import { useGameStore } from '../src/renderer/stores/gameStore'
 import { character, charactersById, charInfo, restoreApi, stubApi } from './fixtures'
+import { settleMessagePhoto } from '@shared/imagePrompt'
+import type { MessagePhoto } from '@shared/photos'
+import type { SetupStatus } from '@shared/types'
+import { shiftWeekdayOf } from '../src/renderer/prompts/gameDate'
+import { useSetupStore } from '../src/renderer/stores/setupStore'
 
 function conversation(over: Partial<Conversation> = {}): Conversation {
   return { charId: 'c', messages: [], unread: 0, summary: null, ...over }
@@ -969,6 +974,74 @@ describe('the blocked gates', () => {
 
     expect(useGameStore.getState().bunnyboard.conversations.a?.messages).toHaveLength(0)
     expect(useGameStore.getState().bunnyboard.conversations.a?.pendingHangout).toBeUndefined()
+  })
+})
+
+describe('the photo an invitation carries', () => {
+  afterEach(() => {
+    restoreApi()
+    useSetupStore.setState({ status: null })
+  })
+
+  /** Sarah, a contact at Cutetea this slot with the photos on, and a selfie banked for her there. */
+  function seedAtCutetea(): MessagePhoto {
+    seed({ nameKnown: true })
+    useGameStore.setState((state) => ({
+      time: 0,
+      charInfo: {
+        a: {
+          ...state.charInfo.a!,
+          flags: { ...emptyFlags(), gaveContactInfo: true },
+          hiddenSchedule: { [shiftSlotOf(shiftWeekdayOf(7), 0)]: { location: 'cutetea', kind: 'meal' } }
+        }
+      }
+    }))
+    stubApi({})
+    useSetupStore.setState({ status: { comfyReady: true } as SetupStatus })
+    return settleMessagePhoto(useGameStore.getState().characters.a!, 'selfie', 'cutetea', false, 'clear', 42)
+  }
+  const invite = [{ char: 'sarah_rose', text: 'come out?', description: 'coffee' }]
+  const messagesOf = () => useGameStore.getState().bunnyboard.conversations.a?.messages ?? []
+
+  it('rides her invitation as banked', () => {
+    const photo = seedAtCutetea()
+    deliverSlotHangouts(invite, undefined, { charId: 'a', photo })
+    expect(messagesOf()).toHaveLength(1)
+    expect(messagesOf()[0]!.photo).toEqual(photo)
+  })
+
+  it('is delivered once on a replayed boundary', () => {
+    const photo = seedAtCutetea()
+    deliverSlotHangouts(invite, undefined, { charId: 'a', photo })
+    deliverSlotHangouts(invite, undefined, { charId: 'a', photo })
+    expect(messagesOf()).toHaveLength(1)
+  })
+
+  it('goes unsent, the invitation still delivered, where the photos are off by then', () => {
+    const photo = seedAtCutetea()
+    useSetupStore.setState({ status: null })
+    deliverSlotHangouts(invite, undefined, { charId: 'a', photo })
+    expect(messagesOf()).toHaveLength(1)
+    expect(messagesOf()[0]!.photo).toBeUndefined()
+  })
+
+  it('goes unsent where the field does not read, or an opening banked before it has none', () => {
+    seedAtCutetea()
+    deliverSlotHangouts(invite, undefined, { charId: 'a', photo: { kind: 'selfie' } })
+    expect(messagesOf()).toHaveLength(1)
+    expect(messagesOf()[0]!.photo).toBeUndefined()
+    seedAtCutetea()
+    deliverSlotHangouts(invite)
+    expect(messagesOf()[0]!.photo).toBeUndefined()
+  })
+
+  it('never rides a reminder about a plan', () => {
+    const photo = seedAtCutetea()
+    useGameStore.setState({
+      events: [{ id: 'e1', date: 7, time: 0, title: 'Coffee', description: 'Coffee with Sarah.', charIds: ['a'], madeOn: { date: 6, time: 1 } }]
+    })
+    deliverSlotHangouts(invite, undefined, { charId: 'a', photo })
+    expect(messagesOf()[0]!.photo).toBeUndefined()
   })
 })
 

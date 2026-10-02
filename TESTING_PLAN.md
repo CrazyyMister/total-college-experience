@@ -76,6 +76,11 @@ You will need externally kept data for testing:
 - [ ] Regenerate a photo again with "Use a new random seed" unticked, keeping its seed, and one tag changed. Verify both files are in data/saves/<playthrough>/photos.
 - [ ] Open Regenerate on a photo whose tags were changed and click "Reset to default tags". Verify the tags go back to the ones the photo was first drawn with.
 - [ ] Turn off "Characters text photos" in Settings, ask a girl for a photo and verify none arrives. Turn it back on.
+- [ ] Play until a girl's invitation arrives with a photo. Verify "Sending photo…" shows first, then the picture, and that it matches where BunnyMap places her.
+- [ ] Hover that invitation's photo, click Regenerate and confirm. Verify the new picture replaces the old one.
+- [ ] Right after an invitation with a photo arrives, load the autosave and play into the new slot again. Verify the same invitation arrives once, with the same picture.
+- [ ] Load that autosave again, turn off "Characters text photos" and play into the new slot. Verify the invitation arrives without a photo. Turn it back on.
+- [ ] When a girl invites you while BunnyMap shows her nowhere that slot, verify her invitation came without a photo.
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 

@@ -1150,6 +1150,12 @@ export interface SlotOpening {
    * Absent for a slot that had none, or that he was not free to go to one on.
    */
   askOccasionId?: string
+  /**
+   * The one photo an invitation carries, an `InvitationPhoto` when written: whose invitation and
+   * the photo settled for it. Read only through `readInvitationPhoto`; absent, or a field that
+   * does not read, is no photo.
+   */
+  invitationPhoto?: unknown
   /** The plans the merged ledger found, normalized and attendance-filtered. */
   events: CalendarEvent[]
   /** Who that filtering took off an event, announced by text at step 1. */

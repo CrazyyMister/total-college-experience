@@ -75,6 +75,8 @@ export interface PhotoPlace {
   private?: true
   /** Somewhere with a mirror she would photograph herself in, besides the private places. */
   mirror?: true
+  /** Somewhere that serves food, the only places she photographs her food at. */
+  food?: true
   /** The set she wears there; absent, her main outfit. */
   outfit?: 'pe' | 'swim'
 }
@@ -82,21 +84,21 @@ export interface PhotoPlace {
 /** Every place a photo can be taken, keyed by location id; her own room is `room`. */
 export const PHOTO_PLACES: Readonly<Record<string, PhotoPlace>> = {
   [ROOM_LOCATION]: { tags: ['bedroom', 'bed', 'indoors'], private: true },
-  agora: { tags: ['cafeteria', 'food_court', 'indoors'] },
+  agora: { tags: ['cafeteria', 'food_court', 'indoors'], food: true },
   apogee_club: { tags: ['nightclub', 'neon_lights', 'dim_lighting', 'indoors'] },
-  bobbys_diner: { tags: ['diner', 'booth_seating', 'restaurant', 'indoors'] },
+  bobbys_diner: { tags: ['diner', 'booth_seating', 'restaurant', 'indoors'], food: true },
   btb_arcade: { tags: ['arcade', 'arcade_cabinet', 'neon_lights', 'indoors'] },
-  cutetea: { tags: ['cafe', 'bubble_tea', 'indoors'] },
-  eastern_buffet: { tags: ['restaurant', 'buffet', 'indoors'] },
-  fast_eats: { tags: ['restaurant', 'fast_food', 'indoors'] },
+  cutetea: { tags: ['cafe', 'bubble_tea', 'indoors'], food: true },
+  eastern_buffet: { tags: ['restaurant', 'buffet', 'indoors'], food: true },
+  fast_eats: { tags: ['restaurant', 'fast_food', 'indoors'], food: true },
   freights_books: { tags: ['bookstore', 'bookshelf', 'vinyl', 'indoors'] },
   green_hill_park: { tags: ['park', 'grass', 'tree', 'outdoors'], outdoors: true },
   kendall_library: { tags: ['library', 'bookshelf', 'computer', 'indoors'] },
   lowrise_dorms: { tags: ['dormitory', 'lounge', 'couch', 'indoors'] },
-  lumiere_fusion: { tags: ['restaurant', 'candle', 'wine_glass', 'indoors'] },
+  lumiere_fusion: { tags: ['restaurant', 'candle', 'wine_glass', 'indoors'], food: true },
   palaestra_stadium: { tags: ['gym', 'indoors'], outfit: 'pe', mirror: true },
   pino_cola_lounge: { tags: ['lounge', 'table_tennis', 'couch', 'indoors'] },
-  reserve_bank_cafe: { tags: ['cafe', 'laptop', 'indoors'] },
+  reserve_bank_cafe: { tags: ['cafe', 'laptop', 'indoors'], food: true },
   spring_mart: { tags: ['supermarket', 'shelf', 'indoors'] },
   stalestein_bar: { tags: ['bar_(place)', 'stage', 'dim_lighting', 'indoors'] },
   thorne_auditorium: { tags: ['concert_hall', 'stage', 'indoors'] },
@@ -105,7 +107,7 @@ export const PHOTO_PLACES: Readonly<Record<string, PhotoPlace>> = {
   future_cinema: { tags: ['movie_theater', 'indoors'] },
   hotel_dreams: { tags: ['hotel_room', 'bed', 'indoors'], private: true },
   lotterdale_market: { tags: ['market', 'market_stall', 'indoors'] },
-  pastel_palace: { tags: ['cafe', 'cake', 'pastry', 'indoors'] },
+  pastel_palace: { tags: ['cafe', 'cake', 'pastry', 'indoors'], food: true },
   pier_44: {
     tags: ['amusement_park', 'ferris_wheel', 'boardwalk', 'outdoors'],
     outdoors: true
@@ -153,6 +155,7 @@ export type PhotoRefusal =
   | 'she is away for spring break'
   | 'the map places her nowhere'
   | 'no mirror where she is'
+  | 'no food where she is'
   | 'not his girlfriend'
   | 'not his girlfriend, crush or friend with benefits'
   | 'a friendzone stands between them'
@@ -200,10 +203,24 @@ function adultRefusal(input: PhotoOfferInput, place: PhotoPlace | undefined): Ph
   return null
 }
 
+/** Why one kind is withheld where she is, or null where she may send it there. */
+function kindRefusal(
+  kind: PhotoKind,
+  input: PhotoOfferInput,
+  place: PhotoPlace | undefined
+): PhotoRefusal | null {
+  if (kind === 'mirror' || kind === 'food') {
+    if (input.location === null) return 'the map places her nowhere'
+    if (kind === 'food') return place?.food ? null : 'no food where she is'
+    return place?.private || place?.mirror ? null : 'no mirror where she is'
+  }
+  return isAdultPhoto(kind) ? adultRefusal(input, place) : null
+}
+
 /**
  * The one rule of which photos a woman may send on a reply: none from a man, from one who has him
  * blocked or from one away for spring break; the mirror only at home, somewhere private or a
- * place with a mirror; the sexy and nude kinds only from his girlfriend, a crush on him or a
+ * place with a mirror; food only somewhere that serves it; the sexy and nude kinds only from his girlfriend, a crush on him or a
  * friend with benefits, with no friendzone either way, at home or somewhere private, and never
  * under the no-NSFW-images setting. A place the map does not know is never home.
  */
@@ -223,17 +240,7 @@ export function photoOfferFor(input: PhotoOfferInput): PhotoOffer {
   const kinds: PhotoKind[] = []
   const refused: Partial<Record<PhotoKind, PhotoRefusal>> = {}
   for (const kind of PHOTO_KINDS) {
-    const refusal =
-      whole ??
-      (kind === 'mirror'
-        ? input.location === null
-          ? 'the map places her nowhere'
-          : place?.private || place?.mirror
-            ? null
-            : 'no mirror where she is'
-        : isAdultPhoto(kind)
-          ? adultRefusal(input, place)
-          : null)
+    const refusal = whole ?? kindRefusal(kind, input, place)
     if (refusal === null) kinds.push(kind)
     else refused[kind] = refusal
   }
@@ -248,6 +255,82 @@ export function chosenPhotoKind(value: unknown, offered: readonly PhotoKind[]): 
   return typeof value === 'string' && (offered as readonly string[]).includes(value)
     ? (value as PhotoKind)
     : null
+}
+
+/** The kinds an invitation may carry, never the adult ones. */
+export const INVITATION_PHOTO_KINDS: readonly PhotoKind[] = ['selfie', 'mirror', 'food', 'place']
+
+/** The odds an invitation that may carry a photo comes with one. */
+const INVITATION_PHOTO_CHANCE = 1 / 3
+
+/** How often each kind is picked among those an invitation may carry. */
+const INVITATION_PHOTO_WEIGHTS: Readonly<Record<string, number>> = {
+  selfie: 4,
+  mirror: 1,
+  food: 2,
+  place: 2
+}
+
+/**
+ * One invitation that may carry a photo: who sends it, the kinds the rule offers her, and a kind
+ * the development build forces onto it.
+ */
+export interface InvitationPhotoCandidate {
+  charId: string
+  kinds: readonly PhotoKind[]
+  forced?: PhotoKind
+}
+
+/** The kinds of an offer an invitation may carry, in their fixed order. */
+export function invitationKindsOf(kinds: readonly PhotoKind[]): PhotoKind[] {
+  return kinds.filter((kind) => INVITATION_PHOTO_KINDS.includes(kind))
+}
+
+/**
+ * The one photo an opening's invitations carry, or null: a forced kind the rule offers wins
+ * outright; otherwise each invitation in turn rolls the odds, and the first to win sends a kind
+ * drawn by weight from the ones it may carry.
+ */
+export function invitationPhotoPick(
+  candidates: readonly InvitationPhotoCandidate[],
+  rand: () => number = Math.random
+): { charId: string; kind: PhotoKind } | null {
+  for (const { charId, kinds, forced } of candidates) {
+    if (forced !== undefined && invitationKindsOf(kinds).includes(forced)) {
+      return { charId, kind: forced }
+    }
+  }
+  for (const { charId, kinds } of candidates) {
+    const allowed = invitationKindsOf(kinds)
+    if (allowed.length === 0) continue
+    if (rand() >= INVITATION_PHOTO_CHANCE) continue
+    const total = allowed.reduce((sum, kind) => sum + (INVITATION_PHOTO_WEIGHTS[kind] ?? 0), 0)
+    let roll = rand() * total
+    for (const kind of allowed) {
+      roll -= INVITATION_PHOTO_WEIGHTS[kind] ?? 0
+      if (roll < 0) return { charId, kind }
+    }
+    return { charId, kind: allowed[allowed.length - 1]! }
+  }
+  return null
+}
+
+/** The photo an opening's invitation carries, as banked: whose invitation, and the photo. */
+export interface InvitationPhoto {
+  charId: string
+  photo: MessagePhoto
+}
+
+/**
+ * An opening's banked invitation photo, read whole or not at all: null for none and for one that
+ * does not read whole or is no kind an invitation carries, whose invitation then goes without it.
+ */
+export function readInvitationPhoto(value: unknown): InvitationPhoto | null {
+  if (typeof value !== 'object' || value === null) return null
+  const banked = value as Record<string, unknown>
+  const photo = readMessagePhoto(banked.photo)
+  if (!isText(banked.charId) || photo === null) return null
+  return INVITATION_PHOTO_KINDS.includes(photo.kind) ? { charId: banked.charId, photo } : null
 }
 
 /** What each kind is, as a line about it says. */

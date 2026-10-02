@@ -1,4 +1,5 @@
 import {
+  INVITATION_PHOTO_KINDS,
   PHOTO_KINDS,
   isAdultPhoto,
   photoCode,
@@ -16,7 +17,10 @@ import { noNsfwImagesOf, useSettingsStore } from './settingsStore'
 import {
   armedPhotoOf,
   armPhoto,
+  forcedInvitationOf,
+  forceInvitation,
   homeForPhotosOf,
+  invitationPhotoReportOf,
   lastPhotoOfferOf,
   photosOffered,
   setHomeForPhotos
@@ -44,6 +48,32 @@ export function debugArmPhoto(charId: string, kind: PhotoKind): DebugResult {
   if (!photosOffered()) return refused('Photos are off: no ComfyUI, or the setting is off.')
   armPhoto(charId, kind)
   return done(`${character.firstName}'s next reply sends a ${kind} photo.`)
+}
+
+/**
+ * Has X invite the reader at the next ending, past the roll and the quiet, carrying a photo of
+ * `kind` where given; the game's refusals and the photo rule still hold there.
+ */
+export function debugForceInvitation(charId: string, kind: PhotoKind | null): DebugResult {
+  if (!import.meta.env.DEV) return NOT_DEV
+  const game = useGameStore.getState()
+  const character = game.characters[charId]
+  if (!character) return refused('Pick a character.')
+  const flags = game.charInfo[charId]?.flags
+  if (!flags?.gaveContactInfo) return refused(`${character.firstName} is not a contact.`)
+  if (flags.blocked) return refused(`${character.firstName} has the reader blocked.`)
+  if (kind !== null) {
+    if (isWebBuild()) return refused('The browser draws no photos.')
+    if (character.gender === 'man') return refused('Men send no photos.')
+    if (!INVITATION_PHOTO_KINDS.includes(kind)) return refused(`No invitation carries a ${kind} photo.`)
+    if (!photosOffered()) return refused('Photos are off: no ComfyUI, or the setting is off.')
+  }
+  forceInvitation(charId, kind)
+  return done(
+    `${character.firstName} invites the reader at the next ending` +
+      (kind ? `, with a ${kind} photo where the rule allows it there.` : '.') +
+      ' Not on a slot he is booked, nor when she is busy or away then.'
+  )
 }
 
 /** Has the photo rule take X as at home for the rest of this slot. */
@@ -81,8 +111,21 @@ export function photoRowsOf(charId: string, files: ReadonlySet<string>): PhotoDe
   const { views, regens } = usePhotoStore.getState()
   const armed = armedPhotoOf(charId)
   const offer = lastPhotoOfferOf(charId)
+  const forced = forcedInvitationOf(charId)
   const rows: PhotoDebugRow[] = [
     { key: 'armed', text: `Next reply: ${armed === null ? 'no photo armed' : `a ${armed} photo`}` },
+    {
+      key: 'invitation',
+      text: `Next ending: ${
+        forced === undefined
+          ? 'no invitation forced'
+          : `an invitation forced${forced === null ? '' : `, with a ${forced} photo`}`
+      }`
+    },
+    ...invitationPhotoReportOf().map((text, index) => ({
+      key: `invitation-${index}`,
+      text: `Last opening's invitation photo: ${text}`
+    })),
     {
       key: 'home',
       text: `At home for photos this slot: ${homeForPhotosOf(charId) ? 'yes' : 'as the map says'}`
