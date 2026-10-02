@@ -188,6 +188,7 @@ import {
 import { applyCrushSettle, rollCrushSettle } from './loop/crushes'
 import { startExam } from './loop/exams'
 import { startHangoutScene } from './loop/hangouts'
+import { readerPostAnswersFor } from './loop/readerPosts'
 import {
   liveView,
   withCrushes,
@@ -467,6 +468,8 @@ async function beginSlot(): Promise<void> {
   // The anonymous gossip, on the same terms: what it counts for is dated today, and the lovers
   // who left him in silence are owed one until it comes back written.
   deliverSlotGossip(opening)
+  // His posts' likes, for an opening asked for here rather than banked; idempotent.
+  useGameStore.getState().answerReaderPosts(opening.readerPostAnswers ?? [])
 
   // Folded into the slot-save minted before the call went out, which is the start-of-slot
   // decision point.
@@ -832,6 +835,9 @@ async function fetchSlotIntro(
   const gossip = gossipTopic ? introGossipOf(gossipTopic, view.charInfo) : null
   const gossipAuthor = gossip ? drawGossipAuthor() : null
 
+  // What the reader's waiting posts get, decided beside the opening that delivers it.
+  const readerPostAnswers = readerPostAnswersFor(view.charInfo, view.stats)
+
   // Built once and re-sent verbatim on retry; only a hand edit replaces it.
   let request = buildSlotIntroPrompt(
     {
@@ -879,6 +885,7 @@ async function fetchSlotIntro(
         breakups: result.data.breakups,
         ...(occasion ? { askOccasionId: occasion.id } : {}),
         ...(invitationPhoto ? { invitationPhoto } : {}),
+        ...(readerPostAnswers.length > 0 ? { readerPostAnswers } : {}),
         posts: result.data.posts,
         // Only the hints of posters who made it into the prompt can come back written.
         ...(romance && romance.guaranteed.driftPosts.length > 0
@@ -1712,11 +1719,15 @@ async function fetchEndingOpening(
   const npcOverlay = rollNpcOverlayNow(date, time, npcRelationships)
 
   // The first night's opening is the authored tutorial and the last morning's the authored
-  // graduation: no call, but the plans, overlay and settles are banked either way.
+  // graduation: no call, but the plans, overlay and settles are banked either way. Graduation
+  // gives the reader's waiting posts their likes, there being no later opening to; the
+  // tutorial leaves them waiting for the next.
   if (isTutorialSlot(date, time) || isGraduationSlot(date, time)) {
+    const answers = isGraduationSlot(date, time) ? readerPostAnswersFor(view.charInfo, stats) : []
     return {
       lines: [],
       hangouts: [],
+      ...(answers.length > 0 ? { readerPostAnswers: answers } : {}),
       events: plans.events,
       cancellations: plans.cancellations,
       ...(npcOverlay ? { npcOverlay } : {}),
@@ -2628,6 +2639,9 @@ async function crossSlotBoundary(): Promise<void> {
   for (const send of owedTexts) send()
 
   useGameStore.getState().advanceSlot()
+  // The likes the ending decided for his posts, stamped with the slot they land in and inside
+  // the boundary save, so a reload of it keeps them; idempotent.
+  useGameStore.getState().answerReaderPosts(loopState.bankedOpening?.readerPostAnswers ?? [])
   // The whole scene is cleared before the write, so the boundary save records `scene: null`;
   // `beginSlot` clears the same things again, but after the write.
   useGameStore.getState().setCast([])

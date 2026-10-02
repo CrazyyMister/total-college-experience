@@ -13,6 +13,7 @@ import {
 import { escapeRegExp } from '@shared/sentences'
 import { pronounsOf } from '@shared/pronouns'
 import { swappedPhoto, type MessagePhoto } from '@shared/photos'
+import { withAnsweredPosts } from '@shared/feedReplies'
 import { displaySlotsOf, retireCgs } from './stageDisplay'
 import {
   chargeAbsences,
@@ -91,6 +92,8 @@ import {
   emptyBunnyboard,
   type ExamRecord,
   type FeedExtras,
+  type ReaderPost,
+  type ReaderPostAnswer,
   type GameHistory,
   type GameSave,
   type Gender,
@@ -299,6 +302,8 @@ interface GameStoreState {
   springBreakAway: string[] | null
   /** The feed items belonging to today alone, stamped with it. Persisted. */
   feedExtras: FeedExtras | null
+  /** The reader's own posts on the feed, oldest first. Persisted. */
+  readerPosts: ReaderPost[]
   /** The graduation narration has played. Persisted. */
   graduationSeen: boolean
   /** Who the reader has already said goodbye to. Persisted. */
@@ -922,6 +927,12 @@ interface GameStoreState {
   toggleGossipLike: (postId: string) => void
   /** Files the day's transient feed items, stamped with the day they belong to. */
   setFeedExtras: (extras: FeedExtras | null) => void
+  /** Files a post of the reader's, stamped with this slot. */
+  addReaderPost: (text: string) => void
+  /** Takes back a post of the reader's that is still waiting on its likes. */
+  deleteReaderPost: (postId: string) => void
+  /** Applies what an ending decided of his posts, stamped with this slot; idempotent. */
+  answerReaderPosts: (answers: readonly ReaderPostAnswer[]) => void
   /** Files the people the Friends tab offers this slot. */
   setSuggestions: (charIds: readonly string[]) => void
   /** Opens an exam, or clears one at the boundary. */
@@ -1295,6 +1306,7 @@ const initialState = {
   outingSlots: {} as Record<string, number>,
   springBreakAway: null as string[] | null,
   feedExtras: null as FeedExtras | null,
+  readerPosts: [] as ReaderPost[],
   graduationSeen: false,
   farewellsDone: [] as string[],
   endingArtWanted: false,
@@ -1419,6 +1431,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       outingSlots: save.outingSlots,
       springBreakAway: save.springBreakAway,
       feedExtras: save.feedExtras,
+      readerPosts: save.readerPosts ?? [],
       graduationSeen: save.graduationSeen,
       farewellsDone: save.farewellsDone,
       endingArtWanted: save.endingArtWanted,
@@ -2317,6 +2330,27 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
 
   setFeedExtras: (extras) => set({ feedExtras: extras }),
 
+  addReaderPost: (text) =>
+    set((state) => ({
+      readerPosts: [
+        ...state.readerPosts,
+        { id: crypto.randomUUID(), text, date: state.date, time: state.time }
+      ]
+    })),
+
+  deleteReaderPost: (postId) =>
+    set((state) => ({
+      readerPosts: state.readerPosts.filter(
+        (post) => post.id !== postId || post.answered !== undefined
+      )
+    })),
+
+  answerReaderPosts: (answers) =>
+    set((state) => {
+      const posts = withAnsweredPosts(state.readerPosts, answers, state.date, state.time)
+      return posts.some((post, at) => post !== state.readerPosts[at]) ? { readerPosts: posts } : {}
+    }),
+
   setGaveContactInfo: (charId) =>
     set((state) =>
       patchCharInfo(state, charId, (info = blankCharInfo()) => {
@@ -2741,6 +2775,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       outingSlots: state.outingSlots,
       springBreakAway: state.springBreakAway,
       feedExtras: state.feedExtras,
+      ...(state.readerPosts.length > 0 ? { readerPosts: state.readerPosts } : {}),
       graduationSeen: state.graduationSeen,
       farewellsDone: state.farewellsDone,
       endingArtWanted: state.endingArtWanted,

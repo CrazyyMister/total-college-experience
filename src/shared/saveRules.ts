@@ -47,6 +47,7 @@ const SAVE_REQUIRED: Record<
     | 'slotRumor'
     | 'bunnybotSeenTipSent'
     | 'occasionsDeclined'
+    | 'readerPosts'
     | 'bio'
     | 'tallies'
     | 'thumbnail'

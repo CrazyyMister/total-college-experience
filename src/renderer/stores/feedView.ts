@@ -6,6 +6,7 @@ import {
   type Character,
   type CharInfo,
   type FeedExtras,
+  type ReaderPost,
   type SocialPost,
   type TimeSlot
 } from '@shared/types'
@@ -156,13 +157,14 @@ export type FeedEntry =
       post: NonNullable<FeedExtras['randomPost']> & { date: number; time: TimeSlot }
     }
   | { kind: 'gossip'; post: GossipPost }
+  | { kind: 'mine'; post: ReaderPost }
 
 /** How many rows the Updates tab mounts at a time. */
 export const FEED_PAGE = 30
 
 /**
  * The whole feed in draw order: contacts' posts, strangers who became friends, couples who
- * formed or ended and the gossip, newest first, woven with this slot's check-ins (capped at one more than the
+ * formed or ended, the gossip and his own posts, newest first, woven with this slot's check-ins (capped at one more than the
  * day has posts) and closed by the day's random student. Pure over the slot, so the same slot always reads the same way.
  */
 export function updatesFeed(input: {
@@ -174,6 +176,8 @@ export function updatesFeed(input: {
   npcRomance?: NpcRomanceMap
   /** The anonymous gossip posts, every one a row whoever it names; absent means none. */
   gossip?: readonly GossipPost[]
+  /** The reader's own posts; absent means none. */
+  readerPosts?: readonly ReaderPost[]
   feedExtras: FeedExtras | null
   /** Everybody the slot owes a check-in, in roster order; the cap is applied here. */
   checkIns: readonly FeedCheckIn[]
@@ -223,6 +227,7 @@ export function updatesFeed(input: {
     entries.push({ kind: 'romance', ...made })
   }
   for (const post of input.gossip ?? []) entries.push({ kind: 'gossip', post })
+  for (const post of input.readerPosts ?? []) entries.push({ kind: 'mine', post })
   entries.sort((a, b) => newestFirst(stampOf(a), stampOf(b)))
 
   // Every row this slot stamped, as one run in the sorted list. It is not the top of the list:

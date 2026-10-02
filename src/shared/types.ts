@@ -764,6 +764,26 @@ export interface SocialPost {
   likedOn?: number
 }
 
+/** One post the reader wrote on the feed. */
+export interface ReaderPost {
+  /** crypto.randomUUID(); what the likes are drawn off and what an answer names. */
+  id: string
+  text: string
+  /** The slot he posted it in. */
+  date: number
+  time: TimeSlot
+  /** The slot its likes landed in; absent while it waits for them. */
+  answered?: { date: number; time: TimeSlot }
+  /** How many liked it; absent exactly when {@link answered} is. */
+  likes?: number
+}
+
+/** What an ending decided of one of his posts, banked with the opening and applied once. */
+export interface ReaderPostAnswer {
+  postId: string
+  likes: number
+}
+
 /**
  * The feed items that belong to one slot and then are gone, stamped with the date and slot they
  * were rolled for.
@@ -1156,6 +1176,11 @@ export interface SlotOpening {
    * does not read, is no photo.
    */
   invitationPhoto?: unknown
+  /**
+   * What the ending decided of the reader's posts still waiting on their likes, applied as the
+   * slot opens. Absent for an opening with none, which leaves them waiting.
+   */
+  readerPostAnswers?: ReaderPostAnswer[]
   /** The plans the merged ledger found, normalized and attendance-filtered. */
   events: CalendarEvent[]
   /** Who that filtering took off an event, announced by text at step 1. */
@@ -1396,6 +1421,11 @@ export interface GameSave {
    * the random student's — stamped with the date they were rolled for.
    */
   feedExtras: FeedExtras | null
+  /**
+   * The reader's own posts on the feed, oldest first. Absent in a save written before he could
+   * post, which reads as none.
+   */
+  readerPosts?: ReaderPost[]
   /** The graduation-morning narration has played. */
   graduationSeen: boolean
   /** Who the reader has already said goodbye to, as charIds — each a button spent off the epilogue's menu. */

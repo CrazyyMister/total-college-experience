@@ -18,8 +18,10 @@ import {
   type CharInfo,
   type ChatMessage,
   type Conversation,
+  type ReaderPost,
   type TimeSlot
 } from '@shared/types'
+import { postedThisSlot, READER_POST_MAX } from '@shared/feedReplies'
 import type { NpcFriendship } from '@shared/npcRelationships'
 import { gpaOf, gradedCourses } from '@shared/academics'
 import { globalSlotOf, jobDefForChat, shiftSlotOf } from '@shared/jobs'
@@ -1249,12 +1251,15 @@ function Composer({
   closed,
   draft,
   placeholder,
+  maxLength,
   onDraft,
   onSend
 }: {
   closed: boolean
   draft: string
   placeholder: string
+  /** The most the field takes, where there is a most. */
+  maxLength?: number
   /** The setter itself, so an emoji appends to whatever is in the field at the click. */
   onDraft: Dispatch<SetStateAction<string>>
   onSend: () => void
@@ -1280,6 +1285,7 @@ function Composer({
           value={draft}
           disabled={closed}
           placeholder={placeholder}
+          maxLength={maxLength}
           onChange={(e) => onDraft(e.target.value)}
         />
         <PrimaryButton id="bb-send" dead={closed || !draft.trim()} onClick={onSend}>
@@ -2016,6 +2022,67 @@ const FeedPost = memo(function FeedPost({
 })
 
 /**
+ * One post of the reader's own: his picture where he has one and the empty face otherwise, his
+ * name, and its likes once they have landed; while it still waits on them, and outside a scene,
+ * the ✕ beside it takes it back.
+ */
+const MyPost = memo(function MyPost({
+  post,
+  name,
+  picture,
+  removable
+}: {
+  post: ReaderPost
+  name: string
+  picture: string | null
+  removable: boolean
+}): JSX.Element {
+  return (
+    <motion.div className="vu-bb-post" variants={slideInQuick}>
+      <div className="vu-bb-post-head">
+        <span className="vu-bb-face-btn">
+          {picture ? (
+            <span className="vu-arch vu-bb-face vu-bb-face--sm vu-bb-face--ring">
+              <span className="vu-crop">
+                <img className="vu-crop-img" src={picture} alt="" />
+              </span>
+            </span>
+          ) : (
+            <Portrait size="sm" />
+          )}
+        </span>
+        <div className="vu-bb-post-who">
+          <div className="vu-bb-post-name">{name}</div>
+          <div className="vu-bb-post-meta">
+            <span className="vu-bb-post-when">
+              {formatShortGameDate(post.date)} · {slotHalf(post.time)}
+            </span>
+          </div>
+        </div>
+        {removable && (
+          <motion.button
+            className="vu-x"
+            type="button"
+            aria-label="Delete post"
+            {...gestures(false, quietLift, quietPress)}
+            onClick={() => useGameStore.getState().deleteReaderPost(post.id)}
+          >
+            <CloseIcon />
+          </motion.button>
+        )}
+      </div>
+      <p className="vu-bb-post-text">{post.text}</p>
+      {post.likes !== undefined && (
+        <span className="vu-bb-like" aria-label={`${post.likes} likes`}>
+          <HeartIcon />
+          {post.likes}
+        </span>
+      )}
+    </motion.div>
+  )
+})
+
+/**
  * The day two of them became friends, on the check-in's own row; it redraws only when the pair
  * it names does.
  */
@@ -2102,7 +2169,7 @@ function feedRowKey(entry: FeedEntry): string {
     return `${entry.moment.kind}:${entry.moment.a}|${entry.moment.b}`
   }
   if (entry.kind === 'checkIn') return `checkin:${entry.charId}`
-  if (entry.kind === 'gossip') return entry.post.id
+  if (entry.kind === 'gossip' || entry.kind === 'mine') return entry.post.id
   return entry.kind === 'random' ? 'random-student' : entry.post.id
 }
 
@@ -2129,12 +2196,31 @@ function samePage(before: readonly FeedEntry[], now: readonly FeedEntry[]): bool
     }
     if (entry.kind === 'random') return was.kind === 'random' && was.post === entry.post
     if (entry.kind === 'gossip') return was.kind === 'gossip' && was.post === entry.post
+    if (entry.kind === 'mine') return was.kind === 'mine' && was.post === entry.post
     return was.kind === 'post' && was.post === entry.post && was.stranger === entry.stranger
   })
 }
 
+/** Who the reader's own rows are drawn as, and whether his waiting posts may be taken back. */
+interface FeedSelf {
+  name: string
+  picture: string | null
+  canRemove: boolean
+}
+
 /** One row, whichever kind of thing the entry is. */
-function rowOf(entry: FeedEntry, requestsSent: readonly string[]): JSX.Element {
+function rowOf(entry: FeedEntry, requestsSent: readonly string[], self: FeedSelf): JSX.Element {
+  if (entry.kind === 'mine') {
+    return (
+      <MyPost
+        key={feedRowKey(entry)}
+        post={entry.post}
+        name={self.name}
+        picture={self.picture}
+        removable={self.canRemove && entry.post.answered === undefined}
+      />
+    )
+  }
   if (entry.kind === 'friendship') {
     const { pair, one, two } = entry
     return <FriendshipRow key={feedRowKey(entry)} pair={pair} one={one} two={two} />
@@ -2187,14 +2273,16 @@ function rowOf(entry: FeedEntry, requestsSent: readonly string[]): JSX.Element {
 /** One page of the feed's rows, dealing itself in; it redraws only when its own slice changes. */
 const FeedPage = memo(function FeedPage({
   entries,
-  requestsSent
+  requestsSent,
+  self
 }: {
   entries: readonly FeedEntry[]
   requestsSent: readonly string[]
+  self: FeedSelf
 }): JSX.Element {
   return (
     <motion.div className="vu-bb-rows" variants={LIST_DEAL}>
-      {entries.map((entry) => rowOf(entry, requestsSent))}
+      {entries.map((entry) => rowOf(entry, requestsSent, self))}
     </motion.div>
   )
 })
@@ -2208,10 +2296,36 @@ function UpdatesFeed(): JSX.Element {
   const npcFriendships = useGameStore((s) => s.npcFriendships)
   const npcRomance = useGameStore((s) => s.npcRomance)
   const npcGossip = useGameStore((s) => s.npcGossip)
+  const readerPosts = useGameStore((s) => s.readerPosts)
   const requestsSent = useGameStore((s) => s.bunnyboard.requestsSent)
   const date = useGameStore((s) => s.date)
   const time = useGameStore((s) => s.time)
   const epilogue = useGameStore(epilogueOf)
+  const sceneActive = useGameStore(sceneActiveOf)
+  const firstName = useGameStore((s) => s.playerFirstName)
+  const lastName = useGameStore((s) => s.playerLastName)
+  const picture = useGameStore((s) => s.profilePicture)
+  const [draft, setDraft] = useState('')
+
+  // The reasons the post box is shut: the goodbye menu, a scene, and a post already up this half
+  // of the day.
+  const posted = postedThisSlot(readerPosts, date, time)
+  const composerClosed = epilogue || sceneActive || posted
+  const self = useMemo(
+    () => ({
+      name: `${firstName} ${lastName}`,
+      picture,
+      canRemove: !epilogue && !sceneActive
+    }),
+    [firstName, lastName, picture, epilogue, sceneActive]
+  )
+
+  function onPost(): void {
+    const value = draft.trim().slice(0, READER_POST_MAX)
+    if (!value || composerClosed) return
+    setDraft('')
+    useGameStore.getState().addReaderPost(value)
+  }
   // The layered read behind a check-in goes to the store itself, so the three things it can
   // move a girl by are selected here to redraw the feed when one of them does.
   const occasions = useGameStore((s) => s.occasions)
@@ -2254,6 +2368,7 @@ function UpdatesFeed(): JSX.Element {
       npcFriendships,
       npcRomance,
       gossip: npcGossip.posts,
+      readerPosts,
       feedExtras,
       checkIns,
       date,
@@ -2266,6 +2381,7 @@ function UpdatesFeed(): JSX.Element {
     npcFriendships,
     npcRomance,
     npcGossip,
+    readerPosts,
     feedExtras,
     date,
     time,
@@ -2302,13 +2418,30 @@ function UpdatesFeed(): JSX.Element {
         <h2 className="vu-title-text">Updates</h2>
       </div>
 
+      <Composer
+        closed={composerClosed}
+        draft={draft}
+        maxLength={READER_POST_MAX}
+        placeholder={
+          epilogue
+            ? NOT_NOW
+            : sceneActive
+              ? "You should probably focus on what's in front of you."
+              : posted
+                ? 'You already posted this half of the day.'
+                : 'Post'
+        }
+        onDraft={setDraft}
+        onSend={onPost}
+      />
+
       <div className="vu-bb-scroll">
         {nothing ? (
           <p className="vu-empty vu-empty--flush">No updates yet.</p>
         ) : (
           <div className="vu-bb-pages">
             {slices.slice(0, shownPages).map((slice, page) => (
-              <FeedPage key={page} entries={slice} requestsSent={requestsSent} />
+              <FeedPage key={page} entries={slice} requestsSent={requestsSent} self={self} />
             ))}
             {more && (
               <motion.button

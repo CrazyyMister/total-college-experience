@@ -30,6 +30,7 @@ import {
   photoRowsOf
 } from '../stores/photoDebugActions'
 import { usePhotoStore } from '../stores/photoStore'
+import { readerPostDebugRows } from '../stores/loop/readerPosts'
 import { gestures, lift, press } from './motion'
 
 /** The development build's test buttons for the roster's romance, under the read-out. */
@@ -145,6 +146,14 @@ export function NpcRomanceDebugTools({ onChanged }: NpcRomanceDebugToolsProps): 
           </motion.button>
         ))}
       </div>
+      <h3 className="vu-romance-debug-title">The reader’s posts</h3>
+      <ul className="vu-rows">
+        {readerPostDebugRows().map((row) => (
+          <li key={row.key} className="vu-row vu-romance-debug-row vu-romance-debug-row--wide">
+            <span className="vu-romance-debug-facts">{row.text}</span>
+          </li>
+        ))}
+      </ul>
       <h3 className="vu-romance-debug-title">Photos in X’s conversation</h3>
       <ul className="vu-rows">
         {photoRowsOf(x, files).map((row) => (
