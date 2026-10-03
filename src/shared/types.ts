@@ -776,12 +776,21 @@ export interface ReaderPost {
   answered?: { date: number; time: TimeSlot }
   /** How many liked it; absent exactly when {@link answered} is. */
   likes?: number
+  /** Who answered it and what they wrote, in the order shown; absent for none. */
+  replies?: ReaderPostReply[]
 }
+
+/** One reply under a post of his: a contact's, by her charId, or an anonymous student's. */
+export type ReaderPostReply =
+  | { charId: string; text: string }
+  | { handle: string; emoji: string; text: string }
 
 /** What an ending decided of one of his posts, banked with the opening and applied once. */
 export interface ReaderPostAnswer {
   postId: string
   likes: number
+  /** The replies it gets, in the order shown; absent for none. */
+  replies?: ReaderPostReply[]
 }
 
 /**
@@ -2065,6 +2074,14 @@ export interface SlotIntroResponse {
  */
 export interface EndingPostsResponse {
   posts?: Array<{ char: string; text: string }>
+}
+
+/**
+ * The replies under one post of the reader's: `who` is a contact's charKey or an anonymous
+ * student's handle; `text` is the reply.
+ */
+export interface FeedRepliesResponse {
+  replies?: Array<{ who: string; text: string }>
 }
 
 /** One pose manifest entry — `/assets/pose.json`. */

@@ -2347,7 +2347,11 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
 
   answerReaderPosts: (answers) =>
     set((state) => {
-      const posts = withAnsweredPosts(state.readerPosts, answers, state.date, state.time)
+      // A contact's reply lands only while she is still his contact and has not blocked him.
+      const posts = withAnsweredPosts(state.readerPosts, answers, state.date, state.time, (charId) => {
+        const flags = state.charInfo[charId]?.flags
+        return Boolean(flags?.gaveContactInfo) && !flags?.blocked
+      })
       return posts.some((post, at) => post !== state.readerPosts[at]) ? { readerPosts: posts } : {}
     }),
 

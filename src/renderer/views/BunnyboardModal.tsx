@@ -19,9 +19,15 @@ import {
   type ChatMessage,
   type Conversation,
   type ReaderPost,
+  type ReaderPostReply,
   type TimeSlot
 } from '@shared/types'
-import { postedThisSlot, READER_POST_MAX } from '@shared/feedReplies'
+import {
+  isContactReply,
+  postedThisSlot,
+  READER_POST_MAX,
+  readerHandle
+} from '@shared/feedReplies'
 import type { NpcFriendship } from '@shared/npcRelationships'
 import { gpaOf, gradedCourses } from '@shared/academics'
 import { globalSlotOf, jobDefForChat, shiftSlotOf } from '@shared/jobs'
@@ -1783,6 +1789,7 @@ function ProfilePage(): JSX.Element {
             <span className="vu-bb-me-name">
               {firstName} {lastName}
             </span>
+            <span className="vu-bb-handle">@{readerHandle(firstName, lastName)}</span>
             <p className="vu-bb-me-line">{description}</p>
           </div>
         </div>
@@ -2029,11 +2036,13 @@ const FeedPost = memo(function FeedPost({
 const MyPost = memo(function MyPost({
   post,
   name,
+  handle,
   picture,
   removable
 }: {
   post: ReaderPost
   name: string
+  handle: string
   picture: string | null
   removable: boolean
 }): JSX.Element {
@@ -2054,6 +2063,8 @@ const MyPost = memo(function MyPost({
         <div className="vu-bb-post-who">
           <div className="vu-bb-post-name">{name}</div>
           <div className="vu-bb-post-meta">
+            {handle && <span>@{handle}</span>}
+            {handle && <span className="vu-bb-thread-dot">·</span>}
             <span className="vu-bb-post-when">
               {formatShortGameDate(post.date)} · {slotHalf(post.time)}
             </span>
@@ -2078,9 +2089,49 @@ const MyPost = memo(function MyPost({
           {post.likes}
         </span>
       )}
+      {post.replies && post.replies.length > 0 && (
+        <div className="vu-bb-replies">
+          {post.replies.map((reply, at) => (
+            <PostReply key={at} reply={reply} />
+          ))}
+        </div>
+      )}
     </motion.div>
   )
 })
+
+/**
+ * One reply under a post of his: a contact's face opens her page, an anonymous student's emoji
+ * opens nothing.
+ */
+function PostReply({ reply }: { reply: ReaderPostReply }): JSX.Element {
+  const character = useGameStore((s) => (isContactReply(reply) ? s.characters[reply.charId] : undefined))
+  const handle = useGameStore((s) =>
+    isContactReply(reply) ? s.charInfo[reply.charId]?.handle : reply.handle
+  )
+  const contact = isContactReply(reply) ? reply.charId : null
+  const name = character ? fullNameOf(character) : isContactReply(reply) ? '' : reply.handle
+  return (
+    <div className="vu-bb-reply">
+      {contact ? (
+        <FaceButton name={name} onOpen={() => useBunnyboardStore.getState().openPage(contact)}>
+          <Portrait charId={contact} ring size="sm" />
+        </FaceButton>
+      ) : (
+        <span className="vu-bb-face-btn">
+          <Portrait emoji={isContactReply(reply) ? null : reply.emoji} size="sm" />
+        </span>
+      )}
+      <div className="vu-bb-reply-body">
+        <div className="vu-bb-reply-who">
+          {character && <span className="vu-bb-reply-name">{name}</span>}
+          {handle && <span className="vu-bb-reply-handle">@{handle}</span>}
+        </div>
+        <p className="vu-bb-reply-text">{reply.text}</p>
+      </div>
+    </div>
+  )
+}
 
 /**
  * The day two of them became friends, on the check-in's own row; it redraws only when the pair
@@ -2204,6 +2255,7 @@ function samePage(before: readonly FeedEntry[], now: readonly FeedEntry[]): bool
 /** Who the reader's own rows are drawn as, and whether his waiting posts may be taken back. */
 interface FeedSelf {
   name: string
+  handle: string
   picture: string | null
   canRemove: boolean
 }
@@ -2216,6 +2268,7 @@ function rowOf(entry: FeedEntry, requestsSent: readonly string[], self: FeedSelf
         key={feedRowKey(entry)}
         post={entry.post}
         name={self.name}
+        handle={self.handle}
         picture={self.picture}
         removable={self.canRemove && entry.post.answered === undefined}
       />
@@ -2314,6 +2367,7 @@ function UpdatesFeed(): JSX.Element {
   const self = useMemo(
     () => ({
       name: `${firstName} ${lastName}`,
+      handle: readerHandle(firstName, lastName),
       picture,
       canRemove: !epilogue && !sceneActive
     }),

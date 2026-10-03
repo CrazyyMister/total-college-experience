@@ -81,6 +81,15 @@ You will need externally kept data for testing:
 - [ ] Right after an invitation with a photo arrives, load the autosave and play into the new slot again. Verify the same invitation arrives once, with the same picture.
 - [ ] Load that autosave again, turn off "Characters text photos" and play into the new slot. Verify the invitation arrives without a photo. Turn it back on.
 - [ ] When a girl invites you while BunnyMap shows her nowhere that slot, verify her invitation came without a photo.
+- [ ] Post something on the Updates tab, play into the next slot and verify likes arrive on your post.
+- [ ] Verify the post box says why it is shut: during a scene, on the goodbye menu, and after you already posted that half of the day.
+- [ ] Post something and delete it with the ✕ before starting the scene. Verify it is gone and you can post again.
+- [ ] Verify your post shows your profile picture, then remove the picture and verify it shows the plain face.
+- [ ] Post something, play to the end of the scene, load the autosave and play into the next slot. Verify the same likes arrive once.
+- [ ] Post something, play into the next slot and verify replies arrive under the post with the likes, each contact with her face and @, anonymous replies with an emoji.
+- [ ] Right after the replies arrive, load the autosave and play into the slot again. Verify the same replies arrive once.
+- [ ] In a dev build, use F9 to make the next feed replies call fail. Verify the post keeps waiting, likes included, and both arrive in a later slot.
+- [ ] Have a contact block you after your post and before the next slot. Verify her reply does not appear.
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 

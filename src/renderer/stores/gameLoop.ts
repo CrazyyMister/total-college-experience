@@ -188,7 +188,11 @@ import {
 import { applyCrushSettle, rollCrushSettle } from './loop/crushes'
 import { startExam } from './loop/exams'
 import { startHangoutScene } from './loop/hangouts'
-import { readerPostAnswersFor } from './loop/readerPosts'
+import {
+  cancelFeedReplies,
+  readerPostAnswersFor,
+  startReaderPostAnswers
+} from './loop/readerPosts'
 import {
   liveView,
   withCrushes,
@@ -835,8 +839,9 @@ async function fetchSlotIntro(
   const gossip = gossipTopic ? introGossipOf(gossipTopic, view.charInfo) : null
   const gossipAuthor = gossip ? drawGossipAuthor() : null
 
-  // What the reader's waiting posts get, decided beside the opening that delivers it.
-  const readerPostAnswers = readerPostAnswersFor(view.charInfo, view.stats)
+  // What the reader's waiting posts get, decided beside the opening that delivers it: the
+  // replies call goes out now, beside the opening's own.
+  const replies = startReaderPostAnswers(view.charInfo, view.stats, { group, stale })
 
   // Built once and re-sent verbatim on retry; only a hand edit replaces it.
   let request = buildSlotIntroPrompt(
@@ -871,6 +876,9 @@ async function fetchSlotIntro(
     // Null is the "player left" answer; it also keeps a stale failure off the menu.
     if (runStale(run) || stale()) return null
     if (result.ok) {
+      // The replies get a little longer than the opening, and only what is in by then is banked.
+      const readerPostAnswers = await replies.settle()
+      if (runStale(run) || stale()) return null
       const written = result.data.lines.map((line) => line.text.trim()).filter(Boolean)
       // What the narration actually said about the place it was handed. A rumor about
       // an entry that is not a place, or one the narration never named, banks nothing.
@@ -2296,6 +2304,7 @@ export function dropEnding(): void {
   useGameStore.getState().dropEndingEdits()
   loopState.endingToken = {}
   void window.api.jobs.cancelGroup(ENDING_LLM_GROUP)
+  cancelFeedReplies(ENDING_LLM_GROUP)
   // Woken so each parked call sees the fresh token and bails.
   const parked = loopState.parkedWaiters
   loopState.parkedWaiters = []
@@ -2642,6 +2651,9 @@ async function crossSlotBoundary(): Promise<void> {
   // The likes the ending decided for his posts, stamped with the slot they land in and inside
   // the boundary save, so a reload of it keeps them; idempotent.
   useGameStore.getState().answerReaderPosts(loopState.bankedOpening?.readerPostAnswers ?? [])
+  // The buttons that set up the replies belong to the opening just applied.
+  loopState.debugFeedReplier = null
+  loopState.debugFeedRepliesFail = false
   // The whole scene is cleared before the write, so the boundary save records `scene: null`;
   // `beginSlot` clears the same things again, but after the write.
   useGameStore.getState().setCast([])
@@ -2808,6 +2820,7 @@ function leaveGame(keepCrossing: boolean): void {
   void window.api.jobs.cancelGroup(LOOP_LLM_GROUP)
   void window.api.jobs.cancelGroup(SCENE_LLM_GROUP)
   void window.api.jobs.cancelGroup(ENDING_LLM_GROUP)
+  cancelFeedReplies()
   resetTextingLoop()
   // A boundary's curtain would otherwise still be on screen, with swaps written for a game
   // that no longer exists still to run — unless the curtain up is the one carrying this

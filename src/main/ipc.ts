@@ -21,6 +21,7 @@ import type {
   CustomOutfitSlot,
   Emotion,
   EndingPostsResponse,
+  FeedRepliesResponse,
   EnrollmentDraft,
   GrabBags,
   HangoutClassifierResponse,
@@ -330,6 +331,11 @@ export function registerIpcHandlers(): void {
   // The epilogue's status updates: one call for the whole week after graduation.
   handle('llm:completeEndingPosts', (_event, request: StructuredRequest, group: string) =>
     runAbortable(group, (signal) => completeStructured<EndingPostsResponse>(request, signal))
+  )
+
+  // The replies to one of the reader's feed posts: no deltas, its own schema.
+  handle('llm:completeFeedReplies', (_event, request: StructuredRequest, group: string) =>
+    runAbortable(group, (signal) => completeStructured<FeedRepliesResponse>(request, signal))
   )
 
   // A Bunnyboard texting turn, streamed. Several can stream at once, so every

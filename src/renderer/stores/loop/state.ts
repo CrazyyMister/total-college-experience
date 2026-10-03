@@ -89,6 +89,21 @@ export const loopState = {
   /** The pairs the development build's button has spend the finished slot together; never saved. */
   debugMeetings: [] as Array<[string, string]>,
 
+  /**
+   * The contact the development build's button has reply to the reader's latest post at the next
+   * opening, past the dice and the cap; never saved.
+   */
+  debugFeedReplier: null as string | null,
+
+  /** The development build's button has the next replies call fail as a transient error would. */
+  debugFeedRepliesFail: false,
+
+  /** What the latest opening decided of the reader's posts, for the development read-out. */
+  feedRepliesReport: [] as string[],
+
+  /** The replies calls out, each under a group of its own, beside the group its opening is in. */
+  feedRepliesCalls: [] as Array<{ group: string; parent: string }>,
+
   /** An exam's opening, in flight while the player answers; null after a reload. */
   examOpening: null as Promise<BankedOpening | null> | null,
 
@@ -316,6 +331,9 @@ export function resetLoopState(): void {
   loopState.debugGossipLeak = null
   loopState.debugWingman = []
   loopState.debugMeetings = []
+  loopState.debugFeedReplier = null
+  loopState.debugFeedRepliesFail = false
+  loopState.feedRepliesReport = []
   // An in-flight prefetch is simply abandoned; the next armed hangout makes its own call.
   loopState.hangoutPrefetch = null
   // Abandoned the same way; the bytes it holds are released separately, by `dropEndingArt`.

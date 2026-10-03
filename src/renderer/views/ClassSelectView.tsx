@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type JSX } from 'react'
 import { AnimatePresence, animate, motion, useReducedMotion } from 'motion/react'
 import { MAX_PLAYER_CLASSES, MIN_PLAYER_COURSES, scheduleComplaint } from '@shared/classes'
+import { readerHandle } from '@shared/feedReplies'
 import type { ClassSlot } from '@shared/types'
 import markUrl from '../../../assets/vu_letters.png'
 import { ConfirmModal } from '../components/ConfirmModal'
@@ -139,11 +140,7 @@ export function ClassSelectView({
   const complaint = scheduleComplaint(schedule, classes)
 
   /** Who is signed in, as the registrar files him. */
-  const user = [playerName.first, playerName.last]
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .join('_')
-    .toLowerCase()
+  const user = readerHandle(playerName.first, playerName.last)
 
   const shownAddress = address.slice(0, typed)
 

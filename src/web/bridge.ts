@@ -23,6 +23,7 @@ import {
   MAX_LOG_RECORD_CHARS,
   type AppError,
   type EndingPostsResponse,
+  type FeedRepliesResponse,
   type HangoutClassifierResponse,
   type JobProgress,
   type LedgerResponse,
@@ -194,6 +195,10 @@ export function buildApi(): VenusUniversityApi {
       completeEndingPosts: (request, group) =>
         result('write the status updates', () =>
           runAbortable(group, (signal) => completeStructured<EndingPostsResponse>(request, signal))
+        ),
+      completeFeedReplies: (request, group) =>
+        result('write the replies', () =>
+          runAbortable(group, (signal) => completeStructured<FeedRepliesResponse>(request, signal))
         ),
       // Several texting calls can stream at once, so every delta carries its `group`.
       completeTexting: (request, group) =>
