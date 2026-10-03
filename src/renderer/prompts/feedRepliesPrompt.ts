@@ -15,7 +15,10 @@ import { relationshipLines } from './relationship'
 import { objectSchema } from './schema'
 import { memoryLines, personaFor, profileLines, spaced } from './scenePrompt'
 
-/** The replies under one of the reader's feed posts: his contacts' and anonymous students'. */
+/**
+ * The replies under one of the reader's feed posts — his contacts' and anonymous students' — and
+ * a contact's reply to his comment on hers.
+ */
 
 /** A contact the game picked to reply. */
 export interface FeedReplier {
@@ -65,33 +68,50 @@ function publicLine(character: Character, flags: CharFlags): string | null {
   return null
 }
 
+/** One contact as a feed call describes her: who she is, where she stands with him, what she recalls. */
+function contactEntry(
+  { character, info, charKey, texted }: FeedReplier,
+  date: number,
+  stats: PlayerStats | undefined
+): string[] {
+  const flags = info.flags ?? emptyFlags()
+  const secret = publicLine(character, flags)
+  return [
+    `${fullNameOf(character)} — "who": "${charKey}"`,
+    ...profileLines(character, flags),
+    ...relationshipLines(
+      character,
+      flags,
+      info.nameKnown,
+      affectionFor(info, date, character),
+      stats ?? DEFAULT_PLAYER_STATS,
+      // A reply on the feed is typed on a phone, like a text.
+      { texting: true, texted }
+    ),
+    ...(secret ? [secret] : []),
+    ...memoryLines(character, dedupedMemoriesFor(info).slice(-MEMORY_CAP), info.textMemory)
+  ]
+}
+
 /** Every contact the call names, described once each. */
 function contactBlock(input: FeedRepliesInput): string[] {
-  const entries = input.contacts.map(({ character, info, charKey, texted }) => {
-    const flags = info.flags ?? emptyFlags()
-    const secret = publicLine(character, flags)
-    return [
-      `${fullNameOf(character)} — "who": "${charKey}"`,
-      ...profileLines(character, flags),
-      ...relationshipLines(
-        character,
-        flags,
-        info.nameKnown,
-        affectionFor(info, input.date, character),
-        input.stats ?? DEFAULT_PLAYER_STATS,
-        // A reply on the feed is typed on a phone, like a text.
-        { texting: true, texted }
-      ),
-      ...(secret ? [secret] : []),
-      ...memoryLines(character, dedupedMemoriesFor(info).slice(-MEMORY_CAP), info.textMemory)
-    ]
-  })
+  const entries = input.contacts.map((contact) => contactEntry(contact, input.date, input.stats))
   if (entries.length === 0) return []
   return [
     'CONTACTS',
     `They know the reader. His first name is ${input.readerFirstName}, and they may call him by it.`,
     '',
     ...entries.flatMap((entry, index) => (index === 0 ? entry : ['', ...entry]))
+  ]
+}
+
+/** A post, quoted on one line under the day and half it went up. */
+function quotedPost(heading: string, who: string, post: { text: string; date: number; time: TimeSlot }): string[] {
+  const half = post.time === 0 ? 'morning' : 'evening'
+  return [
+    heading,
+    `${who} posted this on Bunnyboard, the campus social feed, on ${formatGameDate(post.date)} in the ${half}:`,
+    `"${post.text.replace(/\s*\n+\s*/g, ' ')}"`
   ]
 }
 
@@ -125,13 +145,8 @@ function feedRepliesSchema(keys: readonly string[]): StructuredRequest['schema']
 
 /** Builds the request for the replies under one post of the reader's. */
 export function buildFeedRepliesPrompt(input: FeedRepliesInput): StructuredRequest {
-  const half = input.post.time === 0 ? 'morning' : 'evening'
   const user = [
-    ...spaced([
-      'THE POST',
-      `The reader posted this on Bunnyboard, the campus social feed, on ${formatGameDate(input.post.date)} in the ${half}:`,
-      `"${input.post.text.replace(/\s*\n+\s*/g, ' ')}"`
-    ]),
+    ...spaced(quotedPost('THE POST', 'The reader', input.post)),
     ...spaced(contactBlock(input)),
     ...spaced(strangerBlock(input)),
     'YOUR TURN',
@@ -154,6 +169,60 @@ export function buildFeedRepliesPrompt(input: FeedRepliesInput): StructuredReque
       ...input.contacts.map(({ charKey }) => charKey),
       ...input.strangers
     ]),
+    cacheKey: input.playthroughId
+  }
+}
+
+/** Everything the comment reply's builder reads; assembled by the loop, which owns the store. */
+export interface CommentReplyInput {
+  /** The cloud-LLM cache key — the playthrough, exactly as the scene calls use it. */
+  playthroughId: string
+  /** The player's `lessNsfwText` setting; picks which persona heads the call. */
+  lessNsfwText: boolean
+  /** The reader's accumulated stats, used for relationship requirement guidance. */
+  stats?: PlayerStats
+  /** The reader's first name, the only thing about him she is told beyond her own record. */
+  readerFirstName: string
+  /** The day the reply is weighed at: her affection and memories as they stand then. */
+  date: number
+  /** The contact whose post it is, who replies. */
+  contact: FeedReplier
+  /** Her post, and the slot it went up in. */
+  post: { text: string; date: number; time: TimeSlot }
+  /** What the reader commented under it. */
+  comment: string
+}
+
+/** Builds the request for a contact's one reply to the reader's comment on her post. */
+export function buildCommentReplyPrompt(input: CommentReplyInput): StructuredRequest {
+  const { character, charKey } = input.contact
+  const name = character.firstName
+  const p = pronounsOf(character.gender)
+  const user = [
+    ...spaced(['CONTACT', ...contactEntry(input.contact, input.date, input.stats)]),
+    ...spaced(quotedPost('THE POST', name, input.post)),
+    ...spaced([
+      'THE COMMENT',
+      `The reader, whose first name is ${input.readerFirstName}, commented under it:`,
+      `"${input.comment.replace(/\s*\n+\s*/g, ' ')}"`
+    ]),
+    'YOUR TURN',
+    `Hey RITA, write ${name}'s reply to the reader's comment, under ${p.possessive} own post.`,
+    `Fill "replies" with exactly one entry. "who" is "${charKey}".`,
+    `"text" is the reply itself: one or two short lines in ${p.possessive} own voice, the way ${p.subject} would actually type it, under ${READER_REPLY_MAX} characters, in the tone of where ${p.subject} stands with the reader. Lowercase, slang and emoji are fine if that is how ${p.subject} writes. No narration and no stage directions.`,
+    'The post, the comment and the reply are public: the whole campus reads them.',
+    `${name} adds no new fact about the post: not where ${p.subject} is, who with, why, or what ${p.subject} is doing next. If the post does not say it, ${p.subject} does not say it. If ${p.subject} does not know what to answer, ${p.subject} reacts to the comment alone.`,
+    `${p.Subject} may bring up only what is in ${p.possessive} memories above, and only what ${p.subject} would say in front of the whole campus: never sex, intimacy, secrets, confessions or feelings ${p.subject} has not declared, and nothing that exposes the reader or anybody else.`,
+    `Never say or imply that something happened between ${name} and the reader that ${p.possessive} memories do not hold.`,
+    `The reply is never sexual or intimate, even when the comment is: ${p.subject} may be embarrassed, change the subject or laugh it off without playing along.`,
+    `${p.Subject} makes no plan, invites him nowhere and promises nothing. If the comment asks to meet up, ${p.subject} may react to it but agrees to no day, time or place.`,
+    'Name nobody but people the post or the comment already names.'
+  ].join('\n')
+
+  return {
+    system: personaFor(input.lessNsfwText),
+    user,
+    schema: feedRepliesSchema([charKey]),
     cacheKey: input.playthroughId
   }
 }

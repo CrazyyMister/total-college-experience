@@ -13,7 +13,7 @@ import {
 import { escapeRegExp } from '@shared/sentences'
 import { pronounsOf } from '@shared/pronouns'
 import { swappedPhoto, type MessagePhoto } from '@shared/photos'
-import { withAnsweredPosts } from '@shared/feedReplies'
+import { withAnsweredComment, withAnsweredPosts } from '@shared/feedReplies'
 import { displaySlotsOf, retireCgs } from './stageDisplay'
 import {
   chargeAbsences,
@@ -92,6 +92,7 @@ import {
   emptyBunnyboard,
   type ExamRecord,
   type FeedExtras,
+  type ReaderCommentAnswer,
   type ReaderPost,
   type ReaderPostAnswer,
   type GameHistory,
@@ -933,6 +934,12 @@ interface GameStoreState {
   deleteReaderPost: (postId: string) => void
   /** Applies what an ending decided of his posts, stamped with this slot; idempotent. */
   answerReaderPosts: (answers: readonly ReaderPostAnswer[]) => void
+  /** Files a comment of the reader's on a contact's post, stamped with this slot. */
+  addReaderComment: (charId: string, postId: string, text: string) => void
+  /** Takes back a comment of the reader's that is still waiting on her reply. */
+  deleteReaderComment: (charId: string, postId: string) => void
+  /** Applies what an ending decided of his comments, stamped with this slot; idempotent. */
+  answerReaderComments: (answers: readonly ReaderCommentAnswer[]) => void
   /** Files the people the Friends tab offers this slot. */
   setSuggestions: (charIds: readonly string[]) => void
   /** Opens an exam, or clears one at the boundary. */
@@ -2353,6 +2360,52 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
         return Boolean(flags?.gaveContactInfo) && !flags?.blocked
       })
       return posts.some((post, at) => post !== state.readerPosts[at]) ? { readerPosts: posts } : {}
+    }),
+
+  addReaderComment: (charId, postId, text) =>
+    set((state) =>
+      patchCharInfo(state, charId, (info) => {
+        if (!info?.feed?.some((post) => post.id === postId && post.comment === undefined)) return null
+        const comment = { id: crypto.randomUUID(), text, date: state.date, time: state.time }
+        return {
+          ...info,
+          feed: info.feed.map((post) => (post.id === postId ? { ...post, comment } : post))
+        }
+      })
+    ),
+
+  deleteReaderComment: (charId, postId) =>
+    set((state) =>
+      patchCharInfo(state, charId, (info) => {
+        const target = info?.feed?.find((post) => post.id === postId)
+        if (!info?.feed || !target?.comment || target.comment.answered !== undefined) return null
+        return {
+          ...info,
+          feed: info.feed.map((post) => {
+            if (post.id !== postId) return post
+            const { comment: _comment, ...rest } = post
+            return rest
+          })
+        }
+      })
+    ),
+
+  answerReaderComments: (answers) =>
+    set((state) => {
+      let charInfo = state.charInfo
+      for (const answer of answers) {
+        const info = charInfo[answer.charId]
+        if (!info?.feed) continue
+        // Her reply lands only while she is still his contact and has not blocked him.
+        const keep = Boolean(info.flags?.gaveContactInfo) && !info.flags?.blocked
+        const feed = info.feed.map((post) =>
+          withAnsweredComment(post, answer, state.date, state.time, keep)
+        )
+        if (feed.some((post, at) => post !== info.feed?.[at])) {
+          charInfo = { ...charInfo, [answer.charId]: { ...info, feed } }
+        }
+      }
+      return charInfo === state.charInfo ? {} : { charInfo }
     }),
 
   setGaveContactInfo: (charId) =>

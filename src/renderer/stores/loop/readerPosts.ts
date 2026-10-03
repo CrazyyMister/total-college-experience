@@ -15,11 +15,19 @@ import {
   charKeyOf,
   type CharInfo,
   type FeedRepliesResponse,
+  type ReaderComment,
+  type ReaderCommentAnswer,
   type ReaderPost,
   type ReaderPostAnswer,
-  type ReaderPostReply
+  type ReaderPostReply,
+  type SocialPost,
+  type StructuredRequest
 } from '@shared/types'
-import { buildFeedRepliesPrompt } from '../../prompts/feedRepliesPrompt'
+import {
+  buildCommentReplyPrompt,
+  buildFeedRepliesPrompt,
+  type FeedReplier
+} from '../../prompts/feedRepliesPrompt'
 import { FEED_EMOJI, GOSSIP_HANDLE_POOL } from '../../prompts/feedRandoms'
 import { hasTexted } from '../../prompts/textingPrompt'
 import { useGameStore } from '../gameStore'
@@ -27,7 +35,7 @@ import { retrySilently } from '../silentRetry'
 import { lessNsfwTextNow } from './promptState'
 import { currentRun, loopState, runStale } from './state'
 
-/** The reader's own posts on the feed where they meet the store and the writer. */
+/** The reader's own posts and comments on the feed where they meet the store and the writer. */
 
 /** The handles the anonymous replies are picked from: the gossip's generated names. */
 const STRANGER_HANDLES = GOSSIP_HANDLE_POOL.map((one) => one.handle)
@@ -56,6 +64,10 @@ export function readerPostDebugRows(): { key: string; text: string }[] {
         `Next opening: ${forcedName ? `${forcedName} replies to the latest post` : 'no reply forced'}` +
         (loopState.debugFeedRepliesFail ? '; the replies call fails' : '')
     },
+    ...waitingComments().map(({ charId, post, comment }) => ({
+      key: `comment-${comment.id}`,
+      text: `Comment on ${useGameStore.getState().characters[charId]?.firstName ?? charId}'s post "${post.text.slice(0, 30)}": "${comment.text.slice(0, 40)}" · waiting on her reply`
+    })),
     ...loopState.feedRepliesReport.map((text, at) => ({ key: `report-${at}`, text }))
   ]
 }
@@ -101,7 +113,7 @@ type ReplyOutcome =
 
 /** Sends one post's request, re-sending itself quietly while `live` holds and the budget lasts. */
 async function sendReplies(
-  request: ReturnType<typeof buildFeedRepliesPrompt>,
+  request: StructuredRequest,
   group: string,
   live: () => boolean,
   sleeps: Array<() => void>
@@ -200,32 +212,64 @@ interface PendingPost {
   outcome: Promise<ReplyOutcome>
 }
 
+/** One waiting comment of his, and the call for her reply where one was sent. */
+interface PendingComment {
+  charId: string
+  charKey: string
+  post: SocialPost
+  comment: ReaderComment
+  report: string
+  /** Absent where the game decided she gives no reply, so no call went out. */
+  outcome?: Promise<ReplyOutcome>
+}
+
+/** What an opening banks of his waiting posts and comments. */
+interface ReaderFeedAnswers {
+  posts: ReaderPostAnswer[]
+  comments: ReaderCommentAnswer[]
+}
+
 /** The replies an opening asked for, settled once the opening itself is in. */
-export interface PendingReaderPostAnswers {
+export interface PendingReaderFeedAnswers {
   /**
-   * What the opening banks of his waiting posts, waiting at most the deadline more: a post
-   * answered with its likes and whatever replies survived, or with its likes alone on a content
-   * block, and left out — still waiting — on any other failure or past the deadline.
+   * What the opening banks, waiting at most the deadline more: a post answered with its likes
+   * and whatever replies survived, or its likes alone on a content block; a comment answered
+   * with her reply, or with none where she gives none, the writer blocked it or the reply was
+   * dropped; anything else — a failure, or past the deadline — left out, still waiting.
    */
-  settle: () => Promise<ReaderPostAnswer[]>
+  settle: () => Promise<ReaderFeedAnswers>
+}
+
+/** His comments still waiting on a reply, on the posts of everybody on the roster. */
+function waitingComments(): Array<{ charId: string; post: SocialPost; comment: ReaderComment }> {
+  const game = useGameStore.getState()
+  return game.chars.flatMap((charId) =>
+    (game.charInfo[charId]?.feed ?? []).flatMap((post) =>
+      post.comment && post.comment.answered === undefined
+        ? [{ charId, post, comment: post.comment }]
+        : []
+    )
+  )
 }
 
 /**
- * Asks for the replies to every post of his still waiting, one call each, beside the opening
- * being asked for under `group`: the contacts and the strangers who reply are picked off the
- * post's id, the likes as {@link readerPostAnswersFor} has them.
+ * Asks for the replies to every post and comment of his still waiting, one call each, beside
+ * the opening being asked for under `group`: the contacts and the strangers who reply to a post
+ * are picked off its id, the likes as {@link readerPostAnswersFor} has them, and a comment is
+ * answered by the contact whose post it is on unless she is hostile or no longer his contact.
  */
-export function startReaderPostAnswers(
+export function startReaderFeedAnswers(
   charInfo: Readonly<Record<string, CharInfo | undefined>>,
   stats: PlayerStats,
   call: { group: string; stale: () => boolean }
-): PendingReaderPostAnswers {
+): PendingReaderFeedAnswers {
   const run = currentRun()
   const game = useGameStore.getState()
   const waiting = unansweredPosts(game.readerPosts)
-  if (waiting.length === 0) {
+  const commented = waitingComments()
+  if (waiting.length === 0 && commented.length === 0) {
     loopState.feedRepliesReport = []
-    return { settle: async () => [] }
+    return { settle: async () => ({ posts: [], comments: [] }) }
   }
 
   let expired = false
@@ -238,26 +282,45 @@ export function startReaderPostAnswers(
   const name = (charId: string): string => game.characters[charId]?.firstName ?? charId
   const fail = loopState.debugFeedRepliesFail
   loopState.debugFeedRepliesFail = false
+  const common = {
+    playthroughId: game.playthroughId ?? 'unsaved',
+    lessNsfwText: lessNsfwTextNow(),
+    stats,
+    readerFirstName: game.playerFirstName,
+    date: game.date
+  }
 
-  const pending: PendingPost[] = waiting.map((post) => {
+  /** Sends one request under a group of its own, or fails it at once under the dev button. */
+  const send = (id: string, request: StructuredRequest): Promise<ReplyOutcome> => {
+    if (fail) return Promise.resolve({ kind: 'failed', why: 'forced by the development button' })
+    const group = `feedReplies:${id}:${Date.now()}`
+    groups.push(group)
+    loopState.feedRepliesCalls.push({ group, parent: call.group })
+    return sendReplies(request, group, live, sleeps)
+  }
+
+  /** One contact as the feed calls describe her. */
+  const replierOf = (charId: string): FeedReplier | null => {
+    const character = game.characters[charId]
+    const info = charInfo[charId]
+    return character && info
+      ? {
+          character,
+          info,
+          charKey: charKeyOf(character.firstName, character.lastName),
+          texted: hasTexted(game.bunnyboard.conversations[charId])
+        }
+      : null
+  }
+
+  const pendingPosts: PendingPost[] = waiting.map((post) => {
     const forced =
       post === newest && loopState.debugFeedReplier ? [loopState.debugFeedReplier] : []
     const { picked, log } = pickReplyingContacts(post.id, contacts, forced)
     const strangers = pickReplyStrangers(post.id, STRANGER_HANDLES, FEED_EMOJI)
     const asked = picked.flatMap((charId) => {
-      const character = game.characters[charId]
-      const info = charInfo[charId]
-      return character && info
-        ? [
-            {
-              charId,
-              charKey: charKeyOf(character.firstName, character.lastName),
-              character,
-              info,
-              texted: hasTexted(game.bunnyboard.conversations[charId])
-            }
-          ]
-        : []
+      const replier = replierOf(charId)
+      return replier ? [{ charId, ...replier }] : []
     })
     const report = [
       `Post "${post.text.slice(0, 30)}": ` +
@@ -271,33 +334,46 @@ export function startReaderPostAnswers(
               .join(', ')),
       `  strangers: ${strangers.map((one) => `${one.emoji} @${one.handle}`).join(', ')}`
     ]
-
-    let outcome: Promise<ReplyOutcome>
-    if (fail) {
-      outcome = Promise.resolve({ kind: 'failed', why: 'forced by the development button' })
-    } else {
-      const group = `feedReplies:${post.id}:${Date.now()}`
-      groups.push(group)
-      loopState.feedRepliesCalls.push({ group, parent: call.group })
-      const request = buildFeedRepliesPrompt({
-        playthroughId: game.playthroughId ?? 'unsaved',
-        lessNsfwText: lessNsfwTextNow(),
-        stats,
-        readerFirstName: game.playerFirstName,
-        post: { text: post.text, date: post.date, time: post.time },
-        date: game.date,
-        contacts: asked,
-        strangers: strangers.map(({ handle }) => handle)
-      })
-      outcome = sendReplies(request, group, live, sleeps)
-    }
+    const request = buildFeedRepliesPrompt({
+      ...common,
+      post: { text: post.text, date: post.date, time: post.time },
+      contacts: asked,
+      strangers: strangers.map(({ handle }) => handle)
+    })
     return {
       post,
       likes: readerPostLikes(post.id, contacts, heart),
       contacts: asked.map(({ charId, charKey }) => ({ charId, charKey })),
       strangers,
       report,
-      outcome
+      outcome: send(post.id, request)
+    }
+  })
+
+  const pendingComments: PendingComment[] = commented.map(({ charId, post, comment }) => {
+    const head = `Comment on ${name(charId)}'s post "${post.text.slice(0, 30)}"`
+    const replier = replierOf(charId)
+    const contact = contacts.find((one) => one.charId === charId)
+    const charKey = replier?.charKey ?? charId
+    if (!replier || !contact) {
+      return { charId, charKey, post, comment, report: `${head}: no longer a contact → no reply` }
+    }
+    if (contact.disposition === 'hostile') {
+      return { charId, charKey, post, comment, report: `${head}: hostile → no reply` }
+    }
+    const request = buildCommentReplyPrompt({
+      ...common,
+      contact: replier,
+      post: { text: post.text, date: post.date, time: post.time },
+      comment: comment.text
+    })
+    return {
+      charId,
+      charKey,
+      post,
+      comment,
+      report: `${head}: ${contact.disposition}, asked`,
+      outcome: send(comment.id, request)
     }
   })
 
@@ -307,18 +383,25 @@ export function startReaderPostAnswers(
       const late = new Promise<ReplyOutcome>((resolve) => {
         timer = setTimeout(() => resolve({ kind: 'late' }), FEED_REPLIES_DEADLINE_MS)
       })
-      const outcomes = await Promise.all(pending.map(({ outcome }) => Promise.race([outcome, late])))
+      const race = (outcome: Promise<ReplyOutcome>): Promise<ReplyOutcome> =>
+        Promise.race([outcome, late])
+      const [postOutcomes, commentOutcomes] = await Promise.all([
+        Promise.all(pendingPosts.map(({ outcome }) => race(outcome))),
+        Promise.all(
+          pendingComments.map(({ outcome }) => (outcome ? race(outcome) : Promise.resolve(null)))
+        )
+      ])
       clearTimeout(timer)
       // Whatever is still out is cut off here, so nothing it brings back can land anywhere.
       expired = true
       for (const cancel of sleeps) cancel()
       cancelGroups(groups)
-      if (runStale(run) || call.stale()) return []
+      if (runStale(run) || call.stale()) return { posts: [], comments: [] }
 
-      const answers: ReaderPostAnswer[] = []
+      const posts: ReaderPostAnswer[] = []
       const report: string[] = []
-      pending.forEach((one, at) => {
-        const outcome = outcomes[at]
+      pendingPosts.forEach((one, at) => {
+        const outcome = postOutcomes[at]
         report.push(...one.report)
         if (outcome.kind === 'late') {
           report.push('  → past the deadline: the post keeps waiting')
@@ -330,7 +413,7 @@ export function startReaderPostAnswers(
         }
         if (outcome.kind === 'blocked') {
           report.push('  → blocked for its content: likes only')
-          answers.push({ postId: one.post.id, likes: one.likes })
+          posts.push({ postId: one.post.id, likes: one.likes })
           return
         }
         const { replies, dropped } = sanitizedReplies(
@@ -345,14 +428,51 @@ export function startReaderPostAnswers(
             : '  → every reply dropped: likes only',
           ...dropped.map((line) => `  dropped ${line}`)
         )
-        answers.push({
+        posts.push({
           postId: one.post.id,
           likes: one.likes,
           ...(replies.length > 0 ? { replies } : {})
         })
       })
+
+      const comments: ReaderCommentAnswer[] = []
+      pendingComments.forEach((one, at) => {
+        const outcome = commentOutcomes[at]
+        const answer = { charId: one.charId, postId: one.post.id, commentId: one.comment.id }
+        report.push(one.report)
+        if (outcome === null) {
+          comments.push(answer)
+          return
+        }
+        if (outcome.kind === 'late') {
+          report.push('  → past the deadline: the comment keeps waiting')
+          return
+        }
+        if (outcome.kind === 'failed') {
+          report.push(`  → the call failed (${outcome.why}): the comment keeps waiting`)
+          return
+        }
+        if (outcome.kind === 'blocked') {
+          report.push('  → blocked for its content: no reply')
+          comments.push(answer)
+          return
+        }
+        const { replies, dropped } = sanitizedReplies(
+          outcome.reply,
+          [{ charId: one.charId, charKey: one.charKey }],
+          [],
+          charInfo
+        )
+        const reply = replies[0]?.text
+        report.push(
+          reply !== undefined ? '  → reply written' : '  → the reply was dropped: no reply',
+          ...dropped.map((line) => `  dropped ${line}`)
+        )
+        comments.push(reply !== undefined ? { ...answer, reply } : answer)
+      })
+
       loopState.feedRepliesReport = report
-      return answers
+      return { posts, comments }
     }
   }
 }

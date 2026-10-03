@@ -389,6 +389,17 @@ export function ContactPage({
                         {formatShortGameDate(entry.post.date)} · ♥{' '}
                         {entry.post.likes + (entry.post.liked ? 1 : 0)}
                       </motion.button>
+                      {/* His comment and her reply, read here and written on the Updates tab. */}
+                      {entry.post.comment && (
+                        <div className="vu-contact-comment">
+                          <span>You: {entry.post.comment.text}</span>
+                          {entry.post.comment.reply !== undefined && (
+                            <span>
+                              {character.firstName}: {entry.post.comment.reply}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </li>
                   )
                 )}

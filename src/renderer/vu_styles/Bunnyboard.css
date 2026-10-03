@@ -1055,8 +1055,15 @@
   fill: currentColor;
 }
 
-/* The replies under a post of his: a thread hung off the post by a rule on its left, each reply
-   a quiet face beside its words. */
+/* What a post answers with: the like pill, and beside it on a contact's recent post the
+   Comment pill that opens the box. */
+.vu-bb-post-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* The replies under a post of his, and his comment under a contact's with her reply: a thread
+   hung off the post by a rule on its left, each a quiet face beside its words. */
 .vu-bb-replies {
   display: flex;
   flex-direction: column;

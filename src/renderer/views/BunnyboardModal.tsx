@@ -18,13 +18,17 @@ import {
   type CharInfo,
   type ChatMessage,
   type Conversation,
+  type ReaderComment,
   type ReaderPost,
   type ReaderPostReply,
   type TimeSlot
 } from '@shared/types'
 import {
+  commentable,
+  commentsThisSlot,
   isContactReply,
   postedThisSlot,
+  READER_COMMENTS_PER_SLOT,
   READER_POST_MAX,
   readerHandle
 } from '@shared/feedReplies'
@@ -1254,6 +1258,8 @@ function ConversationView({
  * arrangement. Everything here is shut together, for the four reasons the thread decides.
  */
 function Composer({
+  id = 'bb-compose',
+  sendId = 'bb-send',
   closed,
   draft,
   placeholder,
@@ -1261,6 +1267,9 @@ function Composer({
   onDraft,
   onSend
 }: {
+  /** The field's id, which its Enter handling is keyed on. */
+  id?: string
+  sendId?: string
   closed: boolean
   draft: string
   placeholder: string
@@ -1278,14 +1287,14 @@ function Composer({
         // Keep the window-level Enter handler from advancing the scene, on the field and the
         // emoji buttons alike; the field itself sends on Enter and breaks a line on Shift+Enter.
         e.stopPropagation()
-        if ((e.target as HTMLElement).id !== 'bb-compose' || e.shiftKey) return
+        if ((e.target as HTMLElement).id !== id || e.shiftKey) return
         e.preventDefault()
         onSend()
       }}
     >
       <div className="vu-bb-compose">
         <textarea
-          id="bb-compose"
+          id={id}
           rows={1}
           className="vu-input vu-bb-input vu-bb-input--multiline"
           value={draft}
@@ -1294,7 +1303,7 @@ function Composer({
           maxLength={maxLength}
           onChange={(e) => onDraft(e.target.value)}
         />
-        <PrimaryButton id="bb-send" dead={closed || !draft.trim()} onClick={onSend}>
+        <PrimaryButton id={sendId} dead={closed || !draft.trim()} onClick={onSend}>
           Send
         </PrimaryButton>
       </div>
@@ -1946,13 +1955,22 @@ const FeedPost = memo(function FeedPost({
   stranger,
   requested,
   random,
-  gossip
+  gossip,
+  self
 }: {
   charId?: string
   emoji?: string
   name: string
   handle?: string
-  post: { id?: string; text: string; date: number; time: TimeSlot; likes: number; liked?: boolean }
+  post: {
+    id?: string
+    text: string
+    date: number
+    time: TimeSlot
+    likes: number
+    liked?: boolean
+    comment?: ReaderComment
+  }
   /** Somebody he has no contact info for — the one route by which one reaches his feed. */
   stranger?: boolean
   /** She already has his request, so the control that sent it is spent. */
@@ -1961,6 +1979,8 @@ const FeedPost = memo(function FeedPost({
   random?: boolean
   /** An anonymous student's gossip, whose like is kept on the gossip post itself. */
   gossip?: boolean
+  /** Who he is and whether he may comment; given only on a contact's post, the one he comments on. */
+  self?: FeedSelf
 }): JSX.Element {
   // Her page, her like and the request for her number, each addressed to the store from here
   // rather than handed down, so nothing but the post itself changes under the row.
@@ -1971,6 +1991,10 @@ const FeedPost = memo(function FeedPost({
     else if (gossip && post.id) useGameStore.getState().toggleGossipLike(post.id)
     else if (charId && post.id) useGameStore.getState().toggleFeedLike(charId, post.id)
   }
+
+  // Whether the Comment control shows: a recent post of a contact's he has not commented on.
+  const [commenting, setCommenting] = useState(false)
+  const canComment = Boolean(self && charId && post.id && commentable(post, self.today))
 
   // A person's face is ringed in the accent wherever it is listed; a bot's and the random
   // student's are not — she is one of the four thousand people the roster is not.
@@ -2014,19 +2038,145 @@ const FeedPost = memo(function FeedPost({
         )}
       </div>
       <p className="vu-bb-post-text">{post.text}</p>
-      <motion.button
-        className={`vu-bb-like${post.liked ? ' vu-bb-like--on' : ''}`}
-        type="button"
-        aria-pressed={Boolean(post.liked)}
-        {...gestures(false, quietLift, quietPress)}
-        onClick={like}
-      >
-        <HeartIcon />
-        {post.likes + (post.liked ? 1 : 0)}
-      </motion.button>
+      <div className="vu-bb-post-actions">
+        <motion.button
+          className={`vu-bb-like${post.liked ? ' vu-bb-like--on' : ''}`}
+          type="button"
+          aria-pressed={Boolean(post.liked)}
+          {...gestures(false, quietLift, quietPress)}
+          onClick={like}
+        >
+          <HeartIcon />
+          {post.likes + (post.liked ? 1 : 0)}
+        </motion.button>
+        {canComment && !commenting && (
+          <motion.button
+            className="vu-bb-like"
+            type="button"
+            {...gestures(false, quietLift, quietPress)}
+            onClick={() => setCommenting(true)}
+          >
+            Comment
+          </motion.button>
+        )}
+      </div>
+      {self && charId && post.id && (post.comment || (canComment && commenting)) && (
+        <PostComment
+          charId={charId}
+          postId={post.id}
+          comment={post.comment}
+          self={self}
+          onSent={() => setCommenting(false)}
+        />
+      )}
     </motion.div>
   )
 })
+
+/** His own face: his picture in the ringed archway, or the plain face of anybody with none. */
+function SelfFace({ picture }: { picture: string | null }): JSX.Element {
+  return (
+    <span className="vu-bb-face-btn">
+      {picture ? (
+        <span className="vu-arch vu-bb-face vu-bb-face--sm vu-bb-face--ring">
+          <span className="vu-crop">
+            <img className="vu-crop-img" src={picture} alt="" />
+          </span>
+        </span>
+      ) : (
+        <Portrait size="sm" />
+      )}
+    </span>
+  )
+}
+
+/**
+ * His comment under a contact's post and her one reply to it, or, before he has left one, the box
+ * he writes it in, which says why where it is shut.
+ */
+function PostComment({
+  charId,
+  postId,
+  comment,
+  self,
+  onSent
+}: {
+  charId: string
+  postId: string
+  comment: ReaderComment | undefined
+  self: FeedSelf
+  onSent: () => void
+}): JSX.Element {
+  const [draft, setDraft] = useState('')
+  const character = useGameStore((s) => s.characters[charId])
+  const herHandle = useGameStore((s) => s.charInfo[charId]?.handle)
+
+  if (comment) {
+    return (
+      <div className="vu-bb-replies">
+        <div className="vu-bb-reply">
+          <SelfFace picture={self.picture} />
+          <div className="vu-bb-reply-body">
+            <div className="vu-bb-reply-who">
+              <span className="vu-bb-reply-name">{self.name}</span>
+              {self.handle && <span className="vu-bb-reply-handle">@{self.handle}</span>}
+            </div>
+            <p className="vu-bb-reply-text">{comment.text}</p>
+          </div>
+          {self.canRemove && comment.answered === undefined && (
+            <motion.button
+              className="vu-x"
+              type="button"
+              aria-label="Delete comment"
+              {...gestures(false, quietLift, quietPress)}
+              onClick={() => useGameStore.getState().deleteReaderComment(charId, postId)}
+            >
+              <CloseIcon />
+            </motion.button>
+          )}
+        </div>
+        {comment.reply !== undefined && character && (
+          <div className="vu-bb-reply">
+            <FaceButton
+              name={fullNameOf(character)}
+              onOpen={() => useBunnyboardStore.getState().openPage(charId)}
+            >
+              <Portrait charId={charId} ring size="sm" />
+            </FaceButton>
+            <div className="vu-bb-reply-body">
+              <div className="vu-bb-reply-who">
+                <span className="vu-bb-reply-name">{fullNameOf(character)}</span>
+                {herHandle && <span className="vu-bb-reply-handle">@{herHandle}</span>}
+              </div>
+              <p className="vu-bb-reply-text">{comment.reply}</p>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  const closed = self.commentClosed !== null
+  const send = (): void => {
+    const value = draft.trim().slice(0, READER_POST_MAX)
+    if (!value || closed) return
+    setDraft('')
+    onSent()
+    useGameStore.getState().addReaderComment(charId, postId, value)
+  }
+  return (
+    <Composer
+      id={`bb-comment-${postId}`}
+      sendId={`bb-comment-send-${postId}`}
+      closed={closed}
+      draft={draft}
+      maxLength={READER_POST_MAX}
+      placeholder={self.commentClosed ?? 'Comment'}
+      onDraft={setDraft}
+      onSend={send}
+    />
+  )
+}
 
 /**
  * One post of the reader's own: his picture where he has one and the empty face otherwise, his
@@ -2049,17 +2199,7 @@ const MyPost = memo(function MyPost({
   return (
     <motion.div className="vu-bb-post" variants={slideInQuick}>
       <div className="vu-bb-post-head">
-        <span className="vu-bb-face-btn">
-          {picture ? (
-            <span className="vu-arch vu-bb-face vu-bb-face--sm vu-bb-face--ring">
-              <span className="vu-crop">
-                <img className="vu-crop-img" src={picture} alt="" />
-              </span>
-            </span>
-          ) : (
-            <Portrait size="sm" />
-          )}
-        </span>
+        <SelfFace picture={picture} />
         <div className="vu-bb-post-who">
           <div className="vu-bb-post-name">{name}</div>
           <div className="vu-bb-post-meta">
@@ -2256,6 +2396,10 @@ function samePage(before: readonly FeedEntry[], now: readonly FeedEntry[]): bool
 interface FeedSelf {
   name: string
   handle: string
+  /** Today, which posts are recent enough to comment on are counted back from. */
+  today: number
+  /** Why the comment box is shut, or null while he may comment. */
+  commentClosed: string | null
   picture: string | null
   canRemove: boolean
 }
@@ -2319,6 +2463,7 @@ function rowOf(entry: FeedEntry, requestsSent: readonly string[], self: FeedSelf
       post={post}
       stranger={entry.stranger}
       requested={entry.stranger && requestsSent.includes(charId)}
+      {...(entry.stranger ? {} : { self })}
     />
   )
 }
@@ -2364,14 +2509,29 @@ function UpdatesFeed(): JSX.Element {
   // of the day.
   const posted = postedThisSlot(readerPosts, date, time)
   const composerClosed = epilogue || sceneActive || posted
+  // The comment box's reasons, the cap counted off the comments the save holds this half.
+  const commented = commentsThisSlot(
+    chars.map((charId) => charInfo[charId]?.feed),
+    date,
+    time
+  )
+  const commentClosed = epilogue
+    ? NOT_NOW
+    : sceneActive
+      ? "You should probably focus on what's in front of you."
+      : commented >= READER_COMMENTS_PER_SLOT
+        ? `You already left ${READER_COMMENTS_PER_SLOT} comments this half of the day.`
+        : null
   const self = useMemo(
     () => ({
       name: `${firstName} ${lastName}`,
       handle: readerHandle(firstName, lastName),
       picture,
-      canRemove: !epilogue && !sceneActive
+      canRemove: !epilogue && !sceneActive,
+      today: date,
+      commentClosed
     }),
-    [firstName, lastName, picture, epilogue, sceneActive]
+    [firstName, lastName, picture, epilogue, sceneActive, date, commentClosed]
   )
 
   function onPost(): void {

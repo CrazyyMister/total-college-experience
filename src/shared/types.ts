@@ -762,6 +762,32 @@ export interface SocialPost {
   liked?: boolean
   /** The game date the like was made — absent exactly when `liked` is. */
   likedOn?: number
+  /** The one comment the reader left on it; absent for none. */
+  comment?: ReaderComment
+}
+
+/** The reader's comment on a contact's post, and her one reply to it. */
+export interface ReaderComment {
+  /** crypto.randomUUID(); what an answer names, beside the post's id. */
+  id: string
+  text: string
+  /** The slot he commented in. */
+  date: number
+  time: TimeSlot
+  /** The slot it was answered in; absent while it waits. */
+  answered?: { date: number; time: TimeSlot }
+  /** What she wrote back; absent while it waits, and for an answer with no reply. */
+  reply?: string
+}
+
+/** What an ending decided of one comment of his, banked with the opening and applied once. */
+export interface ReaderCommentAnswer {
+  /** Whose post it is on. */
+  charId: string
+  postId: string
+  commentId: string
+  /** Her reply; absent when she gives none. */
+  reply?: string
 }
 
 /** One post the reader wrote on the feed. */
@@ -1190,6 +1216,11 @@ export interface SlotOpening {
    * slot opens. Absent for an opening with none, which leaves them waiting.
    */
   readerPostAnswers?: ReaderPostAnswer[]
+  /**
+   * What the ending decided of the reader's comments still waiting on a reply, applied as the
+   * slot opens. Absent for an opening with none, which leaves them waiting.
+   */
+  readerCommentAnswers?: ReaderCommentAnswer[]
   /** The plans the merged ledger found, normalized and attendance-filtered. */
   events: CalendarEvent[]
   /** Who that filtering took off an event, announced by text at step 1. */

@@ -6,7 +6,14 @@
 import { seededRand } from './hash'
 import type { Disposition } from './relationship'
 import { splitSentences } from './sentences'
-import type { ReaderPost, ReaderPostAnswer, ReaderPostReply, TimeSlot } from './types'
+import type {
+  ReaderCommentAnswer,
+  ReaderPost,
+  ReaderPostAnswer,
+  ReaderPostReply,
+  SocialPost,
+  TimeSlot
+} from './types'
 
 /** The most a post of his may run to, in characters. */
 export const READER_POST_MAX = 280
@@ -230,6 +237,54 @@ export function fittedReply(text: string): string | null {
     kept = next
   }
   return kept || null
+}
+
+/** The most comments he leaves in one half of the day. */
+export const READER_COMMENTS_PER_SLOT = 3
+
+/** How many comments of his were left in this slot, read off the posts they sit on. */
+export function commentsThisSlot(
+  feeds: ReadonlyArray<readonly SocialPost[] | undefined>,
+  date: number,
+  time: TimeSlot
+): number {
+  let count = 0
+  for (const feed of feeds) {
+    for (const post of feed ?? []) {
+      if (post.comment?.date === date && post.comment.time === time) count++
+    }
+  }
+  return count
+}
+
+/** Whether a post of a contact's is recent enough to comment on, and has no comment of his yet. */
+export function commentable(post: Pick<SocialPost, 'comment' | 'date'>, today: number): boolean {
+  return post.comment === undefined && post.date >= today - 1 && post.date <= today
+}
+
+/**
+ * The post with `answer` applied to his comment, stamped with the slot it was answered in, its
+ * reply kept only when `keepReply`; the post itself when the answer names no comment it carries
+ * or the comment is already answered, so applying twice changes nothing.
+ */
+export function withAnsweredComment(
+  post: SocialPost,
+  answer: ReaderCommentAnswer,
+  date: number,
+  time: TimeSlot,
+  keepReply: boolean
+): SocialPost {
+  const comment = post.comment
+  if (post.id !== answer.postId || comment?.id !== answer.commentId) return post
+  if (comment.answered !== undefined) return post
+  return {
+    ...post,
+    comment: {
+      ...comment,
+      answered: { date, time },
+      ...(keepReply && answer.reply !== undefined ? { reply: answer.reply } : {})
+    }
+  }
 }
 
 /** The handle the reader goes by: his names, trimmed, joined by an underscore and lowercased. */

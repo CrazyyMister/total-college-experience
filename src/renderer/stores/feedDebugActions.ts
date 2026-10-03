@@ -26,9 +26,9 @@ export function debugFeedReplier(charId: string): DebugResult {
   return done(`${character.firstName} replies to the reader's latest post at the next opening.`)
 }
 
-/** Has the next replies call fail as a transient error would, so the posts keep waiting. */
+/** Has the next opening's replies calls fail as a transient error would; what they were for waits. */
 export function debugFailFeedReplies(): DebugResult {
   if (!import.meta.env.DEV) return NOT_DEV
   loopState.debugFeedRepliesFail = true
-  return done('The next replies call fails; the posts it was for keep waiting.')
+  return done('The next replies calls fail; the posts and comments they were for keep waiting.')
 }

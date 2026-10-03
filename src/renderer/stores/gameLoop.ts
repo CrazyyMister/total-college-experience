@@ -191,7 +191,7 @@ import { startHangoutScene } from './loop/hangouts'
 import {
   cancelFeedReplies,
   readerPostAnswersFor,
-  startReaderPostAnswers
+  startReaderFeedAnswers
 } from './loop/readerPosts'
 import {
   liveView,
@@ -472,8 +472,10 @@ async function beginSlot(): Promise<void> {
   // The anonymous gossip, on the same terms: what it counts for is dated today, and the lovers
   // who left him in silence are owed one until it comes back written.
   deliverSlotGossip(opening)
-  // His posts' likes, for an opening asked for here rather than banked; idempotent.
+  // His posts' likes and replies and his comments' replies, for an opening asked for here
+  // rather than banked; idempotent.
   useGameStore.getState().answerReaderPosts(opening.readerPostAnswers ?? [])
+  useGameStore.getState().answerReaderComments(opening.readerCommentAnswers ?? [])
 
   // Folded into the slot-save minted before the call went out, which is the start-of-slot
   // decision point.
@@ -839,9 +841,9 @@ async function fetchSlotIntro(
   const gossip = gossipTopic ? introGossipOf(gossipTopic, view.charInfo) : null
   const gossipAuthor = gossip ? drawGossipAuthor() : null
 
-  // What the reader's waiting posts get, decided beside the opening that delivers it: the
-  // replies call goes out now, beside the opening's own.
-  const replies = startReaderPostAnswers(view.charInfo, view.stats, { group, stale })
+  // What the reader's waiting posts and comments get, decided beside the opening that delivers
+  // it: the replies calls go out now, beside the opening's own.
+  const replies = startReaderFeedAnswers(view.charInfo, view.stats, { group, stale })
 
   // Built once and re-sent verbatim on retry; only a hand edit replaces it.
   let request = buildSlotIntroPrompt(
@@ -877,7 +879,7 @@ async function fetchSlotIntro(
     if (runStale(run) || stale()) return null
     if (result.ok) {
       // The replies get a little longer than the opening, and only what is in by then is banked.
-      const readerPostAnswers = await replies.settle()
+      const { posts: readerPostAnswers, comments: readerCommentAnswers } = await replies.settle()
       if (runStale(run) || stale()) return null
       const written = result.data.lines.map((line) => line.text.trim()).filter(Boolean)
       // What the narration actually said about the place it was handed. A rumor about
@@ -894,6 +896,7 @@ async function fetchSlotIntro(
         ...(occasion ? { askOccasionId: occasion.id } : {}),
         ...(invitationPhoto ? { invitationPhoto } : {}),
         ...(readerPostAnswers.length > 0 ? { readerPostAnswers } : {}),
+        ...(readerCommentAnswers.length > 0 ? { readerCommentAnswers } : {}),
         posts: result.data.posts,
         // Only the hints of posters who made it into the prompt can come back written.
         ...(romance && romance.guaranteed.driftPosts.length > 0
@@ -2648,9 +2651,12 @@ async function crossSlotBoundary(): Promise<void> {
   for (const send of owedTexts) send()
 
   useGameStore.getState().advanceSlot()
-  // The likes the ending decided for his posts, stamped with the slot they land in and inside
-  // the boundary save, so a reload of it keeps them; idempotent.
+  // What the ending decided for his posts and comments, stamped with the slot they land in and
+  // inside the boundary save, so a reload of it keeps them; idempotent.
   useGameStore.getState().answerReaderPosts(loopState.bankedOpening?.readerPostAnswers ?? [])
+  useGameStore
+    .getState()
+    .answerReaderComments(loopState.bankedOpening?.readerCommentAnswers ?? [])
   // The buttons that set up the replies belong to the opening just applied.
   loopState.debugFeedReplier = null
   loopState.debugFeedRepliesFail = false
