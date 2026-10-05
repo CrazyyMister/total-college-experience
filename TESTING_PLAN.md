@@ -108,6 +108,13 @@ You will need externally kept data for testing:
 - [ ] Text a contact and also exchange on the feed with her in the same slot. Verify she has one memory, not two.
 - [ ] Let a contact tag you and do not comment on the post. Verify no "on Bunnyboard" memory comes of it.
 - [ ] Load a save from before the feed memories, play a scene and verify it plays on without an error.
+- [ ] In a dev build, post a test line for a contact with F9's "Y posts a test line this slot", set "Affinity of X and Y = 8", use "X comments on Y's post at the next ending", finish a scene and verify X's comment appears under Y's post with her face, name and @, with no like and no reply under it, and that Y's page shows it read-only.
+- [ ] Right after a character's comment arrives, load the autosave and play into the slot again. Verify the comment appears once.
+- [ ] In a dev build, force a comment and make the next feed replies call fail. Verify no comment arrives, now or in later slots.
+- [ ] In a dev build, force a comment from a contact who has blocked you, and then from one with a crush on the poster. Verify no comment arrives and F9 says why.
+- [ ] In a dev build, force a contact to tag you and another to comment on that post. Verify F9 says the post tags the reader and no comment arrives.
+- [ ] Comment on a post that already has a character's comment. Verify her reply arrives under your comment and the character's comment stays above it.
+- [ ] Load a save from before characters commented on each other's posts, play a scene and verify it plays on without an error.
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 
