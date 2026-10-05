@@ -109,7 +109,7 @@
 - `.vu-pages-*` — a page of ten cards in two columns of five, numbered down the first column and then the second: a save card is the reading shape with its picture filling the round end at the card's full height, an empty slot is the dashed gap with its one word, the sticker rides every card's flat corner with the ✕ its sibling, the arrows either side stand the grid's full height and turn past either end onto the other, and a dot per page under it fills for the one on screen; the wheel, the arrow keys, the arrows and the dots all turn the page.
 - `.vu-popups` — the frame inside a panel a combobox's floating list is placed against: the panel's whole box, taking no pointer of its own.
 - `.vu-test-row` / `.vu-test-note` — a custom endpoint's Test connection: the quiet button, the mono word it comes back with beside it, and on a failure the sentence on its own line below.
-- `.vu-note` — the prose panel a note modal is (Feedback, Support Development): action-shaped, `.vu-note-text` paragraphs — the same paragraph a dialog's message is — and whatever the note shows, then a `.vu-note-foot`.
+- `.vu-note` — the prose panel a note modal is (Feedback): action-shaped, `.vu-note-text` paragraphs — the same paragraph a dialog's message is — and whatever the note shows, then a `.vu-note-foot`.
 - `.vu-track` / `.vu-bar` — a bar with a count behind it; both declare `display: block` so they work as inline elements.
 - `.vu-ring` — the dotted circle `spin` turns, drawn in `currentColor`; it is a shape rather than a state, and the word beside it says what it means.
 - `.vu-pic-action` — the pill a picture raises saying what a click on it does, revealed with the picture's own hover or focus.

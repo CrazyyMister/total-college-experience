@@ -169,8 +169,7 @@ body {
   background: var(--vu-good);
 }
 
-/* A note modal's panel: prose, whatever it shows, and a foot. The Feedback and Support
-   Development modals wear it.
+/* A note modal's panel: prose, whatever it shows, and a foot. The Feedback modal wears it.
 
    No `overflow` here: the tab overhangs the panel's top edge, and the paper layer's own
    shadow is a pseudo-element this box would clip with it. */

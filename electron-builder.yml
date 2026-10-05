@@ -27,19 +27,14 @@ extraResources:
   - from: build/desktop-assets
     to: assets
 
-extraFiles:
-  - from: build/itch.toml
-    to: .itch.toml
-
 npmRebuild: false
 compression: normal
 
 win:
   icon: build/icon.ico
   target:
-    - target: zip
+    - target: dir
       arch: [x64]
-  artifactName: venus-university-${version}-win.${ext}
   # The game writes `data/` beside its own exe; asking for elevation would be
   # both a lie and a UAC prompt on every launch.
   requestedExecutionLevel: asInvoker

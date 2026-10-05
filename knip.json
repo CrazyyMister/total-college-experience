@@ -1,10 +1,7 @@
 {
   "entry": [
     "src/renderer/main.tsx",
-    "scripts/*.mjs",
-    "scripts/trailer/*.mjs",
-    "scripts/itch-page/*.mjs",
-    "scripts/trailer/runtime/*.js"
+    "scripts/*.mjs"
   ],
   "project": ["src/**/*.{ts,tsx}", "scripts/**/*.{mjs,js,ts}", "test/**/*.ts"],
   "ignoreDependencies": ["@fontsource/*", "electron-builder", "@electron/asar"]

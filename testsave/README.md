@@ -36,22 +36,18 @@ the scroll that reports them belongs to the following Monday's opening, and `man
 Each save replays its opening with no writer call, then lands, so the landing, the calendar, the
 phone and the profile can be checked without a key; anything past the landing needs one.
 
-`backup.zip` is the same playthrough in the app's backup format, for the browser build: only the
-record and the seven saves, with factory settings (no key) and empty grab bags.
+`backup.zip` is the same playthrough in the app's backup format: only the record and the seven
+saves, with factory settings (no key) and empty grab bags.
 
 ## Using it
 
-- **Desktop**: `node testsave/harness/install.mjs --target <install>/data/saves` copies the folder
-  in (it refuses to write over an existing one) and `--remove` takes it out again. The default
-  target is this repo's own `data/saves`, which is the dev app's.
-- **Browser build**: Settings → Restore from backup → `testsave/backup.zip`. A restore replaces
-  every save and every setting the browser holds, so do it in a fresh or throwaway profile only.
+- **Copy the folder**: put `1790392968199/` inside the `data/saves/` of the install under test (the dev
+  app's own is this repo's `data/saves`). Do not copy over a folder of the same name.
+- **Restore the backup**: Settings → Restore from backup → `testsave/backup.zip`. A restore replaces
+  every save and every setting the install holds, so do it in a fresh or throwaway install only.
 
-## Regenerating it
+## Frozen
 
-Saves are refused after any change to `SAVE_SCHEMA_VERSION` or `RECORD_SCHEMA_VERSION` (there is
-no migration), so the folder has to be regenerated then, and `harness/README.md` says how: a mock
-endpoint, a fresh vite on its own port, and `semester.mjs`, about an hour unattended. Then
-`makeBackup.mjs` rebuilds the zip, `validate.mjs` checks the folder and the zip against the shared
-validators and the facts above, and `restoreCheck.mjs` proves the zip restores in the browser
-build. Delete the old numeric folder first: the tools expect exactly one.
+The saves are a record of what the game wrote when they were made and are never regenerated. A
+change to `SAVE_SCHEMA_VERSION` or `RECORD_SCHEMA_VERSION` leaves them refused, since there is no
+migration, and the folder and the zip are then retired rather than rebuilt.

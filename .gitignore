@@ -8,11 +8,6 @@ release
 /build/desktop-assets
 /build/.asset-cache
 
-# the store page pictures the encoder reads and rewrites: the 2560x1440 captures and the
-# recorded screencast frames. The stills and the GIFs encoded from them are kept.
-/build/itch-page/shots/masters
-/build/itch-page/gifs/frames
-
 # runtime data (getDataPath()) — see src/main/paths.ts
 /data
 

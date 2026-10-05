@@ -174,11 +174,4 @@
     border: 0;
     background: none;
   }
-
-  /* The shared heart is drawn at 24 and sits here at the other marks' 16, its stroke handed
-     in by the caller. */
-  .vu-menu-heart {
-    width: 16px;
-    height: 16px;
-  }
 }

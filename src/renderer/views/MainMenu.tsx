@@ -44,16 +44,7 @@ import {
   rackIn,
   silhouetteIn
 } from './motion'
-import { HeartIcon } from './screenIcons'
 import '../vu_styles/MainMenu.css'
-
-/** The page the chip points at. */
-const LINKS = [
-  { id: 'social', label: '@venus_uni_game', url: 'https://x.com/venus_uni_game' }
-] as const
-
-/** The marks {@link LinkIcon} draws: the outward page, and the Feedback chip beside it. */
-type LinkId = (typeof LINKS)[number]['id'] | 'feedback'
 
 /** One background on screen: the key is its place in the queue, and keeps its layer distinct. */
 interface Shot {
@@ -432,30 +423,6 @@ export function MainMenu(): JSX.Element {
         initial="hidden"
         animate="shown"
       >
-        {LINKS.map((link) => (
-          <motion.a
-            key={link.id}
-            className="vu-chip vu-paper"
-            href={link.url}
-            target="_blank"
-            rel="noreferrer"
-            {...gestures(false, chipLift, chipPress)}
-          >
-            <LinkIcon id={link.id} />
-            {link.label}
-          </motion.a>
-        ))}
-        {/* The two chips that stay in the app: each opens a modal rather than a page. */}
-        <motion.button
-          id="menu-support"
-          className="vu-chip vu-paper"
-          type="button"
-          {...gestures(false, chipLift, chipPress)}
-          onClick={() => openModal('support')}
-        >
-          <HeartIcon className="vu-menu-heart" strokeWidth={3} />
-          Support Development
-        </motion.button>
         <motion.button
           id="menu-feedback"
           className="vu-chip vu-paper"
@@ -463,7 +430,7 @@ export function MainMenu(): JSX.Element {
           {...gestures(false, chipLift, chipPress)}
           onClick={() => openModal('feedback')}
         >
-          <LinkIcon id="feedback" />
+          <MailIcon />
           Feedback
         </motion.button>
       </motion.nav>
@@ -477,16 +444,8 @@ function whereYouLeftOff(date: number): string {
   return `wk${week} · ${formatWeekday(date).slice(0, 3)} ${formatShortGameDate(date)}`.toLowerCase()
 }
 
-/** The two chip marks, drawn in `currentColor` so one rule tints them. */
-function LinkIcon({ id }: { id: LinkId }): JSX.Element {
-  if (id === 'social') {
-    return (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
-        <path d="M4 4l16 16" />
-        <path d="M20 4 4 20" />
-      </svg>
-    )
-  }
+/** The Feedback chip's mark, drawn in `currentColor` so one rule tints it. */
+function MailIcon(): JSX.Element {
   return (
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.75" strokeLinecap="round" strokeLinejoin="round">
       <rect x="2" y="4" width="20" height="16" rx="3" />

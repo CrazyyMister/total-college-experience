@@ -194,13 +194,13 @@ describe('exportCharacter', () => {
     expect(JSON.parse(await readFile(join(dir, 'character.json'), 'utf8')).firstName).toBe('Rei')
   })
 
-  it('writes nothing a browser’s unzip would refuse on the way back in', async () => {
+  it('writes nothing the importer would refuse on the way back in', async () => {
     const character = await seedCharacter()
     const archive = archivePath('listing.zip')
     await exportCharacter(character.charId, archive)
 
     // fflate lists the folder rows 7-Zip writes, which the desktop's unpacker never shows;
-    // this is the listing the web importer walks.
+    // this is the listing the importer walks.
     const names = Object.keys(unzipSync(new Uint8Array(await readFile(archive))))
 
     expect(names.some((name) => name.endsWith('/'))).toBe(true)

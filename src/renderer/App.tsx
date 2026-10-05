@@ -15,7 +15,6 @@ import { CreditsModal } from './views/CreditsModal'
 import { DownloadModal } from './views/DownloadModal'
 import { FeedbackModal } from './views/FeedbackModal'
 import { LoadGameModal } from './views/LoadGameModal'
-import { SupportModal } from './views/SupportModal'
 import { heldScreenTheme } from './views/clockTheme'
 import { useAssetStore } from './stores/assetStore'
 import { useAudioStore } from './stores/audioStore'
@@ -158,7 +157,6 @@ function AppModals(): JSX.Element {
         {modals.includes('settings') && <AppSettingsModal key="settings" theme={theme} />}
         {modals.includes('credits') && <CreditsModal key="credits" theme={theme} />}
         {modals.includes('feedback') && <FeedbackModal key="feedback" theme={theme} />}
-        {modals.includes('support') && <SupportModal key="support" theme={theme} />}
         {modals.includes('loadGame') && <LoadGameModal key="load-game" theme={theme} />}
         {download && (
           <DownloadModal key="download" theme={theme} name={download.name} url={download.url} />

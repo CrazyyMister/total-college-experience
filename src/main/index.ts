@@ -91,8 +91,8 @@ function bindShortcuts(win: BrowserWindow): void {
   })
 }
 
-/** The two schemes a link may leave the app for: a web page and an email address. */
-const OPENABLE_SCHEMES = new Set(['https:', 'mailto:'])
+/** The one scheme a link may leave the app for: a web page. */
+const OPENABLE_SCHEMES = new Set(['https:'])
 
 /** True for an address the app will hand to the desktop; anything unparseable is not one. */
 function isOpenableExternally(url: string): boolean {

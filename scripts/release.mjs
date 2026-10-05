@@ -6,8 +6,8 @@ import { fileURLToPath } from 'node:url'
 import { folderBytes, packCharacters } from './packCharacters.mjs'
 
 /**
- * The one release command: the Windows folder and its zip, out of one tree and one version.
- * It never bumps the version and never tags; `npm version` does that first.
+ * The one release command: the Windows app folder, out of one tree and one version.
+ * It never bumps the version.
  */
 
 const REPO = resolve(fileURLToPath(new URL('..', import.meta.url)))
@@ -82,7 +82,7 @@ async function step(name, fn) {
   return value
 }
 
-/** Node version, build tools, a clean tree and a version nothing else is tagged with. */
+/** Node version, build tools and a clean tree. */
 async function preflight() {
   const major = Number(process.versions.node.split('.')[0])
   if (major < 22) throw new Error(`Node 22 or newer is required; this is ${process.versions.node}.`)
@@ -109,17 +109,6 @@ async function preflight() {
   const sha = head.slice(0, 8)
 
   const { version } = JSON.parse(await readFile(join(REPO, 'package.json'), 'utf8'))
-  const tag = `v${version}`
-  // Stderr is dropped: an absent tag is the normal case and prints its own error.
-  const tagged = await capture('git', ['rev-parse', '-q', '--verify', `refs/tags/${tag}^{commit}`], {
-    stdio: ['ignore', 'pipe', 'ignore']
-  })
-  if (tagged.code === 0 && tagged.out.trim() && tagged.out.trim() !== head) {
-    throw new Error(
-      `Tag ${tag} already points at ${tagged.out.trim().slice(0, 8)}, not HEAD. Run npm version first.`
-    )
-  }
-
   console.log(`  version ${version}, HEAD ${sha}, node ${process.versions.node}`)
   return { version, sha }
 }
@@ -128,7 +117,6 @@ async function preflight() {
 async function assertDesktopPayload() {
   const required = [
     'Venus University.exe',
-    '.itch.toml',
     'resources/app.asar',
     'resources/app.asar.unpacked/node_modules/7zip-bin/win/x64/7za.exe'
   ]
@@ -200,7 +188,9 @@ async function main() {
     run(process.execPath, [
       nodeBin('electron-builder/cli.js'),
       '--win',
-      'zip',
+      'dir',
+      '--publish',
+      'never',
       '--config',
       'electron-builder.yml'
     ])
@@ -208,16 +198,11 @@ async function main() {
 
   const asarBytes = await step('check the desktop payload', assertDesktopPayload)
 
-  const winZip = join(RELEASE, `venus-university-${version}-win.zip`)
-  const winZipBytes = existsSync(winZip) ? (await stat(winZip)).size : 0
   const unpackedBytes = await folderBytes(UNPACKED)
-
-  const { itchTarget } = JSON.parse(await readFile(join(REPO, 'build', 'release.json'), 'utf8'))
 
   console.log(`\n=== Venus University ${version} (${sha})`)
   const rows = [
     ['desktop folder', UNPACKED, `${mb(unpackedBytes)}, app.asar ${mb(asarBytes)}`],
-    ['desktop zip', winZip, winZipBytes ? mb(winZipBytes) : 'missing'],
     [
       'transcode cache',
       `${packed.encoded} encoded / ${packed.cached} cached`,
@@ -232,8 +217,7 @@ async function main() {
   }
   console.log(`  ${((Date.now() - started) / 1000).toFixed(1)}s total`)
 
-  console.log('\nPush to itch.io with:')
-  console.log(`  butler push release/win-unpacked ${itchTarget}:windows --userversion ${version}`)
+  console.log(`\nThe game folder is ${UNPACKED}`)
 }
 
 main().catch((err) => {

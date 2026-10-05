@@ -7,17 +7,12 @@ import { useUiStore } from '../stores/uiStore'
 import {
   gestures,
   lift,
-  linkLift,
   panelUnderTab,
   press,
   quietLift,
   quietPress,
   veilIn
 } from './motion'
-import '../vu_styles/Feedback.css'
-
-/** Where feedback goes; the link and the Send email answer both open it. */
-const FEEDBACK_MAILTO = 'mailto:venus.university.dev@gmail.com'
 
 export interface FeedbackModalProps {
   /** Drawn by whatever opened this — a portal inherits neither palette nor state rules. */
@@ -28,7 +23,7 @@ export interface FeedbackModalProps {
 
 /**
  * The Feedback modal, opened as Feedback from the Main Menu and as Report a bug from the
- * Game menu: how to reach the developer, and a copy of the app log to attach.
+ * Game menu: a copy of the app log.
  */
 export function FeedbackModal({ theme, onClose }: FeedbackModalProps): JSX.Element | null {
   const closeModal = useUiStore((s) => s.closeModal)
@@ -72,31 +67,8 @@ export function FeedbackModal({ theme, onClose }: FeedbackModalProps): JSX.Eleme
         <TitleTab>Feedback</TitleTab>
 
         <p className="vu-note-text">
-          Spotted a bug? Have suggestions? I&apos;d love to hear your feedback! You can contact me
-          at:
-        </p>
-        {/* `target="_blank"` is what routes it through main's window-open handler, which hands
-            the address to the OS mail client, as the Credits links leave the app. */}
-        <motion.a
-          id="feedback-email"
-          className="vu-link vu-feedback-address"
-          href={FEEDBACK_MAILTO}
-          target="_blank"
-          rel="noreferrer"
-          whileHover={linkLift}
-          whileFocus={linkLift}
-        >
-          venus.university.dev@gmail.com
-        </motion.a>
-        <p className="vu-note-text">
-          When reporting a bug, include:
-          <ul>
-            <li>What happened and when it happened</li>
-            <li>Screenshots if relevant</li>
-            <li>What provider/model you are using</li>
-            <li>Your game log, downloadable below</li>
-          </ul>
-          Please note that the log may contain sensitive info like your text choices and LLM responses. Redact those parts if you'd like to keep them private.
+          The game log records what the app did and every error it hit. It may contain your text
+          choices and the LLM&apos;s responses.
         </p>
 
         <div className="vu-foot vu-note-foot">
@@ -111,23 +83,13 @@ export function FeedbackModal({ theme, onClose }: FeedbackModalProps): JSX.Eleme
           </motion.button>
           <motion.button
             id="feedback-download"
-            className="vu-btn vu-btn--outline vu-paper vu-btn--panel"
+            className="vu-btn vu-btn--primary vu-paper vu-btn--panel"
             type="button"
             disabled={busy}
             {...gestures(busy, lift, press)}
             onClick={() => void download()}
           >
             {busy ? 'Saving…' : 'Download log'}
-          </motion.button>
-          {/* The same door as the address: `window.open` reaches main's window-open handler. */}
-          <motion.button
-            id="feedback-send"
-            className="vu-btn vu-btn--primary vu-paper vu-btn--panel"
-            type="button"
-            {...gestures(false, lift, press)}
-            onClick={() => window.open(FEEDBACK_MAILTO)}
-          >
-            Send email
           </motion.button>
         </div>
       </motion.div>

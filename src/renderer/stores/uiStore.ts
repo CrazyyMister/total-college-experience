@@ -20,7 +20,7 @@ export type ViewName =
   | 'game'
 
 /** Modals that can be stacked over the current view. */
-type ModalName = 'settings' | 'credits' | 'loadGame' | 'feedback' | 'support'
+type ModalName = 'settings' | 'credits' | 'loadGame' | 'feedback'
 
 interface UiStoreState {
   view: ViewName
