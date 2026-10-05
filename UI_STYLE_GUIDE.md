@@ -414,7 +414,7 @@
 - `will-change: transform` lives in the screen's own sheet rather than in the motion vocabulary: it moves nothing and names no duration.
 - The height lineup tints one paper shadow by data, a girl's own label colour, which is the only shadow in the app not set by a role.
 - The phone's presence sets `presenceAffectsLayout` false: nothing under it animates layout, and the default remakes the presence context on every render of the screen, which redraws every row the feed holds.
-- The main menu's footer notices are underlined accent words rather than button shapes: each is a remark about the build beside its version line rather than an entry in the menu, and neither is a `.vu-link`, since neither leaves the app.
+- The main menu's footer notice is an underlined accent word rather than a button shape: it is a remark about the build beside its version line rather than an entry in the menu, and it is not a `.vu-link`, since it does not leave the app.
 
 ## 21. What belongs in this guide
 

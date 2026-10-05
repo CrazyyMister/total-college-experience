@@ -34,10 +34,6 @@ extraFiles:
 npmRebuild: false
 compression: normal
 
-# Writes resources/build-manifest.json into the packed folder once the exe's icon and version
-# strings are in; electron-builder runs this after editing the exe whether or not it signs it.
-afterSign: build/afterSign.mjs
-
 win:
   icon: build/icon.ico
   target:

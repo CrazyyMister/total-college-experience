@@ -26,6 +26,7 @@ You will need externally kept data for testing:
 - [ ] Install missing and verify that everything installs properly. Continue to main menu past NSFW modal.
 - [ ] Press F11 and make sure the window resizes, stopping at a minimum size and creating black bars when going past supported aspect ratio.
 - [ ] Verify that version matches.
+- [ ] In the packaged .exe (not in npm run dev), open the main menu with network. Verify the footer shows only the version (and the image generation notice if ComfyUI is missing), that Settings has no "Ask to update on launch", and that the exe's data/app.log has no "[update]" lines and data/update does not exist.
 - [ ] Open credits and check that all supporters/testers are there.
 - [ ] Open Settings and click everything. Drag the music slider down to see that it still works.
 

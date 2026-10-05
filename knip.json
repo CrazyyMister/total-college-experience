@@ -1,6 +1,5 @@
 {
   "entry": [
-    "src/main/updateHelper.ts",
     "scripts/*.mjs",
     "scripts/trailer/*.mjs",
     "scripts/itch-page/*.mjs",

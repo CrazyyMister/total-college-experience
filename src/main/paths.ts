@@ -35,11 +35,6 @@ export function getInstallPath(): string {
   return dirname(app.getPath('exe'))
 }
 
-/** `/data/update` — where an update stages its download, its unpacked tree and its plan. */
-export function getUpdatePath(): string {
-  return join(getDataPath(), 'update')
-}
-
 /** The shipped, read-only asset root — kept outside asar so ComfyUI gets real paths. */
 function getAssetsPath(): string {
   if (app.isPackaged) {

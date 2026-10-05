@@ -17,8 +17,6 @@ import { DownloadModal } from './views/DownloadModal'
 import { FeedbackModal } from './views/FeedbackModal'
 import { LoadGameModal } from './views/LoadGameModal'
 import { SupportModal } from './views/SupportModal'
-import { UpdateFailedModal } from './views/UpdateFailedModal'
-import { UpdateModal } from './views/UpdateModal'
 import { heldScreenTheme } from './views/clockTheme'
 import { useAssetStore } from './stores/assetStore'
 import { useAudioStore } from './stores/audioStore'
@@ -30,7 +28,6 @@ import { useSaveStore } from './stores/saveStore'
 import { useSettingsStore } from './stores/settingsStore'
 import { useSetupStore } from './stores/setupStore'
 import { useUiStore, type ViewName } from './stores/uiStore'
-import { useUpdateStore } from './stores/updateStore'
 import { isWebBuild } from './platform'
 
 /**
@@ -56,19 +53,6 @@ async function boot(): Promise<void> {
   if (useUiStore.getState().fatalError) {
     cancelCrossing()
     return
-  }
-
-  // A newer build on itch.io, offered under the cover the boot is already behind unless Settings
-  // has turned the launch offer off; word of a swap that did not land last time comes first. On
-  // "Update" the app quits into the swap, so boot ends here; a failure is waited out like any
-  // other modal in front of a cover, and the launch goes on.
-  const update = useUpdateStore.getState()
-  const rolledBack = await update.check()
-  if (rolledBack) await update.showFailure(rolledBack)
-  const version = useUpdateStore.getState().available
-  const offering = useSettingsStore.getState().settings?.checkUpdates !== false
-  if (version && offering && (await update.ask(version)) === 'update') {
-    if ((await update.apply()) === null) return
   }
 
   // Non-fatal: a failed read leaves the grab bags running in memory for the session.
@@ -116,8 +100,6 @@ function App(): JSX.Element {
   const error = useUiStore((s) => s.error)
   const fatalError = useUiStore((s) => s.fatalError)
   const download = useUiStore((s) => s.download)
-  const offer = useUpdateStore((s) => s.offer)
-  const updateFailure = useUpdateStore((s) => s.failure)
   // The Game View's own key: a save switched over a running game replaces
   // this store's state under the curtain, and its React state — crossfade pairs, `sending`,
   // `uiHidden` — is a fact about the save on screen and must not outlive it.
@@ -151,9 +133,7 @@ function App(): JSX.Element {
       {/* The gate itself is what a closing modal has to outlive, so it is the presence's
           child: the exits run inside it, and it unmounts once they finish. */}
       <AnimatePresence>
-        {(modals.length > 0 || error || download || offer || updateFailure) && (
-          <AppModals key="app-modals" />
-        )}
+        {(modals.length > 0 || error || download) && <AppModals key="app-modals" />}
       </AnimatePresence>
 
       {/* It draws nothing here — it publishes what the pointer is doing onto the document and
@@ -174,8 +154,6 @@ function AppModals(): JSX.Element {
   const error = useUiStore((s) => s.error)
   const download = useUiStore((s) => s.download)
   const dismissError = useUiStore((s) => s.dismissError)
-  const offer = useUpdateStore((s) => s.offer)
-  const updateFailure = useUpdateStore((s) => s.failure)
 
   const [theme] = useState(heldScreenTheme)
 
@@ -201,17 +179,6 @@ function AppModals(): JSX.Element {
             onClose={dismissError}
           />
         )}
-      </AnimatePresence>
-      {/* The offer and the failure follow one another — at boot after a swap that did not land,
-          from the menu when the update fails fast — so they share one presence in wait mode,
-          beside the other rather than inside it, and the second never arrives over the first
-          still fading. */}
-      <AnimatePresence propagate mode="wait">
-        {offer ? (
-          <UpdateModal key="update-offer" theme={theme} version={offer.version} />
-        ) : updateFailure ? (
-          <UpdateFailedModal key="update-failed" theme={theme} error={updateFailure} />
-        ) : null}
       </AnimatePresence>
     </>
   )

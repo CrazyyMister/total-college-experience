@@ -12,10 +12,8 @@ export default defineConfig({
   main: {
     build: {
       rollupOptions: {
-        // Two bundles: the app, and the update helper the app runs in Node mode after it quits.
         input: {
-          index: resolve('src/main/index.ts'),
-          updateHelper: resolve('src/main/updateHelper.ts')
+          index: resolve('src/main/index.ts')
         }
       }
     },

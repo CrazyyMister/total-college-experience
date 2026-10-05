@@ -126,8 +126,6 @@ export function AppSettingsModal({ theme, onClose }: AppSettingsModalProps): JSX
   const [volumes, setVolumes] = useState<Volumes>(() => volumesOf(settings?.volumes))
   // Only the browser keeps a key anywhere the player might not want it kept.
   const [remember, setRemember] = useState(settings?.rememberKey === true)
-  // Absent on the record means the desktop does ask, so only an explicit false is off.
-  const [checkUpdates, setCheckUpdates] = useState(settings?.checkUpdates !== false)
   // Likewise absent means a scene warns before an ending is interrupted.
   const [warnEndingInterrupt, setWarnEndingInterrupt] = useState(
     settings?.warnEndingInterrupt !== false
@@ -367,14 +365,6 @@ export function AppSettingsModal({ theme, onClose }: AppSettingsModalProps): JSX
     setRemember(checked)
     void write({ rememberKey: checked }).then(
       reseed((stored) => setRemember(stored.rememberKey === true))
-    )
-  }
-
-  /** Whether a newer build the launch check finds is offered before the first screen. */
-  function handleCheckUpdatesChange(checked: boolean): void {
-    setCheckUpdates(checked)
-    void write({ checkUpdates: checked }).then(
-      reseed((stored) => setCheckUpdates(stored.checkUpdates !== false))
     )
   }
 
@@ -774,16 +764,6 @@ export function AppSettingsModal({ theme, onClose }: AppSettingsModalProps): JSX
                   : 'Saves are stored on disk in the data folder. "Back up game data" exports them as a portable zip file for transfer.'}
               </span>
             </div>
-
-            {/* Only the desktop has a build of itself to replace, and only it asks. */}
-            {!webBuild && (
-              <CheckField
-                id="settings-check-updates"
-                label="Ask to update on launch"
-                checked={checkUpdates}
-                onChange={handleCheckUpdatesChange}
-              />
-            )}
 
             <div className="vu-foot-stack">
               {/* Why Save is dead, or that there is something left for it to take. */}

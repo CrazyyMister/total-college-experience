@@ -23,7 +23,6 @@ import {
 import { useSettingsStore } from '../stores/settingsStore'
 import { useSetupStore } from '../stores/setupStore'
 import { useUiStore } from '../stores/uiStore'
-import { useUpdateStore } from '../stores/updateStore'
 import { bgUrl } from './bgAssets'
 import { heldScreenTheme } from './clockTheme'
 import { preloadImage } from './imagePreload'
@@ -47,7 +46,6 @@ import {
   silhouetteIn
 } from './motion'
 import { HeartIcon } from './screenIcons'
-import { updateCaption } from './updateCaption'
 import '../vu_styles/MainMenu.css'
 
 /** The page the chip points at. */
@@ -87,7 +85,6 @@ export function MainMenu(): JSX.Element {
 
   const comfyInstalled = status?.comfyReady ?? false
   const comfyDeferred = useSettingsStore((s) => s.settings?.comfyDeferred ?? false)
-  const available = useUpdateStore((s) => s.available)
   // The browser has no local renderer to install and no window of its own to close.
   const webBuild = isWebBuild()
 
@@ -220,18 +217,6 @@ export function MainMenu(): JSX.Element {
       stale = true
     }
   }, [resuming])
-
-  /**
-   * The notice's offer: the same modal the boot puts up, then the update under a curtain over the
-   * menu, which lifts back onto it if the update fails. An update never runs uncovered, so a
-   * crossing already running keeps the menu as it is.
-   */
-  async function offerUpdate(version: string): Promise<void> {
-    const update = useUpdateStore.getState()
-    if ((await update.ask(version)) !== 'update') return
-    if (!beginCrossing(undefined, { from: theme, wait: true, reason: updateCaption(null) })) return
-    if ((await update.apply()) !== null) endCrossing()
-  }
 
   const newest = newestPlaythrough(playthroughs)
   const playDead = !writerOk
@@ -440,16 +425,6 @@ export function MainMenu(): JSX.Element {
           {!webBuild && (comfyDeferred || !comfyInstalled) && (
             <button className="vu-menu-notice" onClick={() => setView('setup')}>
               Image generation isn&apos;t installed — open Setup
-            </button>
-          )}
-          {/* Null on the browser build, whose launch check never asks main. */}
-          {available && (
-            <button
-              id="menu-update"
-              className="vu-menu-notice"
-              onClick={() => void offerUpdate(available)}
-            >
-              Update to v{available}
             </button>
           )}
           <span className="vu-menu-version">{versionLine(__APP_VERSION__)}</span>

@@ -4,7 +4,6 @@ import { readFile, readdir, rm, stat } from 'node:fs/promises'
 import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import sevenBin from '7zip-bin'
-import { MANIFEST_REL, stampTree } from '../build/afterSign.mjs'
 import { checkItchLimits } from './checkItchLimits.mjs'
 import { folderBytes, packCharacters } from './packCharacters.mjs'
 
@@ -142,58 +141,16 @@ async function zipFolder(folder, target) {
   return (await stat(target)).size
 }
 
-/** The first way a recorded file list differs from a fresh stamp of the folder, or null when they agree. */
-function stampMismatch(recorded, fresh) {
-  const byRel = new Map(fresh.map((file) => [file.rel, file]))
-  for (const file of recorded) {
-    const found = byRel.get(file.rel)
-    if (!found) return `it lists ${file.rel}, which the build does not have`
-    if (found.size !== file.size) {
-      return `${file.rel} is ${found.size} bytes, but it records ${file.size}`
-    }
-    if (String(found.sha256).toLowerCase() !== String(file.sha256).toLowerCase()) {
-      return `${file.rel} does not hash to what it records`
-    }
-  }
-  const listed = new Set(recorded.map((file) => file.rel))
-  for (const file of fresh) {
-    if (!listed.has(file.rel)) return `it does not list ${file.rel}, which the build ships`
-  }
-  return null
-}
-
 /** Everything the packaged folder has to contain, and the things it must not. */
-async function assertDesktopPayload(version) {
+async function assertDesktopPayload() {
   const required = [
     'Venus University.exe',
     '.itch.toml',
     'resources/app.asar',
-    'resources/app.asar.unpacked/node_modules/7zip-bin/win/x64/7za.exe',
-    'resources/build-manifest.json'
+    'resources/app.asar.unpacked/node_modules/7zip-bin/win/x64/7za.exe'
   ]
   for (const rel of required) {
     if (!existsSync(join(UNPACKED, rel))) throw new Error(`The build is missing ${rel}.`)
-  }
-
-  const manifest = JSON.parse(await readFile(join(UNPACKED, MANIFEST_REL), 'utf8'))
-  if (manifest.version !== version) {
-    throw new Error(`${MANIFEST_REL} is version ${manifest.version}, but the release is ${version}.`)
-  }
-  if (manifest.schemaVersion !== 1) {
-    throw new Error(`${MANIFEST_REL} is schemaVersion ${manifest.schemaVersion}, not 1.`)
-  }
-  const mismatch = stampMismatch(manifest.files, await stampTree(UNPACKED))
-  if (mismatch) throw new Error(`${MANIFEST_REL} does not match the build: ${mismatch}.`)
-  console.log(`  ${MANIFEST_REL}: ${manifest.files.length} files, sizes and hashes match`)
-
-  const updateSource = await readFile(join(REPO, 'src/shared/updateSource.ts'), 'utf8')
-  const targetMatch = updateSource.match(/ITCH_TARGET = '([^']+)'/)
-  if (!targetMatch) throw new Error('Could not find ITCH_TARGET in src/shared/updateSource.ts.')
-  const { itchTarget } = JSON.parse(await readFile(join(REPO, 'build/release.json'), 'utf8'))
-  if (itchTarget !== targetMatch[1]) {
-    throw new Error(
-      `build/release.json's itchTarget (${itchTarget}) does not match ITCH_TARGET (${targetMatch[1]}).`
-    )
   }
 
   const shipped = (await readdir(join(REPO, 'assets/characters'))).sort()
@@ -281,7 +238,7 @@ async function main() {
     ])
   )
 
-  const asarBytes = await step('check the desktop payload', () => assertDesktopPayload(version))
+  const asarBytes = await step('check the desktop payload', assertDesktopPayload)
 
   const winZip = join(RELEASE, `venus-university-${version}-win.zip`)
   const winZipBytes = existsSync(winZip) ? (await stat(winZip)).size : 0
