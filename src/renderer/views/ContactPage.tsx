@@ -392,6 +392,14 @@ export function ContactPage({
                         {formatShortGameDate(entry.post.date)} · ♥{' '}
                         {entry.post.likes + (entry.post.liked ? 1 : 0)}
                       </motion.button>
+                      {/* A friend's comment, shown only for somebody he can name. */}
+                      {entry.post.npcComment && nameOf(entry.post.npcComment.charId) && (
+                        <div className="vu-contact-comment">
+                          <span>
+                            {nameOf(entry.post.npcComment.charId)}: {entry.post.npcComment.text}
+                          </span>
+                        </div>
+                      )}
                       {/* His comment and her reply, read here and written on the Updates tab. */}
                       {entry.post.comment && (
                         <div className="vu-contact-comment">

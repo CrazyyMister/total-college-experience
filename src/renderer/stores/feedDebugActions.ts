@@ -50,3 +50,36 @@ export function debugReaderTagger(charId: string): DebugResult {
   loopState.debugReaderTagger = charId
   return done(`${character.firstName} tags the reader at the next ending, if the rules let her.`)
 }
+
+/**
+ * Has X comment under Y's latest post of this slot at the next scene ending, past the dice and
+ * the cap but never the rules: the ending says why she could not where she cannot.
+ */
+export function debugNpcComment(charId: string, posterId: string): DebugResult {
+  if (!import.meta.env.DEV) return NOT_DEV
+  const { characters } = useGameStore.getState()
+  const writer = characters[charId]
+  const poster = characters[posterId]
+  if (!writer || !poster) return refused('Pick two characters.')
+  if (charId === posterId) return refused('Pick two different characters.')
+  loopState.debugNpcComment = { charId, posterId }
+  return done(
+    `${writer.firstName} comments under ${poster.firstName}'s post at the next ending, if the rules let her.`
+  )
+}
+
+/** Files a test post on Y's feed in this slot, so a comment has something to land under. */
+export function debugTestPost(posterId: string): DebugResult {
+  if (!import.meta.env.DEV) return NOT_DEV
+  const game = useGameStore.getState()
+  const poster = game.characters[posterId]
+  if (!poster) return refused('Pick a character.')
+  game.appendFeedPost(posterId, {
+    id: crypto.randomUUID(),
+    text: 'Quiet evening, thinking about getting some ramen.',
+    date: game.date,
+    time: game.time,
+    likes: 0
+  })
+  return done(`${poster.firstName} has posted a test line this slot.`)
+}

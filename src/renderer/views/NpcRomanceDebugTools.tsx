@@ -34,7 +34,9 @@ import { readerPostDebugRows } from '../stores/loop/readerPosts'
 import {
   debugFailFeedReplies,
   debugFeedReplier,
-  debugReaderTagger
+  debugNpcComment,
+  debugReaderTagger,
+  debugTestPost
 } from '../stores/feedDebugActions'
 import { gestures, lift, press } from './motion'
 
@@ -79,7 +81,12 @@ const TOOLS: readonly Tool[] = [
   { label: 'X & Y’s breakup is N days older', run: (x, y, n) => debugAgeBreakup(x, y, n) },
   { label: 'X replies to the reader’s latest post', run: (x) => debugFeedReplier(x) },
   { label: 'The next feed replies call fails', run: () => debugFailFeedReplies() },
-  { label: 'X tags the reader at the next ending', run: (x) => debugReaderTagger(x) }
+  { label: 'X tags the reader at the next ending', run: (x) => debugReaderTagger(x) },
+  {
+    label: 'X comments on Y’s post at the next ending',
+    run: (x, y) => debugNpcComment(x, y)
+  },
+  { label: 'Y posts a test line this slot', run: (_x, y) => debugTestPost(y) }
 ]
 
 /** Pickers for the two characters and the number, and a button for each thing to set up. */

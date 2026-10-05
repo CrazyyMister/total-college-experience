@@ -23,6 +23,7 @@ import {
   type CharInfo,
   type FeedRepliesResponse,
   type LedgerResponse,
+  type NpcCommentAnswer,
   type ReaderComment,
   type ReaderCommentAnswer,
   type ReaderPost,
@@ -35,6 +36,7 @@ import {
 import {
   buildCommentReplyPrompt,
   buildFeedRepliesPrompt,
+  buildNpcCommentPrompt,
   buildReaderTagPrompt,
   type FeedReplier
 } from '../../prompts/feedRepliesPrompt'
@@ -44,6 +46,7 @@ import { stageContextOf, useGameStore } from '../gameStore'
 import { stageAt } from '../stageStep'
 import { retrySilently } from '../silentRetry'
 import { lessNsfwTextNow } from './promptState'
+import { sanitizedNpcComment, type NpcCommentAsk } from './npcComments'
 import { currentRun, loopState, runStale } from './state'
 
 /** The reader's own posts and comments on the feed where they meet the store and the writer. */
@@ -89,8 +92,22 @@ export function readerPostDebugRows(): { key: string; text: string }[] {
       }`
     },
     ...loopState.readerTagReport.map((text, at) => ({ key: `tag-${at}`, text })),
+    {
+      key: 'npc-forced',
+      text: `Next ending: ${npcCommentForcedText()}`
+    },
+    ...loopState.npcCommentReport.map((text, at) => ({ key: `npc-${at}`, text: `Comments: ${text}` })),
     ...loopState.textLedgerReport.map((text, at) => ({ key: `ledger-${at}`, text: `Texting ledger: ${text}` }))
   ]
+}
+
+/** What the development build's comment button has set up for the next ending, in words. */
+function npcCommentForcedText(): string {
+  const forced = loopState.debugNpcComment
+  if (!forced) return 'no comment forced'
+  const { characters } = useGameStore.getState()
+  const name = (charId: string): string => characters[charId]?.firstName ?? charId
+  return `${name(forced.charId)} comments under ${name(forced.posterId)}'s post`
 }
 
 /** His contacts as the likes and the replies read them: none who has him blocked. */
@@ -249,6 +266,7 @@ interface ReaderFeedAnswers {
   posts: ReaderPostAnswer[]
   comments: ReaderCommentAnswer[]
   tag?: ReaderTag
+  npcComments: NpcCommentAnswer[]
 }
 
 /** The post an ending has a contact write about the scene, tagging the reader, as it is asked for. */
@@ -329,15 +347,16 @@ export function startReaderFeedAnswers(
   charInfo: Readonly<Record<string, CharInfo | undefined>>,
   stats: PlayerStats,
   call: { group: string; stale: () => boolean },
-  tag: ReaderTagAsk | null = null
+  tag: ReaderTagAsk | null = null,
+  npcAsks: readonly NpcCommentAsk[] = []
 ): PendingReaderFeedAnswers {
   const run = currentRun()
   const game = useGameStore.getState()
   const waiting = unansweredPosts(game.readerPosts)
   const commented = waitingComments()
-  if (waiting.length === 0 && commented.length === 0 && tag === null) {
+  if (waiting.length === 0 && commented.length === 0 && tag === null && npcAsks.length === 0) {
     loopState.feedRepliesReport = []
-    return { settle: async () => ({ posts: [], comments: [] }) }
+    return { settle: async () => ({ posts: [], comments: [], npcComments: [] }) }
   }
 
   let expired = false
@@ -469,6 +488,30 @@ export function startReaderFeedAnswers(
         }
       : null
 
+  const pendingNpc = npcAsks.flatMap((ask) => {
+    const commenter = game.characters[ask.charId]
+    const poster = game.characters[ask.posterId]
+    if (!commenter || !poster) return []
+    const charKey = charKeyOf(commenter.firstName, commenter.lastName)
+    return [
+      {
+        ask,
+        charKey,
+        outcome: send(
+          ask.commentId,
+          buildNpcCommentPrompt({
+            playthroughId: common.playthroughId,
+            lessNsfwText: common.lessNsfwText,
+            commenter: { character: commenter, charKey },
+            poster,
+            relation: ask.relation,
+            post: ask.post
+          })
+        )
+      }
+    ]
+  })
+
   return {
     settle: async () => {
       let timer: ReturnType<typeof setTimeout> | undefined
@@ -477,19 +520,20 @@ export function startReaderFeedAnswers(
       })
       const race = (outcome: Promise<ReplyOutcome>): Promise<ReplyOutcome> =>
         Promise.race([outcome, late])
-      const [postOutcomes, commentOutcomes, tagOutcome] = await Promise.all([
+      const [postOutcomes, commentOutcomes, tagOutcome, npcOutcomes] = await Promise.all([
         Promise.all(pendingPosts.map(({ outcome }) => race(outcome))),
         Promise.all(
           pendingComments.map(({ outcome }) => (outcome ? race(outcome) : Promise.resolve(null)))
         ),
-        pendingTag ? race(pendingTag.outcome) : Promise.resolve(null)
+        pendingTag ? race(pendingTag.outcome) : Promise.resolve(null),
+        Promise.all(pendingNpc.map(({ outcome }) => race(outcome)))
       ])
       clearTimeout(timer)
       // Whatever is still out is cut off here, so nothing it brings back can land anywhere.
       expired = true
       for (const cancel of sleeps) cancel()
       cancelGroups(groups)
-      if (runStale(run) || call.stale()) return { posts: [], comments: [] }
+      if (runStale(run) || call.stale()) return { posts: [], comments: [], npcComments: [] }
 
       const posts: ReaderPostAnswer[] = []
       const report: string[] = []
@@ -597,7 +641,33 @@ export function startReaderFeedAnswers(
           }
         }
       }
-      return { posts, comments, ...(banked ? { tag: banked } : {}) }
+      // A comment under a post of the slot that ended is asked for once: whatever keeps it from
+      // landing leaves none, and nothing waits.
+      const npcComments: NpcCommentAnswer[] = []
+      pendingNpc.forEach(({ ask, charKey }, at) => {
+        const outcome = npcOutcomes[at]
+        const head = `Comment by ${name(ask.charId)} under ${name(ask.posterId)}'s post`
+        const note = (text: string): void => {
+          loopState.npcCommentReport.push(`${head}: ${text}`)
+        }
+        if (outcome.kind === 'late') return note('past the deadline, no comment')
+        if (outcome.kind === 'failed') return note(`failed (${outcome.why}), no comment`)
+        if (outcome.kind === 'blocked') return note('blocked for its content, no comment')
+        const checked = sanitizedNpcComment(outcome.reply, charKey, ask.posterId)
+        if ('dropped' in checked) {
+          console.warn('[feed replies] dropped the comment,', checked.dropped)
+          return note(`dropped, ${checked.dropped}`)
+        }
+        note(`written, "${checked.text}"`)
+        npcComments.push({
+          posterId: ask.posterId,
+          postId: ask.postId,
+          commentId: ask.commentId,
+          charId: ask.charId,
+          text: checked.text
+        })
+      })
+      return { posts, comments, npcComments, ...(banked ? { tag: banked } : {}) }
     }
   }
 }

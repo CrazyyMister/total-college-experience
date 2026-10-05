@@ -775,6 +775,31 @@ export interface SocialPost {
   comment?: ReaderComment
   /** She tagged the reader in it, about the scene they had just been in; absent for none. */
   tagsReader?: true
+  /** The one comment another character left on it; absent for none. */
+  npcComment?: NpcComment
+}
+
+/** A comment one roster character left under another's post. */
+export interface NpcComment {
+  /** Minted at the ending, so a replayed boundary files it once. */
+  id: string
+  /** Who wrote it. */
+  charId: string
+  text: string
+  /** The slot it landed in. */
+  date: number
+  time: TimeSlot
+}
+
+/** What an ending decided of one post's comment from a roster character, banked with the opening. */
+export interface NpcCommentAnswer {
+  /** Whose post it is under. */
+  posterId: string
+  postId: string
+  commentId: string
+  /** Who wrote it. */
+  charId: string
+  text: string
 }
 
 /** The reader's comment on a contact's post, and her one reply to it. */
@@ -1249,6 +1274,11 @@ export interface SlotOpening {
    * on her feed as the slot opens. Absent for an opening with none.
    */
   readerTag?: ReaderTag
+  /**
+   * The comments roster characters left under contacts' posts of the slot that ended, filed as
+   * the slot opens. Absent for an opening with none.
+   */
+  npcComments?: NpcCommentAnswer[]
   /** The plans the merged ledger found, normalized and attendance-filtered. */
   events: CalendarEvent[]
   /** Who that filtering took off an event, announced by text at step 1. */

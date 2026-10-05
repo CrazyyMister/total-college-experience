@@ -101,6 +101,13 @@ You will need externally kept data for testing:
 - [ ] In a dev build, force a tag during a hangout arranged by text with somebody who is not your girlfriend. Verify no tag comes.
 - [ ] In a dev build, force a tag and make the next feed replies call fail. Verify no tagged post ever arrives.
 - [ ] Comment on a tagged post, play into the next slot and verify her reply arrives under your comment.
+- [ ] Post something, play into the next slot so a contact replies, then finish the next scene. Open her page and verify a memory ending "on Bunnyboard" that says only what you wrote and how she took it.
+- [ ] Comment on a contact's post, play into the next slot until she replies, finish the next scene and verify the same kind of memory.
+- [ ] In a dev build, find the phone summary's prompt in `data/app.log` and verify it has a THE FEED block with your post and her reply, and that her post under your comment is marked context only.
+- [ ] Get a reply where she states a fact (for example comment "where are you?" on her post). Verify the memory does not repeat the fact.
+- [ ] Text a contact and also exchange on the feed with her in the same slot. Verify she has one memory, not two.
+- [ ] Let a contact tag you and do not comment on the post. Verify no "on Bunnyboard" memory comes of it.
+- [ ] Load a save from before the feed memories, play a scene and verify it plays on without an error.
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 

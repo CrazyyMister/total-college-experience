@@ -110,6 +110,15 @@ export const loopState = {
   /** What the latest scene ending decided of a post tagging the reader, for the development read-out. */
   readerTagReport: [] as string[],
 
+  /**
+   * The commenter and the poster the development build's button has the next scene ending pair,
+   * past the dice but never the rules; never saved.
+   */
+  debugNpcComment: null as { charId: string; posterId: string } | null,
+
+  /** What the latest ending decided of the comments under contacts' posts, for the read-out. */
+  npcCommentReport: [] as string[],
+
   /** The rows the latest texting ledger reply lost, and why, for the development read-out. */
   textLedgerReport: [] as string[],
 
@@ -348,6 +357,8 @@ export function resetLoopState(): void {
   loopState.feedRepliesReport = []
   loopState.debugReaderTagger = null
   loopState.readerTagReport = []
+  loopState.debugNpcComment = null
+  loopState.npcCommentReport = []
   loopState.textLedgerReport = []
   // An in-flight prefetch is simply abandoned; the next armed hangout makes its own call.
   loopState.hangoutPrefetch = null

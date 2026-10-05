@@ -46,6 +46,12 @@ describe('which exchanges on the feed the phone summary reads', () => {
     ])
   })
 
+  it('never reads a comment another character left under a post', () => {
+    const comment = { id: 'n1', charId: 'b', text: 'save me a seat', date: 5, time: 0 as TimeSlot }
+    const feeds = [{ charId: 'a', feed: [{ ...hers('x', { id: 'c1', text: 'same', date: 4, time: 1 }), npcComment: comment }] }]
+    expect(feedExchangesOf([], feeds, here.date, here.time)).toEqual([])
+  })
+
   it('takes a comment she answered this slot with her post as context, and never one she did not', () => {
     const feeds: Array<{ charId: string; feed: SocialPost[] }> = [
       {

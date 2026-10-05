@@ -1,4 +1,5 @@
 import { READER_REPLY_MAX } from '@shared/feedReplies'
+import type { NpcCommentRelation } from '@shared/npcComments'
 import { pronounsOf } from '@shared/pronouns'
 import { affectionFor, dedupedMemoriesFor, emptyFlags } from '@shared/relationship'
 import {
@@ -271,6 +272,73 @@ export function buildReaderTagPrompt(input: ReaderTagInput): StructuredRequest {
     'Nothing romantic or physical: no flirting, no touching, nothing about how the reader looks.',
     'No secret, no plan and no promise: nothing about meeting again.',
     'Use no name that is not listed under NAMES.'
+  ].join('\n')
+
+  return {
+    system: personaFor(input.lessNsfwText),
+    user,
+    schema: feedRepliesSchema([charKey]),
+    cacheKey: input.playthroughId
+  }
+}
+
+/** Everything the comment builder reads; assembled by the loop, which owns the store. */
+export interface NpcCommentInput {
+  /** The cloud-LLM cache key — the playthrough, exactly as the scene calls use it. */
+  playthroughId: string
+  /** The player's `lessNsfwText` setting; picks which persona heads the call. */
+  lessNsfwText: boolean
+  /** Who comments, and how the reply names her back. */
+  commenter: { character: Character; charKey: string }
+  /** Whose post it is under. */
+  poster: Character
+  /** How close the two are, as everybody on campus can see. */
+  relation: NpcCommentRelation
+  /** The post, and the slot it went up in. */
+  post: { text: string; date: number; time: TimeSlot }
+}
+
+/** The public standing of two characters, in one line. */
+function publicPairLine(
+  relation: NpcCommentRelation,
+  commenter: Character,
+  poster: Character
+): string {
+  if (relation === 'couple') {
+    return `${commenter.firstName} and ${poster.firstName} are dating, and everybody on campus knows it.`
+  }
+  if (relation === 'bestFriend') {
+    return `${commenter.firstName} and ${poster.firstName} are friends, and ${poster.firstName} is ${commenter.firstName}'s closest friend.`
+  }
+  return `${commenter.firstName} and ${poster.firstName} are friends.`
+}
+
+/** Builds the request for one character's comment under another's post on the feed. */
+export function buildNpcCommentPrompt(input: NpcCommentInput): StructuredRequest {
+  const { character, charKey } = input.commenter
+  const name = character.firstName
+  const posterName = input.poster.firstName
+  const p = pronounsOf(character.gender)
+  const user = [
+    ...spaced([
+      'COMMENTER',
+      `${fullNameOf(character)} — "who": "${charKey}"`,
+      // The personality and nothing else: no backstory, love life or memories reach this call.
+      ...profileLines(character, emptyFlags(), 3)
+    ]),
+    ...spaced(['THEIR STANDING', publicPairLine(input.relation, character, input.poster)]),
+    ...spaced(quotedPost('THE POST', posterName, input.post)),
+    'YOUR TURN',
+    `Hey RITA, write the comment ${name} leaves under ${posterName}'s post.`,
+    `Fill "replies" with exactly one entry. "who" is "${charKey}".`,
+    `"text" is the comment itself: one short line in ${p.possessive} own voice, the way ${p.subject} would actually type it under a friend's post, under ${READER_REPLY_MAX} characters. Lowercase, slang and emoji are fine if that is how ${p.subject} writes. No narration and no stage directions.`,
+    'The post and the comment are public: the whole campus reads them.',
+    `${name} knows nothing about the post but what it says. ${p.Subject} adds no new fact: not where ${posterName} is, who with, why, or what comes next. If the post does not say it, ${p.subject} does not say it.`,
+    `${name} names nobody and writes no @. ${p.Subject} never mentions the reader or any other student, only ${posterName}, and only as "you".`,
+    input.relation === 'couple'
+      ? `They are a couple, so ${name} may be warm and affectionate with ${posterName} in public, but never sexual, never intimate, and nothing that is private.`
+      : `Nothing romantic and nothing sexual: ${name} writes as a friend would.`,
+    `${name} makes no plan, invites ${posterName} nowhere and promises nothing: no "let's hang out", no "see you tonight", no "text me".`
   ].join('\n')
 
   return {

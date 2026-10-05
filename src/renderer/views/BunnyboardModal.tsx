@@ -18,6 +18,7 @@ import {
   type CharInfo,
   type ChatMessage,
   type Conversation,
+  type NpcComment,
   type ReaderComment,
   type ReaderPost,
   type ReaderPostReply,
@@ -1971,6 +1972,7 @@ const FeedPost = memo(function FeedPost({
     likes: number
     liked?: boolean
     comment?: ReaderComment
+    npcComment?: NpcComment
   }
   /** Somebody he has no contact info for — the one route by which one reaches his feed. */
   stranger?: boolean
@@ -2064,18 +2066,51 @@ const FeedPost = memo(function FeedPost({
           </motion.button>
         )}
       </div>
+      {post.npcComment && !post.comment && (
+        <div className="vu-bb-replies">
+          <NpcCommentRow comment={post.npcComment} />
+        </div>
+      )}
       {self && charId && post.id && (post.comment || (canComment && commenting)) && (
         <PostComment
           charId={charId}
           postId={post.id}
           comment={post.comment}
           self={self}
+          lead={post.npcComment}
           onSent={() => setCommenting(false)}
         />
       )}
     </motion.div>
   )
 })
+
+/**
+ * Another character's comment under a contact's post: her ringed face, which opens her page, her
+ * name and handle and her words. Drawn only for somebody he can name.
+ */
+function NpcCommentRow({ comment }: { comment: NpcComment }): JSX.Element | null {
+  const character = useGameStore((s) => s.characters[comment.charId])
+  const info = useGameStore((s) => s.charInfo[comment.charId])
+  if (!character || !info?.nameKnown) return null
+  return (
+    <div className="vu-bb-reply">
+      <FaceButton
+        name={fullNameOf(character)}
+        onOpen={() => useBunnyboardStore.getState().openPage(comment.charId)}
+      >
+        <Portrait charId={comment.charId} ring size="sm" />
+      </FaceButton>
+      <div className="vu-bb-reply-body">
+        <div className="vu-bb-reply-who">
+          <span className="vu-bb-reply-name">{fullNameOf(character)}</span>
+          {info.handle && <span className="vu-bb-reply-handle">@{info.handle}</span>}
+        </div>
+        <p className="vu-bb-reply-text">{comment.text}</p>
+      </div>
+    </div>
+  )
+}
 
 /** His own face: his picture in the ringed archway, or the plain face of anybody with none. */
 function SelfFace({ picture }: { picture: string | null }): JSX.Element {
@@ -2103,12 +2138,15 @@ function PostComment({
   postId,
   comment,
   self,
+  lead,
   onSent
 }: {
   charId: string
   postId: string
   comment: ReaderComment | undefined
   self: FeedSelf
+  /** Another character's comment on the post, which hangs above his. */
+  lead?: NpcComment
   onSent: () => void
 }): JSX.Element {
   const [draft, setDraft] = useState('')
@@ -2118,6 +2156,7 @@ function PostComment({
   if (comment) {
     return (
       <div className="vu-bb-replies">
+        {lead && <NpcCommentRow comment={lead} />}
         <div className="vu-bb-reply">
           <SelfFace picture={self.picture} />
           <div className="vu-bb-reply-body">

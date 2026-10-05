@@ -15,6 +15,7 @@ import { escapeRegExp } from '@shared/sentences'
 import { pronounsOf } from '@shared/pronouns'
 import { swappedPhoto, type MessagePhoto } from '@shared/photos'
 import { withAnsweredComment, withAnsweredPosts, withReaderTag } from '@shared/feedReplies'
+import { npcCommentBarOf, withNpcComment } from '@shared/npcComments'
 import { displaySlotsOf, retireCgs } from './stageDisplay'
 import {
   chargeAbsences,
@@ -94,6 +95,7 @@ import {
   type ExamRecord,
   type FeedExtras,
   type ReaderCommentAnswer,
+  type NpcCommentAnswer,
   type ReaderTag,
   type ReaderPost,
   type ReaderPostAnswer,
@@ -949,6 +951,11 @@ interface GameStoreState {
    * still his contact and has not blocked him; idempotent.
    */
   deliverReaderTag: (tag: ReaderTag) => void
+  /**
+   * Files each banked comment under its post, stamped with this slot, while the pair still
+   * stands as the rule allows it; idempotent.
+   */
+  deliverNpcComments: (comments: readonly NpcCommentAnswer[]) => void
   /** Files the people the Friends tab offers this slot. */
   setSuggestions: (charIds: readonly string[]) => void
   /** Opens an exam, or clears one at the boundary. */
@@ -2426,6 +2433,33 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
         return filed === feed ? null : { ...info, feed: [...filed] }
       })
     ),
+
+  deliverNpcComments: (comments) =>
+    set((state) => {
+      let charInfo = state.charInfo
+      const world = {
+        relationships: state.npcRelationships,
+        romance: state.npcRomance,
+        roster: state.chars,
+        date: state.date
+      }
+      for (const answer of comments) {
+        const poster = charInfo[answer.posterId]
+        if (!poster?.feed) continue
+        const writer = charInfo[answer.charId]
+        const bar = npcCommentBarOf(world, answer.posterId, answer.charId, {
+          posterReachable: Boolean(poster.flags?.gaveContactInfo) && !poster.flags?.blocked,
+          commenterKnown: writer?.nameKnown === true,
+          commenterBlocked: Boolean(writer?.flags?.blocked)
+        })
+        if (bar !== null) continue
+        const feed = poster.feed.map((post) => withNpcComment(post, answer, state.date, state.time))
+        if (feed.some((post, at) => post !== poster.feed?.[at])) {
+          charInfo = { ...charInfo, [answer.posterId]: { ...poster, feed } }
+        }
+      }
+      return charInfo === state.charInfo ? {} : { charInfo }
+    }),
 
   setGaveContactInfo: (charId) =>
     set((state) =>

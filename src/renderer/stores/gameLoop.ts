@@ -191,6 +191,7 @@ import {
 } from './loop/academics'
 import { applyCrushSettle, rollCrushSettle } from './loop/crushes'
 import { startExam } from './loop/exams'
+import { npcCommentsFor, type NpcCommentAsk } from './loop/npcComments'
 import { startHangoutScene } from './loop/hangouts'
 import {
   cancelFeedReplies,
@@ -485,6 +486,7 @@ async function beginSlot(): Promise<void> {
   useGameStore.getState().answerReaderPosts(opening.readerPostAnswers ?? [])
   useGameStore.getState().answerReaderComments(opening.readerCommentAnswers ?? [])
   if (opening.readerTag) useGameStore.getState().deliverReaderTag(opening.readerTag)
+  useGameStore.getState().deliverNpcComments(opening.npcComments ?? [])
 
   // Folded into the slot-save minted before the call went out, which is the start-of-slot
   // decision point.
@@ -679,6 +681,7 @@ async function fetchSlotIntro(
     guaranteed: GuaranteedPosters
     gossip: GossipTopic | null
     tag: ReaderTagAsk | null
+    npcComments: NpcCommentAsk[]
   } | null = null,
   call: { group?: string; stale?: () => boolean } = {}
 ): Promise<SlotOpening | null> {
@@ -861,7 +864,8 @@ async function fetchSlotIntro(
     view.charInfo,
     view.stats,
     { group, stale },
-    romance?.tag ?? null
+    romance?.tag ?? null,
+    romance?.npcComments ?? []
   )
 
   // Built once and re-sent verbatim on retry; only a hand edit replaces it.
@@ -901,7 +905,8 @@ async function fetchSlotIntro(
       const {
         posts: readerPostAnswers,
         comments: readerCommentAnswers,
-        tag: readerTag
+        tag: readerTag,
+        npcComments
       } = await replies.settle()
       if (runStale(run) || stale()) return null
       const written = result.data.lines.map((line) => line.text.trim()).filter(Boolean)
@@ -921,6 +926,7 @@ async function fetchSlotIntro(
         ...(readerPostAnswers.length > 0 ? { readerPostAnswers } : {}),
         ...(readerCommentAnswers.length > 0 ? { readerCommentAnswers } : {}),
         ...(readerTag ? { readerTag } : {}),
+        ...(npcComments.length > 0 ? { npcComments } : {}),
         posts: result.data.posts,
         // Only the hints of posters who made it into the prompt can come back written.
         ...(romance && romance.guaranteed.driftPosts.length > 0
@@ -1761,6 +1767,7 @@ async function fetchEndingOpening(
   // tutorial leaves them waiting for the next.
   if (isTutorialSlot(date, time) || isGraduationSlot(date, time)) {
     loopState.readerTagReport = ['Tag: the slot opens with no call, so nobody tags the reader']
+    loopState.npcCommentReport = ['the slot opens with no call, so nobody comments']
     const answers = isGraduationSlot(date, time) ? readerPostAnswersFor(view.charInfo, stats) : []
     return {
       lines: [],
@@ -1790,6 +1797,7 @@ async function fetchEndingOpening(
         npcRelationships
       )
     : null
+  const npcComments = npcCommentsFor(view.charInfo, npcRelationships, npcRomance)
   if (!tagScene) loopState.readerTagReport = ["Tag: an exam's ending tags nobody"]
 
   // The running summary rides along: `history` will not hold it until the boundary commits it.
@@ -1806,7 +1814,8 @@ async function fetchEndingOpening(
       map: npcRomance,
       guaranteed,
       gossip: gossipTopic,
-      tag
+      tag,
+      npcComments
     },
     { group: ENDING_LLM_GROUP, stale: dropped }
   )
@@ -2709,10 +2718,12 @@ async function crossSlotBoundary(): Promise<void> {
     .answerReaderComments(loopState.bankedOpening?.readerCommentAnswers ?? [])
   const readerTag = loopState.bankedOpening?.readerTag
   if (readerTag) useGameStore.getState().deliverReaderTag(readerTag)
+  useGameStore.getState().deliverNpcComments(loopState.bankedOpening?.npcComments ?? [])
   // The buttons that set up the replies and the tag belong to the opening just applied.
   loopState.debugFeedReplier = null
   loopState.debugFeedRepliesFail = false
   loopState.debugReaderTagger = null
+  loopState.debugNpcComment = null
   // The whole scene is cleared before the write, so the boundary save records `scene: null`;
   // `beginSlot` clears the same things again, but after the write.
   useGameStore.getState().setCast([])
