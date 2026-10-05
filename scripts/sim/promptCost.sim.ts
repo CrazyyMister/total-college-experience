@@ -7,7 +7,7 @@ import { it, vi } from 'vitest'
 vi.hoisted(() => {
   const bridge = (path: string): unknown =>
     new Proxy(() => {}, {
-      get: (_target, key) => (key === 'platform' ? 'desktop' : bridge(`${path}.${String(key)}`)),
+      get: (_target, key) => bridge(`${path}.${String(key)}`),
       apply: () => {
         if (/\.on[A-Z]\w*$/.test(path)) return () => {}
         throw new Error(`The measurement called the bridge: ${path}`)

@@ -140,12 +140,7 @@ const PERMANENT_CODES = new Set([
   // The generated calendar came back with nothing on it; retried from New Game.
   'OCCASION_GEN_INVALID',
   // The classifier refused the action itself; the player has to reword.
-  'CLASSIFIER_REJECTED',
-  // Browser storage
-  // The browser has no room left; a resend puts the same bytes back into the same full box.
-  'STORAGE_FULL',
-  // Something only the desktop build has, asked for from the browser one.
-  'DESKTOP_ONLY'
+  'CLASSIFIER_REJECTED'
 ])
 
 /** True when an error should fail immediately rather than be retried. */

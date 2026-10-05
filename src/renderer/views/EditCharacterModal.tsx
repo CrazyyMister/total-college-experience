@@ -13,7 +13,6 @@ import { TagSelect } from '../components/TagSelect'
 import { TextField } from '../components/TextField'
 import { WardrobeColumn, type WardrobeColumnProps } from '../components/WardrobeColumn'
 import type { SetControlProps } from '../components/SetControl'
-import { DESKTOP_ONLY_NOTE, isWebBuild } from '../platform'
 import {
   clampVoicePitch,
   VOICE_PITCH_DEFAULT,
@@ -344,22 +343,18 @@ export function EditCharacterModal({
   // Withholds the nude wardrobe and the CGs outright: neither viewable nor renderable under it.
   const noNsfwImages = useSettingsStore(noNsfwImagesOf)
 
-  // The browser ships no local renderer, so nothing it drives can ever be reached from here.
-  const webBuild = isWebBuild()
-
   /** Whether the local renderer is out of reach, which every ComfyUI job in here waits on. */
-  const comfyMissing = webBuild || !comfyInstalled || comfyDeferred
+  const comfyMissing = !comfyInstalled || comfyDeferred
 
   /* What a hover raises over a control these are holding dead: the one thing the player would
      have to go and get, and nothing the moment he has it. A control dead for anything else —
      the default sprites, an empty room prompt, a repair with nothing to paint over, a render
      already going — stays silent, as every dead control does. */
-  const comfyNote = webBuild ? DESKTOP_ONLY_NOTE : comfyMissing ? 'Requires ComfyUI' : null
+  const comfyNote = comfyMissing ? 'Requires ComfyUI' : null
 
   /* The generation disclosure holds the booru tags a local render reads and the cloud room's
-     own prompt. Where there is no local renderer it holds the prompt alone, and a prompt the
-     cloud reads is not waiting on an install, so there it opens like any other panel. */
-  const advancedShut = comfyMissing && !webBuild
+     own prompt, and is held shut while the local renderer is out of reach. */
+  const advancedShut = comfyMissing
   const keyNote = picturesReady ? null : customWriter ? 'Requires Gemini key' : 'Requires API key'
 
   // Her own pose first, if this install's manifest carries no skeleton for it or her gender may
@@ -974,21 +969,18 @@ export function EditCharacterModal({
                   <DuplicateIcon />
                 </motion.button>
               </DeadNote>
-              {/* Opening the folder spends nothing, so it is gated on nothing — and there is
-                  no folder to open in the browser, where her files are the browser's. */}
-              {!webBuild && (
-                <DeadNote note="Open folder" align="center" below>
-                  <motion.button
-                    className="vu-edit-icon"
-                    type="button"
-                    aria-label="Open folder"
-                    {...gestures(false, quietLift, quietPress)}
-                    onClick={() => void openFolder(charId)}
-                  >
-                    <FolderIcon />
-                  </motion.button>
-                </DeadNote>
-              )}
+              {/* Opening the folder spends nothing, so it is gated on nothing. */}
+              <DeadNote note="Open folder" align="center" below>
+                <motion.button
+                  className="vu-edit-icon"
+                  type="button"
+                  aria-label="Open folder"
+                  {...gestures(false, quietLift, quietPress)}
+                  onClick={() => void openFolder(charId)}
+                >
+                  <FolderIcon />
+                </motion.button>
+              </DeadNote>
             </div>
 
             <div className="vu-edit-scroll">
@@ -1225,43 +1217,39 @@ export function EditCharacterModal({
                     Generation settings <span className="vu-disc-note">(Advanced)</span>
                   </motion.summary>
                   <div className="vu-disc-body">
-                    {!webBuild && (
-                      <>
-                        {/* The pose every render of her stands in, the description under it
-                            drawn from the manifest. A change here reaches the next render
-                            after Save, the same as the tags beside it. */}
-                        <SelectField
-                          id="edit-pose"
-                          label="Pose"
-                          value={form.pose}
-                          onChange={setField('pose')}
-                          options={poseOptions}
-                          hint={poses[form.pose]?.description}
+                    {/* The pose every render of her stands in, the description under it
+                        drawn from the manifest. A change here reaches the next render
+                        after Save, the same as the tags beside it. */}
+                    <SelectField
+                      id="edit-pose"
+                      label="Pose"
+                      value={form.pose}
+                      onChange={setField('pose')}
+                      options={poseOptions}
+                      hint={poses[form.pose]?.description}
+                    />
+
+                    {TAG_FIELDS.map(({ key, id, label }) => (
+                      <label key={key} className="vu-field" htmlFor={id}>
+                        <span className="vu-field-label">{label}</span>
+                        <ChipListInput
+                          id={id}
+                          values={form[key]}
+                          onChange={setField(key)}
+                          placeholder="Enter or comma to add a tag"
                         />
+                      </label>
+                    ))}
 
-                        {TAG_FIELDS.map(({ key, id, label }) => (
-                          <label key={key} className="vu-field" htmlFor={id}>
-                            <span className="vu-field-label">{label}</span>
-                            <ChipListInput
-                              id={id}
-                              values={form[key]}
-                              onChange={setField(key)}
-                              placeholder="Enter or comma to add a tag"
-                            />
-                          </label>
-                        ))}
-
-                        <label className="vu-field" htmlFor="edit-negative-tags">
-                          <span className="vu-field-label">Additional Negative Prompts</span>
-                          <ChipListInput
-                            id="edit-negative-tags"
-                            values={form.negativeTags}
-                            onChange={setField('negativeTags')}
-                            placeholder="Discourages generation of certain elements"
-                          />
-                        </label>
-                      </>
-                    )}
+                    <label className="vu-field" htmlFor="edit-negative-tags">
+                      <span className="vu-field-label">Additional Negative Prompts</span>
+                      <ChipListInput
+                        id="edit-negative-tags"
+                        values={form.negativeTags}
+                        onChange={setField('negativeTags')}
+                        placeholder="Discourages generation of certain elements"
+                      />
+                    </label>
 
                     {/* The dorm room's own prompt, the continuation the cloud image model is
                         sent — the one field in here that is not the local renderer's. */}

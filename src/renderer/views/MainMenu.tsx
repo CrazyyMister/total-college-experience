@@ -5,7 +5,6 @@ import { writerReady } from '@shared/settingsRules'
 import { shuffle } from '@shared/shuffle'
 import type { Result } from '@shared/types'
 import logoUrl from '../../../assets/vu_logo.png'
-import { isWebBuild } from '../platform'
 import { formatShortGameDate, formatWeekday } from '../prompts/gameDate'
 import { enterGame } from '../stores/gameLoop'
 import { spriteUrl } from '../stores/characterStore'
@@ -85,8 +84,6 @@ export function MainMenu(): JSX.Element {
 
   const comfyInstalled = status?.comfyReady ?? false
   const comfyDeferred = useSettingsStore((s) => s.settings?.comfyDeferred ?? false)
-  // The browser has no local renderer to install and no window of its own to close.
-  const webBuild = isWebBuild()
 
   // The writer being callable is the whole gate on playing: Gemini's key, or a custom
   // endpoint with a model named.
@@ -408,21 +405,19 @@ export function MainMenu(): JSX.Element {
             Credits
           </motion.button>
           {/* The window is the app: closing the last one quits. */}
-          {!webBuild && (
-            <motion.button
-              id="menu-quit"
-              className="vu-btn vu-btn--quiet"
-              variants={dealtItem}
-              {...gestures(false, quietLift, quietPress)}
-              onClick={() => window.close()}
-            >
-              Quit game
-            </motion.button>
-          )}
+          <motion.button
+            id="menu-quit"
+            className="vu-btn vu-btn--quiet"
+            variants={dealtItem}
+            {...gestures(false, quietLift, quietPress)}
+            onClick={() => window.close()}
+          >
+            Quit game
+          </motion.button>
         </motion.nav>
 
         <motion.div className="vu-menu-footer" variants={fadeIn(0.95)}>
-          {!webBuild && (comfyDeferred || !comfyInstalled) && (
+          {(comfyDeferred || !comfyInstalled) && (
             <button className="vu-menu-notice" onClick={() => setView('setup')}>
               Image generation isn&apos;t installed — open Setup
             </button>

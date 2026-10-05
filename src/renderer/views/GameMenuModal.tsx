@@ -33,8 +33,7 @@ export interface GameMenuModalProps {
   /** Opens the list of the keys the app answers, in the menu's place. */
   onControls: () => void
   onLeave: () => void
-  /** Absent where the app has no window of its own to close, which drops the entry. */
-  onQuit?: () => void
+  onQuit: () => void
 }
 
 /**
@@ -146,18 +145,16 @@ export function GameMenuModal({
           >
             Return to main menu
           </motion.button>
-          {onQuit && (
-            <motion.button
-              id="game-menu-quit"
-              className="vu-btn vu-btn--outline vu-paper"
-              type="button"
-              variants={dealtItem}
-              {...gestures(false, lift, press)}
-              onClick={onQuit}
-            >
-              Quit game
-            </motion.button>
-          )}
+          <motion.button
+            id="game-menu-quit"
+            className="vu-btn vu-btn--outline vu-paper"
+            type="button"
+            variants={dealtItem}
+            {...gestures(false, lift, press)}
+            onClick={onQuit}
+          >
+            Quit game
+          </motion.button>
         </motion.nav>
 
         {/* No primary: the entries above are the answers, and this only backs out

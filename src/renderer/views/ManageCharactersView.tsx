@@ -5,8 +5,6 @@ import { fullNameOf, type Character } from '@shared/types'
 import { pronounsOf } from '@shared/pronouns'
 import { CharacterJobCard } from '../components/CharacterJobCard'
 import { ConfirmModal } from '../components/ConfirmModal'
-import { DeadNote } from '../components/DeadNote'
-import { DESKTOP_ONLY_NOTE, isWebBuild } from '../platform'
 import {
   doneCountOf,
   isInFlight,
@@ -164,11 +162,8 @@ export function ManageCharactersView(): JSX.Element {
     setView('setup')
   }
 
-  // The browser has no local renderer at all, so nothing here offers to install one.
-  const webBuild = isWebBuild()
-
   // Only sprite rendering needs the local install, so this gates the "+" slot.
-  const canGenerate = !webBuild && comfyInstalled && !comfyDeferred
+  const canGenerate = comfyInstalled && !comfyDeferred
 
   // Every optional set the roster is short of, off the status maps already
   // loaded; a `load()` here would reset every card.
@@ -218,7 +213,7 @@ export function ManageCharactersView(): JSX.Element {
           <h1 className="vu-title-text">Characters</h1>
         </div>
 
-        {webBuild ? null : !canGenerate ? (
+        {!canGenerate ? (
           <motion.button
             id="manage-install-comfy"
             className="vu-pill vu-manage-install"
@@ -331,31 +326,27 @@ export function ManageCharactersView(): JSX.Element {
           initial="hidden"
           animate="shown"
         >
-          {/* The new-character slot leads the grid, so its position is fixed — dead in the
-              browser rather than missing, since the grid it leads is the same grid. */}
+          {/* The new-character slot leads the grid, so its position is fixed. */}
           <motion.li className="vu-card vu-manage-card vu-manage-new" variants={dealtItem}>
-            <DeadNote note={webBuild ? DESKTOP_ONLY_NOTE : null} align="center">
-              <motion.button
-                className="vu-card-face"
-                aria-label="New character"
-                disabled={webBuild}
-                {...hovered(webBuild, cardLift)}
-                whileTap={webBuild ? undefined : press}
-                onClick={() => (canGenerate ? setGenerating(true) : setNeedsComfy(true))}
-              >
-                <div className="vu-arch vu-manage-arch">
-                  <div className="vu-crop vu-card-crop vu-card-crop--empty">
-                    {/* The mark breathes: a leaf, so it composes with the deal above it
-                        and with the face's own lift. */}
-                    <motion.span className="vu-manage-plus" animate={breatheMark}>
-                      +
-                    </motion.span>
-                    <span className="vu-manage-new-label">New character</span>
-                  </div>
+            <motion.button
+              className="vu-card-face"
+              aria-label="New character"
+              {...hovered(false, cardLift)}
+              whileTap={press}
+              onClick={() => (canGenerate ? setGenerating(true) : setNeedsComfy(true))}
+            >
+              <div className="vu-arch vu-manage-arch">
+                <div className="vu-crop vu-card-crop vu-card-crop--empty">
+                  {/* The mark breathes: a leaf, so it composes with the deal above it
+                      and with the face's own lift. */}
+                  <motion.span className="vu-manage-plus" animate={breatheMark}>
+                    +
+                  </motion.span>
+                  <span className="vu-manage-new-label">New character</span>
                 </div>
-                <div className="vu-card-caption" />
-              </motion.button>
-            </DeadNote>
+              </div>
+              <div className="vu-card-caption" />
+            </motion.button>
           </motion.li>
 
           {loading && order.length === 0 ? (

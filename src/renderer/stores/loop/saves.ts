@@ -54,11 +54,6 @@ function queueWrite(write: () => Promise<void>): Promise<void> {
   return writeChain
 }
 
-/** True while a save write is still queued or in flight. */
-export function writesPending(): boolean {
-  return pending > 0
-}
-
 /** Resolves once every write queued so far, and any queued behind them meanwhile, has settled. */
 export async function writesSettled(): Promise<void> {
   while (pending > 0) {

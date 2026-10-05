@@ -9,7 +9,6 @@ import {
   type MessagePhoto,
   type PhotoKind
 } from '@shared/photos'
-import { isWebBuild } from '../platform'
 import { useGameStore } from './gameStore'
 import type { DebugResult } from './npcRomanceDebugActions'
 import { forgetPhotos, photoViewKey, regenKey, usePhotoStore } from './photoStore'
@@ -38,7 +37,6 @@ const NOT_DEV: DebugResult = refused('Only in the development build.')
 /** Has X's next reply carry a photo of `kind`, refused where the game would never draw one. */
 export function debugArmPhoto(charId: string, kind: PhotoKind): DebugResult {
   if (!import.meta.env.DEV) return NOT_DEV
-  if (isWebBuild()) return refused('The browser draws no photos.')
   const character = useGameStore.getState().characters[charId]
   if (!character) return refused('Pick a character.')
   if (character.gender === 'man') return refused('Men send no photos.')
@@ -63,7 +61,6 @@ export function debugForceInvitation(charId: string, kind: PhotoKind | null): De
   if (!flags?.gaveContactInfo) return refused(`${character.firstName} is not a contact.`)
   if (flags.blocked) return refused(`${character.firstName} has the reader blocked.`)
   if (kind !== null) {
-    if (isWebBuild()) return refused('The browser draws no photos.')
     if (character.gender === 'man') return refused('Men send no photos.')
     if (!INVITATION_PHOTO_KINDS.includes(kind)) return refused(`No invitation carries a ${kind} photo.`)
     if (!photosOffered()) return refused('Photos are off: no ComfyUI, or the setting is off.')

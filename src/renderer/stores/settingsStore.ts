@@ -156,8 +156,6 @@ export function patchOf(settings: RendererSettings): SettingsPatch {
     lessNsfwText: settings.lessNsfwText,
     noNsfwSound: settings.noNsfwSound,
     sfwAsked: settings.sfwAsked,
-    // Carried, or a save made from anywhere else would drop a browser's key on the next visit.
-    rememberKey: settings.rememberKey,
     // Carried, or a save made from anywhere else would put every group back to full.
     volumes: settings.volumes
   }

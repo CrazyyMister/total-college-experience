@@ -24,9 +24,7 @@ import { ComboField } from '../components/ComboField'
 import { SelectField } from '../components/SelectField'
 import { TextField } from '../components/TextField'
 import { CheckField } from '../components/CheckField'
-import { DeadNote } from '../components/DeadNote'
 import { SfwCheckList } from '../components/SfwCheckList'
-import { DESKTOP_ONLY_NOTE, isWebBuild } from '../platform'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useAudioStore } from '../stores/audioStore'
 import { useUiStore } from '../stores/uiStore'
@@ -124,8 +122,6 @@ export function AppSettingsModal({ theme, onClose }: AppSettingsModalProps): JSX
   )
   // Heard on every tick and written once the hand has been still, so a drag is one write.
   const [volumes, setVolumes] = useState<Volumes>(() => volumesOf(settings?.volumes))
-  // Only the browser keeps a key anywhere the player might not want it kept.
-  const [remember, setRemember] = useState(settings?.rememberKey === true)
   // Likewise absent means a scene warns before an ending is interrupted.
   const [warnEndingInterrupt, setWarnEndingInterrupt] = useState(
     settings?.warnEndingInterrupt !== false
@@ -229,9 +225,6 @@ export function AppSettingsModal({ theme, onClose }: AppSettingsModalProps): JSX
 
   const { host, overlayProps } = useModalShell(requestClose)
   if (!host || !settings) return null
-
-  // Where the key and the whole of the player's data live in the browser's own storage.
-  const webBuild = isWebBuild()
 
   // Gemini's table, which only Gemini's page picks from; a custom endpoint's ids are typed.
   const models = providerFor('gemini').models
@@ -358,14 +351,6 @@ export function AppSettingsModal({ theme, onClose }: AppSettingsModalProps): JSX
     }
     setSfw(next)
     void write(fields).then(reseed((stored) => setSfw(sfwValuesOf(stored))))
-  }
-
-  /** Whether the browser keeps the key between visits. */
-  function handleRememberChange(checked: boolean): void {
-    setRemember(checked)
-    void write({ rememberKey: checked }).then(
-      reseed((stored) => setRemember(stored.rememberKey === true))
-    )
   }
 
   /** Whether interjecting over a scene that has started its ending asks first. */
@@ -656,16 +641,6 @@ export function AppSettingsModal({ theme, onClose }: AppSettingsModalProps): JSX
                     />
                   </label>
                 )}
-
-                {webBuild && (
-                  <CheckField
-                    id="settings-remember-key"
-                    label="Remember my key on this device"
-                    note="By default, your key will be deleted every session. Enabling this setting will save your key in browser storage so you won't have to type it in again next time. Warning: other itch.io games will be able to read your key."
-                    checked={remember}
-                    onChange={handleRememberChange}
-                  />
-                )}
               </div>
               <div className="vu-scroll-fade" />
             </div>
@@ -678,17 +653,13 @@ export function AppSettingsModal({ theme, onClose }: AppSettingsModalProps): JSX
                 app promises about either setting. */}
             <SfwCheckList sfw={sfw} onChange={handleSfwChange} />
 
-            {/* ComfyUI draws the photos, so the browser holds this dead under its one notice. */}
-            <DeadNote note={webBuild ? DESKTOP_ONLY_NOTE : null}>
-              <CheckField
-                id="settings-text-photos"
-                label="Characters text photos"
-                note="Women on your phone may send photos drawn by ComfyUI. Turning this off stops new photos; the ones already sent stay."
-                checked={textPhotos && !webBuild}
-                disabled={webBuild}
-                onChange={handleTextPhotosChange}
-              />
-            </DeadNote>
+            <CheckField
+              id="settings-text-photos"
+              label="Characters text photos"
+              note="Women on your phone may send photos drawn by ComfyUI. Turning this off stops new photos; the ones already sent stay."
+              checked={textPhotos}
+              onChange={handleTextPhotosChange}
+            />
 
             <CheckField
               id="settings-warn-ending-edit"
@@ -729,8 +700,7 @@ export function AppSettingsModal({ theme, onClose }: AppSettingsModalProps): JSX
               ))}
             </div>
 
-            {/* One zip of everything this build keeps, and one read back over it. Both builds
-                write the same format, so a semester started in one goes on in the other. */}
+            {/* One zip of everything this build keeps, and one read back over it. */}
             <span className="vu-settings-heading vu-settings-data-heading">Game data</span>
             <div className="vu-settings-data">
               <div className="vu-settings-data-actions">
@@ -759,9 +729,8 @@ export function AppSettingsModal({ theme, onClose }: AppSettingsModalProps): JSX
                 </motion.button>
               </div>
               <span className="vu-check-note">
-                {webBuild
-                  ? "Web saves live in browser storage and can be accidentally wiped. It's highly recommended to regularly back up your saves."
-                  : 'Saves are stored on disk in the data folder. "Back up game data" exports them as a portable zip file for transfer.'}
+                Saves are stored on disk in the data folder. &quot;Back up game data&quot; exports them as a
+                portable zip file for transfer.
               </span>
             </div>
 

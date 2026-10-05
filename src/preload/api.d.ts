@@ -53,8 +53,6 @@ import type {
 
 /** The renderer-visible preload bridge: thin `Result`-returning IPC wrappers only. */
 export interface VenusUniversityApi {
-  /** Which build the renderer is running in; the one thing on here that is not a call. */
-  platform: 'desktop' | 'web'
   assets: {
     /** Poses that have both a manifest entry and a skeleton PNG. */
     getPoseManifest: () => Promise<Result<PoseManifest>>
@@ -393,8 +391,7 @@ export interface VenusUniversityApi {
     ) => Promise<Result<HandFixResult>>
   }
   /**
-   * The development build's photo lab; every channel is refused in a packaged build and in the
-   * browser.
+   * The development build's photo lab; every channel is refused in a packaged build.
    */
   photoLab: {
     /** Queues one render under the `photo-lab` group, keyed by `request.id`. */
@@ -406,7 +403,7 @@ export interface VenusUniversityApi {
     /** Opens the lab's folder in the file browser. */
     openFolder: () => Promise<Result<void>>
   }
-  /** The photos characters text, kept under each playthrough; none of it in the browser. */
+  /** The photos characters text, kept under each playthrough. */
   photos: {
     /**
      * Queues one photo under `photo:{playthroughId}`, or answers the job already queued for it;

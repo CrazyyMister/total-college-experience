@@ -1,2 +1,2 @@
-/** The app's one identifier: Windows' AppUserModelId, and the name of the browser database. */
+/** The app's one identifier: Windows' AppUserModelId. */
 export const APP_ID = 'com.venusuniversity.app'

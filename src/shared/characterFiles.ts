@@ -7,8 +7,7 @@ import type { OutfitSet, SetTarget, SpriteRef, WardrobeLayer, WardrobeTarget } f
 
 /**
  * The one vocabulary of a character's image paths, each one relative to wherever her files
- * are kept: a folder on disk, a key space in a browser database, the entries of her export
- * zip. Every reader and every writer names a file through this file and nowhere else.
+ * are kept: a folder on disk, the entries of her export zip. Every reader and every writer names a file through this file and nowhere else.
  */
 
 /**
@@ -76,17 +75,10 @@ export const IMAGE_EXTENSION = '.png'
 export const SHIPPED_EXTENSION = '.webp'
 
 /** The name this vocabulary calls a shipped file by. */
-export function namedRel(entry: string): string {
+function namedRel(entry: string): string {
   return entry.toLowerCase().endsWith(SHIPPED_EXTENSION)
     ? `${entry.slice(0, -SHIPPED_EXTENSION.length)}${IMAGE_EXTENSION}`
     : entry
-}
-
-/** The shipped name of an image this vocabulary calls `<stem>.png`. */
-export function shippedRel(rel: string): string {
-  return rel.toLowerCase().endsWith(IMAGE_EXTENSION)
-    ? `${rel.slice(0, -IMAGE_EXTENSION.length)}${SHIPPED_EXTENSION}`
-    : rel
 }
 
 /** `expressions/{emotion}.png` — one default-wardrobe sprite. */

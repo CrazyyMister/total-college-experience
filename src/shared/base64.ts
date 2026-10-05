@@ -1,5 +1,5 @@
 /**
- * Base64 for image bytes on both processes: `btoa`/`atob` are global in the browser and in
+ * Base64 for image bytes on both processes: `btoa`/`atob` are global in the renderer and in
  * Node, and the chunking keeps a multi-megabyte sprite off the argument-count limit.
  */
 

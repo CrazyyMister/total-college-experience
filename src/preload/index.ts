@@ -6,7 +6,6 @@ import type { VenusUniversityApi } from './api'
  * in `api.d.ts`.
  */
 const api: VenusUniversityApi = {
-  platform: 'desktop',
   assets: {
     getPoseManifest: () => ipcRenderer.invoke('assets:getPoseManifest'),
     getQuickstart: () => ipcRenderer.invoke('assets:getQuickstart'),

@@ -11,8 +11,7 @@ export const SETTINGS_SCHEMA_VERSION = 1
 /**
  * What the settings must carry; the two keys, the custom endpoint's URL, model ids, effort and
  * reply cap, the three dev switches, the two hand-edited call switches, the hand-edited ComfyUI
- * build, Gemini's secondary model, the group volumes, the NSFW sound switch and the browser
- * build's key-remembering are all optional.
+ * build, Gemini's secondary model, the group volumes and the NSFW sound switch are all optional.
  */
 const SETTINGS_REQUIRED: Record<
   keyof Omit<
@@ -37,7 +36,6 @@ const SETTINGS_REQUIRED: Record<
     | 'secondaryModelFor'
     | 'volumes'
     | 'noNsfwSound'
-    | 'rememberKey'
   >,
   true
 > = {
@@ -257,8 +255,6 @@ export function mergePatch(current: Settings, patch: SettingsPatch): Settings {
     sfwAsked: patch.sfwAsked,
     // Absent stays absent, `JSON.stringify` dropping the key, which is full volume.
     volumes: patch.volumes,
-    // The browser build's opt-in, which decides whether the keys are written beside the rest.
-    rememberKey: patch.rememberKey,
     ...secretsAfter(current, patch)
   }
 }

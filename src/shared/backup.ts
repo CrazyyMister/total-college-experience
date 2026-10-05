@@ -101,7 +101,7 @@ export function profilePictureEntry(playthroughId: string): string {
 }
 
 /** One character image out of a backup: whose it is and where it goes, or null for anything else. */
-export function charFileOf(name: string): { charId: string; rel: string } | null {
+function charFileOf(name: string): { charId: string; rel: string } | null {
   if (!name.startsWith(`${CHARACTERS_DIR}/`)) return null
   const rest = name.slice(CHARACTERS_DIR.length + 1)
   const cut = rest.indexOf('/')

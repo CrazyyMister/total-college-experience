@@ -3,7 +3,6 @@
 Run this before every `butler push` after doing `npmsrun release`
 
 - **Desktop**: copy `release/win-unpacked` to an outside folder and start "Venus University.exe"
-- **Web**: copy release/web to an outside folder and do `npx serve` in the folder.
 
 These tests are not intended to catch everything, it just runs over high traffic areas to get bang-for-testing-buck.
 
@@ -29,6 +28,7 @@ You will need externally kept data for testing:
 - [ ] In the packaged .exe (not in npm run dev), open the main menu with network. Verify the footer shows only the version (and the image generation notice if ComfyUI is missing), that Settings has no "Ask to update on launch", and that the exe's data/app.log has no "[update]" lines and data/update does not exist.
 - [ ] Open credits and check that all supporters/testers are there.
 - [ ] Open Settings and click everything. Drag the music slider down to see that it still works.
+- [ ] In Settings verify there is no "Remember my key" and that "Characters text photos" can be toggled.
 
 ### Manage Characters
 - [ ] Open manage characters and import a character. Click it and open Edit Character. Click through all expressions on each outfit. Open NSFW CG and room BG.
@@ -142,12 +142,3 @@ You will need externally kept data for testing:
 ### Graduation and Goodbyes
 - [ ] Attend graduation, click through a goodbye, then go home.
 - [ ] Back up game data. Re-extract the version, enter an API key and skip generation. Restore the data and verify that everything is there.
-
-## Web
-- [ ] Enter an API key and don't check "Remember my key". Reload the window and check that it wasn't saved. Enter it again and remember it. Reload again and check that it was remembered.
-- [ ] Check the version on the main menu screen. 
-- [ ] Open settings and verify that "Check for updates" is missing and "Remember my key" is present. Check for the note about browser storage.
-- [ ] Click on Feedback and download the log.
-- [ ] Start a new game and play to the first decision point.
-- [ ] Import an exported character.
-- [ ] Import the desktop save.

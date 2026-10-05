@@ -17,7 +17,7 @@ function normalize(path: string): string {
 
 const ASSETS_DIR = `${normalize(resolve(fileURLToPath(new URL('../assets', import.meta.url))))}/`
 
-export function webpAssets(profile: TranscodeProfile = 'web'): Plugin {
+export function webpAssets(profile: TranscodeProfile = 'desktop'): Plugin {
   // One emit per cached file, so a picture imported by two modules ships once.
   const refs = new Map<string, string>()
 

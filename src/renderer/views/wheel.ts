@@ -11,8 +11,7 @@ export interface WheelTravel {
  * CSS px, 100 a notch at zoom 1 and fewer as main zooms the page up to fit a taller display's
  * stage. The window's outer height is in the display's pixels and its inner height in the
  * page's, so their ratio is that zoom: exact in fullscreen, a title bar's worth over in a
- * window, and about one in the browser build, whose CSS zoom leaves the wheel alone. Line mode
- * is three lines a notch.
+ * window. Line mode is three lines a notch.
  */
 export function wheelNotches(event: WheelEvent): number {
   if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) return event.deltaY / 3

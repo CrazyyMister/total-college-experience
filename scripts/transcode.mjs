@@ -15,12 +15,8 @@ const CACHE_DIR = join(REPO, 'build', '.asset-cache')
 
 const INDEX_PATH = join(CACHE_DIR, 'index.json')
 
-/**
- * One table so the two builds can diverge later; both are quality 85 today, which
- * measured ~7x on backgrounds and ~17x on sprites.
- */
+/** The encoder settings by name; quality 85 measured ~7x on backgrounds and ~17x on sprites. */
 const PROFILES = {
-  web: { quality: 85, effort: 4, alphaQuality: 100 },
   desktop: { quality: 85, effort: 4, alphaQuality: 100 }
 }
 
@@ -84,7 +80,7 @@ async function hashOf(srcPath) {
  * the cache has no copy. The name is the source's content hash, so an edited source
  * gets a new entry and an unchanged one is never re-encoded.
  */
-export async function webpFor(srcPath, profile = 'web') {
+export async function webpFor(srcPath, profile = 'desktop') {
   const options = PROFILES[profile]
   if (!options) throw new Error(`Unknown transcode profile: ${profile}`)
 
@@ -130,11 +126,11 @@ export function transcodeStats() {
 async function main() {
   const [, , src, profile] = process.argv
   if (!src) {
-    console.error('usage: node scripts/transcode.mjs <source.png> [web|desktop]')
+    console.error('usage: node scripts/transcode.mjs <source.png> [desktop]')
     process.exitCode = 1
     return
   }
-  console.log(await webpFor(resolve(src), profile ?? 'web'))
+  console.log(await webpFor(resolve(src), profile ?? 'desktop'))
   console.log(transcodeStats())
 }
 

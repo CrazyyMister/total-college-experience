@@ -1961,12 +1961,6 @@ export interface Settings {
    * absent, reads as the default (`volumesOf` in `shared/audio.ts`).
    */
   volumes?: Record<AudioGroup, number>
-  /**
-   * The browser build's opt-in to keeping the API key in its storage between visits, which
-   * every other game on the same host can read; absent is the session-only default. The
-   * desktop encrypts its key either way and ignores this.
-   */
-  rememberKey?: boolean
 }
 
 /**

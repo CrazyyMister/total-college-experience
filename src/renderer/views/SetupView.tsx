@@ -11,11 +11,9 @@ import { writerReady } from '@shared/settingsRules'
 import { modelForComponentId } from '@shared/setupManifest'
 import type { ProviderApi } from '@shared/providers'
 import type { SetupComponent, SettingsPatch } from '@shared/types'
-import { CheckField } from '../components/CheckField'
 import { ComboField } from '../components/ComboField'
 import { SelectField } from '../components/SelectField'
 import { TitleTab } from '../components/TitleTab'
-import { isWebBuild } from '../platform'
 import { useComfyStore } from '../stores/comfyStore'
 import { beginCrossing, endCrossing, useCrossingStore } from '../stores/crossingStore'
 import { patchOf, useSettingsStore } from '../stores/settingsStore'
@@ -72,10 +70,7 @@ function stagesOf(mode: SetupMode): [SetupStage, ...SetupStage[]] {
   const settings = useSettingsStore.getState().settings
   return firstRunStages(
     settings ? writerReady(settings, settings.apiKeySet) : false,
-    // The browser has no install to settle, so that stage is settled before it is asked for.
-    isWebBuild() ||
-      Boolean(useSetupStore.getState().status?.comfyReady) ||
-      Boolean(settings?.comfyDeferred)
+    Boolean(useSetupStore.getState().status?.comfyReady) || Boolean(settings?.comfyDeferred)
   )
 }
 
@@ -527,10 +522,6 @@ function ApiKeyStage({ onDone }: { onDone: () => void }): JSX.Element {
     settings ? modelFor('gemini', settings.apiModel).id : defaultModelFor('gemini').id
   )
   const [geminiKey, setGeminiKey] = useState('')
-  // Only the browser has anywhere to keep a key between visits that the player might not want
-  // it kept in; the desktop encrypts its own either way.
-  const webBuild = isWebBuild()
-  const [remember, setRemember] = useState(settings?.rememberKey === true)
   // The custom endpoint's own fields, seeded whichever provider is stored. The keys are the
   // exception to the seeding: the renderer is never told either one, so both open blank.
   const [endpointUrl, setEndpointUrl] = useState(() => settings?.endpointUrl ?? '')
@@ -584,14 +575,12 @@ function ApiKeyStage({ onDone }: { onDone: () => void }): JSX.Element {
           apiProvider: 'openai',
           endpointUrl: normalizeEndpoint(endpointUrl),
           endpointModel: modelId,
-          rememberKey: remember,
           ...(endpointKey.trim() ? { endpointApiKey: endpointKey.trim() } : {})
         }
       : {
           ...patchOf(settings),
           apiProvider: 'gemini',
           apiKey: geminiKey.trim(),
-          rememberKey: remember,
           apiModel,
           thinkingLevel: thinkingLevelFor('gemini', apiModel, settings.thinkingLevel)
         }
@@ -814,16 +803,6 @@ function ApiKeyStage({ onDone }: { onDone: () => void }): JSX.Element {
                     }))}
                   />
                 </>
-              )}
-
-              {webBuild && (
-                <CheckField
-                  id="setup-remember-key"
-                  label="Remember my key on this device"
-                  note="By default, your key will be deleted every session. Enabling this setting will save your key in browser storage so you won't have to type it in again next time. Warning: other itch.io games will be able to read your key."
-                  checked={remember}
-                  onChange={setRemember}
-                />
               )}
             </div>
             <div className="vu-scroll-fade" />

@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom'
 import { motion } from 'motion/react'
 import { useModalShell } from '../components/useModalShell'
 import { TitleTab } from '../components/TitleTab'
-import { isWebBuild } from '../platform'
 import { gestures, lift, panelUnderTab, press, veilIn } from './motion'
 import '../vu_styles/Controls.css'
 
@@ -37,17 +36,11 @@ const EVERYWHERE: ControlSection = {
   rows: [
     { keys: ['Escape', 'Right-click'], does: 'Close a panel' },
     { keys: ['Enter'], does: "Submit form" },
+    { keys: ['F11'], does: 'Fullscreen toggle' }
   ]
 }
 
-/** The desktop app's own window key, which a browser tab keeps for itself. */
-const FULLSCREEN: ControlRow = { keys: ['F11'], does: 'Fullscreen toggle' }
-
-/** The two sections, the fullscreen row dropped where the app has no window of its own. */
-function sectionsOf(web: boolean): ControlSection[] {
-  if (web) return [SCENE, EVERYWHERE]
-  return [SCENE, { ...EVERYWHERE, rows: [...EVERYWHERE.rows, FULLSCREEN] }]
-}
+const SECTIONS: ControlSection[] = [SCENE, EVERYWHERE]
 
 export interface ControlsModalProps {
   /** Drawn by the screen that opened this — a portal inherits neither palette nor state rules. */
@@ -82,7 +75,7 @@ export function ControlsModal({ theme, onClose }: ControlsModalProps): JSX.Eleme
 
         <div className="vu-scroll-box">
           <div className="vu-controls-body">
-            {sectionsOf(isWebBuild()).map((section) => (
+            {SECTIONS.map((section) => (
               <section key={section.title} className="vu-controls-section">
                 <h3 className="vu-controls-title">{section.title}</h3>
                 <ul className="vu-controls-list">

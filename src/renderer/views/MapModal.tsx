@@ -223,9 +223,9 @@ export function MapModal({ theme, onClose, onGo }: MapModalProps): JSX.Element |
     const layerBox = layer.getBoundingClientRect()
     if (layerBox.width === 0 || layerBox.height === 0) return
 
-    // The rects are window pixels — the browser build zooms the stage, and the panel is still
-    // scaling on the frame it arrives — while the seats' boxes and the numbers written below are
-    // layout pixels, so every rect measure is put back through the sheet's own ratio.
+    // The rects are window pixels — the panel is still scaling on the frame it arrives —
+    // while the seats' boxes and the numbers written below are layout pixels, so every rect
+    // measure is put back through the sheet's own ratio.
     const scale = layerBox.width / layer.offsetWidth || 1
     const sheetW = layer.offsetWidth
     const sheetH = layer.offsetHeight

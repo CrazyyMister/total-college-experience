@@ -10,7 +10,6 @@ import {
   type PhotoRef
 } from '@shared/photos'
 import type { ChatMessage } from '@shared/types'
-import { isWebBuild } from '../platform'
 import { useGameStore } from './gameStore'
 import { noNsfwImagesOf, textPhotosOf, useSettingsStore } from './settingsStore'
 
@@ -63,11 +62,11 @@ function refOf(messageId: string, photo: MessagePhoto): PhotoRef {
 }
 
 /**
- * The photo a message shows: none in the browser, none for a field that does not read whole, and
- * none for an adult kind while the setting withholds them.
+ * The photo a message shows: none for a field that does not read whole, and none for an adult
+ * kind while the setting withholds them.
  */
 export function shownPhotoOf(message: ChatMessage, noNsfwImages: boolean): MessagePhoto | null {
-  if (message.photo === undefined || isWebBuild()) return null
+  if (message.photo === undefined) return null
   const photo = readMessagePhoto(message.photo)
   if (!photo || (noNsfwImages && isAdultPhoto(photo.kind))) return null
   return photo

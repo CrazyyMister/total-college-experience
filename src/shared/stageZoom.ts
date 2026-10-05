@@ -5,8 +5,8 @@
  */
 
 /** The stage's design height, and the narrowest stage the layout is drawn for (4:3). */
-export const STAGE_HEIGHT = 1080
-export const STAGE_MIN_WIDTH = 1440
+const STAGE_HEIGHT = 1080
+const STAGE_MIN_WIDTH = 1440
 
 /**
  * Page zoom for a content size: height-fit down to 4:3, width-fit below it. The renderer

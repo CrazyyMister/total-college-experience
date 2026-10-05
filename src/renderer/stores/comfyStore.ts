@@ -1,6 +1,5 @@
 import { create } from 'zustand'
 import type { AppError, ComfyRuntimeState } from '@shared/types'
-import { isWebBuild } from '../platform'
 
 interface ComfyStoreState {
   state: ComfyRuntimeState
@@ -20,8 +19,6 @@ export const useComfyStore = create<ComfyStoreState>(() => ({
   state: 'idle',
 
   ensureStarted: async () => {
-    // There is no local server in the browser, so the state stays idle and no start is asked for.
-    if (isWebBuild()) return
     await window.api.comfy.start()
   },
 

@@ -5,7 +5,6 @@ dist-electron
 release
 
 # build products of scripts/packCharacters.mjs and the WebP cache
-/build/web-assets
 /build/desktop-assets
 /build/.asset-cache
 

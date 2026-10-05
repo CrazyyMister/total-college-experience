@@ -3,19 +3,15 @@ import { existsSync } from 'node:fs'
 import { readFile, readdir, rm, stat } from 'node:fs/promises'
 import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import sevenBin from '7zip-bin'
-import { checkItchLimits } from './checkItchLimits.mjs'
 import { folderBytes, packCharacters } from './packCharacters.mjs'
 
 /**
- * The one release command: a browser build itch.io will host and a Windows folder
- * it will serve as a download, both out of the same tree and the same version.
+ * The one release command: the Windows folder and its zip, out of one tree and one version.
  * It never bumps the version and never tags; `npm version` does that first.
  */
 
 const REPO = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const RELEASE = join(REPO, 'release')
-const WEB_OUT = join(RELEASE, 'web')
 const UNPACKED = join(RELEASE, 'win-unpacked')
 
 const allowDirty = process.argv.includes('--allow-dirty')
@@ -91,7 +87,7 @@ async function preflight() {
   const major = Number(process.versions.node.split('.')[0])
   if (major < 22) throw new Error(`Node 22 or newer is required; this is ${process.versions.node}.`)
 
-  for (const pkg of ['sharp', '7zip-bin', 'electron-builder', 'fflate']) {
+  for (const pkg of ['sharp', '7zip-bin', 'electron-builder']) {
     if (!existsSync(join(REPO, 'node_modules', pkg))) {
       throw new Error(`${pkg} is not installed; run npm install --legacy-peer-deps.`)
     }
@@ -126,19 +122,6 @@ async function preflight() {
 
   console.log(`  version ${version}, HEAD ${sha}, node ${process.versions.node}`)
   return { version, sha }
-}
-
-/** Zips a folder's contents with `index.html` at the root of the archive. */
-async function zipFolder(folder, target) {
-  await rm(target, { force: true })
-  await run(sevenBin.path7za, ['a', '-tzip', '-r', target, '.'], { cwd: folder })
-  const listed = await capture(sevenBin.path7za, ['l', '-slt', target])
-  const paths = [...listed.out.matchAll(/^Path = (.+)$/gm)].map((m) => m[1].replace(/\\/g, '/'))
-  // The first Path line is the archive itself; the rest are its entries.
-  if (!paths.slice(1).includes('index.html')) {
-    throw new Error(`${basename(target)} has no index.html at its root.`)
-  }
-  return (await stat(target)).size
 }
 
 /** Everything the packaged folder has to contain, and the things it must not. */
@@ -205,24 +188,9 @@ async function main() {
 
   const packed = await step('pack the shipped cast', packCharacters)
   console.log(
-    `  ${packed.characters} characters, ${packed.images} images, ${mb(packed.packBytes)} of packs; ` +
+    `  ${packed.characters} characters, ${packed.images} images; ` +
       `encoded ${packed.encoded}, cached ${packed.cached}`
   )
-
-  await step('build the browser bundle', () =>
-    run(process.execPath, [nodeBin('vite/bin/vite.js'), 'build', '-c', 'vite.web.config.ts'])
-  )
-
-  await step('check the itch.io limits', async () => {
-    const failures = await checkItchLimits(WEB_OUT, (line) => console.log(line))
-    if (failures.length > 0) {
-      for (const line of failures) console.error(`  - ${line}`)
-      throw new Error(`${failures.length} itch.io limit check(s) failed.`)
-    }
-  })
-
-  const webZip = join(RELEASE, `venus-university-web-${version}.zip`)
-  const webZipBytes = await step('zip the browser build', () => zipFolder(WEB_OUT, webZip))
 
   await step('build the desktop bundles', () =>
     run(process.execPath, [nodeBin('electron-vite/bin/electron-vite.js'), 'build'])
@@ -242,18 +210,12 @@ async function main() {
 
   const winZip = join(RELEASE, `venus-university-${version}-win.zip`)
   const winZipBytes = existsSync(winZip) ? (await stat(winZip)).size : 0
-  const webFiles = (await readdir(WEB_OUT, { withFileTypes: true, recursive: true })).filter((e) =>
-    e.isFile()
-  ).length
-  const webBytes = await folderBytes(WEB_OUT)
   const unpackedBytes = await folderBytes(UNPACKED)
 
   const { itchTarget } = JSON.parse(await readFile(join(REPO, 'build', 'release.json'), 'utf8'))
 
   console.log(`\n=== Venus University ${version} (${sha})`)
   const rows = [
-    ['browser folder', WEB_OUT, `${webFiles} files / 1000, ${mb(webBytes)} / 500.0 MB`],
-    ['browser zip', webZip, mb(webZipBytes)],
     ['desktop folder', UNPACKED, `${mb(unpackedBytes)}, app.asar ${mb(asarBytes)}`],
     ['desktop zip', winZip, winZipBytes ? mb(winZipBytes) : 'missing'],
     [
@@ -271,7 +233,6 @@ async function main() {
   console.log(`  ${((Date.now() - started) / 1000).toFixed(1)}s total`)
 
   console.log('\nPush to itch.io with:')
-  console.log(`  butler push release/web ${itchTarget}:html5 --userversion ${version}`)
   console.log(`  butler push release/win-unpacked ${itchTarget}:windows --userversion ${version}`)
 }
 

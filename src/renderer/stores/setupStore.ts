@@ -1,6 +1,5 @@
 import { create } from 'zustand'
 import type { AppError, InstallProgress, SetupStatus } from '@shared/types'
-import { isWebBuild } from '../platform'
 import { useUiStore } from './uiStore'
 
 /** Live per-component install state, keyed by `SetupComponent.id`. */
@@ -45,9 +44,7 @@ interface SetupStoreState {
 }
 
 /**
- * Owns every `setup:*` channel. There is no install to speak of in the browser, so every
- * action here answers nothing there and the status stays null: no screen offers one, and a
- * stray caller reaches no channel.
+ * Owns every `setup:*` channel.
  */
 export const useSetupStore = create<SetupStoreState>((set, get) => ({
   status: null,
@@ -56,7 +53,6 @@ export const useSetupStore = create<SetupStoreState>((set, get) => ({
   progress: {},
 
   refresh: async () => {
-    if (isWebBuild()) return
     set({ checking: true })
     const result = await window.api.setup.getStatus()
     // A fresh verify supersedes the previous run's telemetry.
@@ -69,7 +65,7 @@ export const useSetupStore = create<SetupStoreState>((set, get) => ({
   },
 
   install: async () => {
-    if (isWebBuild() || get().installing) return
+    if (get().installing) return
 
     // Cleared so the view can tell "installed earlier" from "installing now".
     set({ installing: true, progress: {} })
@@ -95,13 +91,12 @@ export const useSetupStore = create<SetupStoreState>((set, get) => ({
   },
 
   openModelFolder: async (componentId) => {
-    if (isWebBuild()) return
     const result = await window.api.setup.openModelFolder(componentId)
     if (!result.ok) useUiStore.getState().showError(result.error)
   },
 
   verifyModel: async (componentId) => {
-    if (isWebBuild() || get().installing) return
+    if (get().installing) return
     // Rides `installing`: hashing a 6.46 GiB weight needs the same lockout an install does.
     set((state) => ({
       installing: true,

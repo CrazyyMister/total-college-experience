@@ -1,7 +1,7 @@
 /** Types for `transcode.mjs`, so the Vite plugin beside it type-checks. */
 
-/** Which build's encoder settings to use; both are quality 85 today. */
-export type TranscodeProfile = 'web' | 'desktop'
+/** Which encoder settings to use. */
+export type TranscodeProfile = 'desktop'
 
 /** What `transcodeStats` reports to the build summary. */
 export interface TranscodeStats {

@@ -1,5 +1,6 @@
 {
   "entry": [
+    "src/renderer/main.tsx",
     "scripts/*.mjs",
     "scripts/trailer/*.mjs",
     "scripts/itch-page/*.mjs",

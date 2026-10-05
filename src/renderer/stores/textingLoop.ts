@@ -85,7 +85,6 @@ import { useBunnyboardStore } from './bunnyboardStore'
 import { resetPhotos, showPhoto } from './photoStore'
 import { noNsfwImagesOf, textPhotosOf, useSettingsStore } from './settingsStore'
 import { useSetupStore } from './setupStore'
-import { isWebBuild } from '../platform'
 import { useGameStore } from './gameStore'
 import { prefetchHangoutScene, startHangoutScene } from './loop/hooks'
 import { createRetryGate } from './retryGate'
@@ -184,12 +183,11 @@ export function lastPhotoOfferOf(charId: string): PhotoOffer | null {
 }
 
 /**
- * Whether the game offers photos at all: never in the browser, nor without ComfyUI installed, nor
- * with the player's setting off.
+ * Whether the game offers photos at all: not without ComfyUI installed, nor with the player's
+ * setting off.
  */
 export function photosOffered(): boolean {
   return (
-    !isWebBuild() &&
     useSetupStore.getState().status?.comfyReady === true &&
     textPhotosOf(useSettingsStore.getState())
   )
@@ -306,7 +304,7 @@ export function invitationPhotoFor(
   const report: string[] = []
   invitationPhotoReport = report
   if (!photosOffered()) {
-    if (askers.length > 0) report.push('No photos at all: no ComfyUI, the browser, or the setting is off')
+    if (askers.length > 0) report.push('No photos at all: no ComfyUI, or the setting is off')
     return null
   }
   const candidates: InvitationPhotoCandidate[] = []

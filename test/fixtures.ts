@@ -246,7 +246,7 @@ type DeepPartial<T> = {
  * Only the methods passed exist — anything else a store calls throws.
  */
 export function stubApi(api: DeepPartial<VenusUniversityApi>): void {
-  ;(globalThis as { window?: unknown }).window = { api: { platform: 'desktop', ...api } }
+  ;(globalThis as { window?: unknown }).window = { api }
 }
 
 /** Removes the stubbed bridge. Call from `afterEach`, or the next suite inherits it. */

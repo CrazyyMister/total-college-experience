@@ -1,6 +1,5 @@
 import { useEffect, useState, type JSX } from 'react'
 import { AnimatePresence } from 'motion/react'
-import { writerReady } from '@shared/settingsRules'
 import { Crossing } from './components/Crossing'
 import { Cursor } from './components/Cursor'
 import { ModalHost } from './components/ModalHost'
@@ -28,16 +27,13 @@ import { useSaveStore } from './stores/saveStore'
 import { useSettingsStore } from './stores/settingsStore'
 import { useSetupStore } from './stores/setupStore'
 import { useUiStore, type ViewName } from './stores/uiStore'
-import { isWebBuild } from './platform'
 
 /**
- * Which screen a finished boot opens on: the first run where one is still owed, then whatever
- * this build can still be short of before the menu is worth showing.
+ * Which screen a finished boot opens on: the first run where one is still owed, then the install
+ * where ComfyUI is neither there nor deferred.
  */
-function bootView(firstRun: boolean, comfySettled: boolean, writerOk: boolean): ViewName {
+function bootView(firstRun: boolean, comfySettled: boolean): ViewName {
   if (firstRun) return 'firstRun'
-  // The browser build installs nothing, so the writer is the only thing it can still owe.
-  if (isWebBuild()) return writerOk ? 'mainMenu' : 'apiKey'
   return comfySettled ? 'mainMenu' : 'setup'
 }
 
@@ -61,10 +57,9 @@ async function boot(): Promise<void> {
   // The graph opens as soon as the sliders it mixes against are in.
   useAudioStore.getState().start()
 
-  // A deferred ComfyUI install skips the verify pass outright, and the browser build, which
-  // has no local image generation at all, never asks.
+  // A deferred ComfyUI install skips the verify pass outright.
   const deferred = Boolean(useSettingsStore.getState().settings?.comfyDeferred)
-  if (!isWebBuild() && !deferred) {
+  if (!deferred) {
     await useSetupStore.getState().refresh()
     if (useUiStore.getState().fatalError) {
       cancelCrossing()
@@ -87,11 +82,9 @@ async function boot(): Promise<void> {
   // how a boot knows the run never finished; the screen it opens picks up at whichever stage
   // is still unsettled.
   const firstRun = useSettingsStore.getState().settings?.sfwAsked === false
-  const stored = useSettingsStore.getState().settings
-  const writerOk = stored ? writerReady(stored, stored.apiKeySet) : false
 
   // The boot's own cover, raised before the first frame (`main.tsx`), opens here.
-  endCrossing(() => ui.setView(bootView(firstRun, deferred || comfyInstalled, writerOk)))
+  endCrossing(() => ui.setView(bootView(firstRun, deferred || comfyInstalled)))
 }
 
 function App(): JSX.Element {

@@ -1,10 +1,4 @@
-import { appError } from './errors'
-import { imageTypeOf } from './imageBytes'
-
-/**
- * What every archive the app opens has to be before a byte of it is unpacked, and what an
- * unpacked archive's entries have to be before they are kept.
- */
+/** What every archive the app opens has to be before a byte of it is unpacked. */
 
 /** One row of an archive's listing. */
 export interface ZipEntry {
@@ -14,21 +8,6 @@ export interface ZipEntry {
   size: number
   /** 7-Zip's attributes column, empty when it prints none for the row. */
   attributes: string
-}
-
-/** Throws `IMPORT_BAD_CONTENT` unless every entry classifies as one this build keeps or ignores. */
-export function checkArchiveContent(
-  entries: Record<string, Uint8Array>,
-  classify: (name: string) => string,
-  noun: string
-): void {
-  for (const [name, data] of Object.entries(entries)) {
-    const role = classify(name)
-    if (role === 'skip') continue
-    if (role === 'reject' || (role === 'image' && !imageTypeOf(data))) {
-      throw appError('IMPORT_BAD_CONTENT', `That ${noun} holds a file that is not one of ours.`, name)
-    }
-  }
 }
 
 /** Entries a zip the app opens may hold; a custom node's source tree is about 130. */

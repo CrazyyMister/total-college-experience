@@ -124,7 +124,6 @@ import {
 } from '../stores/crossingStore'
 import { menuCrossing, revealSceneOpening } from '../stores/slotCrossing'
 import { goToText, goToVerdict, slotActionsNow } from '../stores/slotActions'
-import { isWebBuild } from '../platform'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useUiStore } from '../stores/uiStore'
 import { BunnyboardModal } from './BunnyboardModal'
@@ -2297,8 +2296,7 @@ export function GameView(): JSX.Element {
             onSettings={() => setPanel({ kind: 'appSettings' })}
             onControls={() => setPanel({ kind: 'controls' })}
             onLeave={() => setPanel({ kind: 'leaving' })}
-            // The browser has no window of its own to close, so it is offered no way out.
-            onQuit={isWebBuild() ? undefined : () => setPanel({ kind: 'quitting' })}
+            onQuit={() => setPanel({ kind: 'quitting' })}
           />
         )}
 
