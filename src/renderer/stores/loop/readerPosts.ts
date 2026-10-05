@@ -88,7 +88,8 @@ export function readerPostDebugRows(): { key: string; text: string }[] {
           : 'no tag forced'
       }`
     },
-    ...loopState.readerTagReport.map((text, at) => ({ key: `tag-${at}`, text }))
+    ...loopState.readerTagReport.map((text, at) => ({ key: `tag-${at}`, text })),
+    ...loopState.textLedgerReport.map((text, at) => ({ key: `ledger-${at}`, text: `Texting ledger: ${text}` }))
   ]
 }
 

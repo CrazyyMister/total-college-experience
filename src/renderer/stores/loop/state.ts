@@ -110,6 +110,9 @@ export const loopState = {
   /** What the latest scene ending decided of a post tagging the reader, for the development read-out. */
   readerTagReport: [] as string[],
 
+  /** The rows the latest texting ledger reply lost, and why, for the development read-out. */
+  textLedgerReport: [] as string[],
+
   /** The replies calls out, each under a group of its own, beside the group its opening is in. */
   feedRepliesCalls: [] as Array<{ group: string; parent: string }>,
 
@@ -345,6 +348,7 @@ export function resetLoopState(): void {
   loopState.feedRepliesReport = []
   loopState.debugReaderTagger = null
   loopState.readerTagReport = []
+  loopState.textLedgerReport = []
   // An in-flight prefetch is simply abandoned; the next armed hangout makes its own call.
   loopState.hangoutPrefetch = null
   // Abandoned the same way; the bytes it holds are released separately, by `dropEndingArt`.

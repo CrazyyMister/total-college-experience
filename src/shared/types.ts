@@ -220,6 +220,13 @@ export type MemoryType = 'liked' | 'disliked' | 'loved' | 'hated'
 export const MEMORY_TYPES: readonly MemoryType[] = ['liked', 'disliked', 'loved', 'hated']
 
 /**
+ * Where the phone's one impression of the reader came from: his texts with her, or an exchange
+ * with her on the feed.
+ */
+export const TEXT_MEMORY_SOURCES = ['texts', 'feed'] as const
+export type TextMemorySource = (typeof TEXT_MEMORY_SOURCES)[number]
+
+/**
  * How a character behaves at each stage of a relationship: third-person prose naming her
  * and the stage, injected into prompts verbatim.
  */
@@ -695,6 +702,8 @@ export interface CharState {
    * most one, and the newest wins.
    */
   textMemory?: CharMemory
+  /** Where {@link textMemory} came from; absent means his texts. */
+  textMemorySource?: 'feed'
   /** What she suspects about the reader and another girl, one record per subject. */
   suspicions?: Suspicion[]
   /** The game date they last became lovers; kept after a breakup for the exes line. */
@@ -2063,7 +2072,13 @@ export interface LedgerResponse {
    * What this slot's texting left each girl with — one per character, at most. The texting
    * ledger's field, scoped to whoever actually texted this slot.
    */
-  textMemories?: Array<{ charKey: string; type: MemoryType; desc: string }>
+  textMemories?: Array<{
+    charKey: string
+    type: MemoryType
+    desc: string
+    /** Absent in a reply banked before the feed was read, which only ever read texts. */
+    source?: TextMemorySource
+  }>
   /**
    * The plans the slot settled on — the scene's from the scene ledger, the texts'
    * from the texting ledger, deduped by the merge.

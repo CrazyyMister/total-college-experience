@@ -1,5 +1,6 @@
 import { mayHaveAdultArt } from '@shared/characterRules'
 import { SENIOR_YEAR, slotFullLabel } from '@shared/classes'
+import { feedExchangesOf } from '@shared/feedReplies'
 import { globalSlotOf, slotFromId } from '@shared/jobs'
 import type { PlayerStats } from '@shared/playerStats'
 import { POSITIONS } from '@shared/positions'
@@ -44,7 +45,7 @@ import { currentRun, runStale } from './state'
 
 /** The projection of `gameStore` every prompt builder is written against. */
 
-/** The plans half of the ledger request, for the slot that just finished. */
+/** The plans half of the ledger request, and the texts and feed exchanges, for the slot that just finished. */
 export function scheduleInput(date: number, time: TimeSlot): SchedulePromptInput {
   const game = useGameStore.getState()
 
@@ -66,10 +67,30 @@ export function scheduleInput(date: number, time: TimeSlot): SchedulePromptInput
     })
     .filter((thread) => thread.firstName && thread.messages.length > 0)
 
+  // The feed's exchanges that closed this slot, with whom each was.
+  const feed = feedExchangesOf(
+    game.readerPosts,
+    game.chars.map((charId) => ({ charId, feed: game.charInfo[charId]?.feed })),
+    date,
+    time
+  ).flatMap((exchange) => {
+    const character = game.characters[exchange.charId]
+    return character
+      ? [
+          {
+            ...exchange,
+            charKey: charKeyOf(character.firstName, character.lastName),
+            firstName: character.firstName
+          }
+        ]
+      : []
+  })
+
   return {
     date,
     time,
     threads,
+    ...(feed.length > 0 ? { feed } : {}),
     characters: game.characters,
     // Only the plans still ahead.
     planned: game.events.filter(

@@ -89,7 +89,7 @@ function contactEntry(
       { texting: true, texted }
     ),
     ...(secret ? [secret] : []),
-    ...memoryLines(character, dedupedMemoriesFor(info).slice(-MEMORY_CAP), info.textMemory)
+    ...memoryLines(character, dedupedMemoriesFor(info).slice(-MEMORY_CAP), info)
   ]
 }
 

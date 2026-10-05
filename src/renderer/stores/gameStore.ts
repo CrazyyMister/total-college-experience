@@ -8,7 +8,8 @@ import {
   MEMORY_CAP,
   refreshedFlags,
   withMemoryReplaced,
-  withoutReaderRomance
+  withoutReaderRomance,
+  withTextMemory
 } from '@shared/relationship'
 import { escapeRegExp } from '@shared/sentences'
 import { pronounsOf } from '@shared/pronouns'
@@ -119,6 +120,7 @@ import {
   type SocialPost,
   type SpriteRef,
   type Suspicion,
+  type TextMemorySource,
   type TimeSlot
 } from '@shared/types'
 
@@ -708,7 +710,8 @@ interface GameStoreState {
    */
   replaceMemory: (charId: string, match: CharMemory, next: CharMemory | null) => void
   /** Files what this slot's texting left her with, **replacing** the last slot's. */
-  setTextMemory: (charId: string, entry: CharMemory) => void
+  /** Replaces the phone's one impression of the reader, with where it came from. */
+  setTextMemory: (charId: string, entry: CharMemory, source: TextMemorySource) => void
   /** Remembers what the scene-end status lines just told him about her standards. */
   setCrushHint: (charId: string, hint: CrushHint | undefined) => void
   /**
@@ -2067,9 +2070,9 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       return changed ? { charInfo } : {}
     }),
 
-  setTextMemory: (charId, entry) =>
+  setTextMemory: (charId, entry, source) =>
     set((state) =>
-      patchCharInfo(state, charId, (info = blankCharInfo()) => ({ ...info, textMemory: entry }))
+      patchCharInfo(state, charId, (info = blankCharInfo()) => withTextMemory(info, entry, source))
     ),
 
   setCrushHint: (charId, hint) =>

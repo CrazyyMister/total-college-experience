@@ -473,7 +473,7 @@ function characterBlock(input: SlotIntroInput): string[] {
         // Where she is in her cycle, for a Promiscuous girl's DTF days.
         { date: input.date, offset: info.moodCycleOffset ?? 0 }
       ),
-      ...memoryLines(character, dedupedMemoriesFor(info).slice(-2), info.textMemory)
+      ...memoryLines(character, dedupedMemoriesFor(info).slice(-2), info)
     ])
   }
 

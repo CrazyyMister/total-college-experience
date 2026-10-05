@@ -18,7 +18,7 @@ import {
   emptyFlags,
   loveLifeBlurb,
   MEMORY_CAP,
-  overTextDesc
+  phoneMemoryDesc
 } from '@shared/relationship'
 import { MALE_OUTFIT_SKIN_EXPOSURE, OUTFIT_SKIN_EXPOSURE } from '@shared/tags'
 import { hasTrait } from '@shared/traits'
@@ -608,7 +608,7 @@ function castBlock(cast: readonly Character[], state: PromptState): string[] {
     const memoryBudget = cast.length >= 3 ? 5 : cast.length === 2 ? 10 : MEMORY_CAP
     // Deduped before the budget is spent.
     lines.push(
-      ...memoryLines(character, dedupedMemoriesFor(info).slice(-memoryBudget), info?.textMemory)
+      ...memoryLines(character, dedupedMemoriesFor(info).slice(-memoryBudget), info)
     )
 
     // What the two of them have been texting about on Bunnyboard.
@@ -830,18 +830,22 @@ function addedClassLines(
 
 /**
  * A character's remembered events under their own heading; no memories, no heading. The
- * texting memory is told apart by identity, which the merge and the fold both keep.
+ * phone's memory, out of `phone`, is told apart by identity, which the merge and the fold both
+ * keep, and says where it came from.
  */
 export function memoryLines(
   character: Character,
   memories: readonly CharMemory[],
-  textMemory?: CharMemory
+  phone?: Pick<CharInfo, 'textMemory' | 'textMemorySource'>
 ): string[] {
   if (memories.length === 0) return []
   return [
     `${character.firstName}'s Memories:`,
     ...memories.map((entry) => {
-      const desc = entry === textMemory ? overTextDesc(entry.desc) : entry.desc
+      const desc =
+        entry === phone?.textMemory
+          ? phoneMemoryDesc(entry.desc, phone.textMemorySource)
+          : entry.desc
       return `- ${formatShortGameDate(entry.date)}: ${character.firstName} ${entry.type} that ${readerize(desc)}`
     })
   ]

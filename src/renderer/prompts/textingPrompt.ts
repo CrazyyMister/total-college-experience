@@ -417,7 +417,7 @@ export function buildTextingPrompt(
       character.charId,
       state.date
     ),
-    ...memoryLines(character, dedupedMemoriesFor(info), info?.textMemory),
+    ...memoryLines(character, dedupedMemoriesFor(info), info),
     ...(romance.length > 0 ? ['', ...romance] : [])
   ]
 

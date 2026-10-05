@@ -383,3 +383,52 @@ export function withReaderTag(
     { id: tag.postId, text: tag.text, date, time, likes: tag.likes, tagsReader: true }
   ]
 }
+
+/** One exchange on the feed between the reader and one character, as the phone's summary reads it. */
+export interface FeedExchange {
+  charId: string
+  /** What the exchange is known by: his post's id, or his comment's. */
+  id: string
+  /** Her post he commented under, there for context only; absent for a reply to his post. */
+  herPost?: string
+  /** What he wrote: his post, or his comment. */
+  reader: string
+  /** What she wrote back to him. */
+  reply: string
+}
+
+/**
+ * Every exchange on the feed that closed in the slot — whose reply landed in it — his posts'
+ * first, in the order he posted them, then his comments, in roster order. An exchange is only
+ * ever one he wrote a side of and a roster character answered him in by her charId: an anonymous
+ * student's reply, a comment she never answered and anything on the feed he did not write never
+ * are.
+ */
+export function feedExchangesOf(
+  readerPosts: readonly ReaderPost[],
+  feeds: ReadonlyArray<{ charId: string; feed: readonly SocialPost[] | undefined }>,
+  date: number,
+  time: TimeSlot
+): FeedExchange[] {
+  const closedHere = (answered: { date: number; time: TimeSlot } | undefined): boolean =>
+    answered?.date === date && answered.time === time
+  const onHisPosts = readerPosts.flatMap((post) =>
+    closedHere(post.answered)
+      ? (post.replies ?? []).filter(isContactReply).map((reply) => ({
+          charId: reply.charId,
+          id: post.id,
+          reader: post.text,
+          reply: reply.text
+        }))
+      : []
+  )
+  const onHers = feeds.flatMap(({ charId, feed }) =>
+    (feed ?? []).flatMap((post) => {
+      const comment = post.comment
+      return comment && closedHere(comment.answered) && comment.reply !== undefined
+        ? [{ charId, id: comment.id, herPost: post.text, reader: comment.text, reply: comment.reply }]
+        : []
+    })
+  )
+  return [...onHisPosts, ...onHers]
+}

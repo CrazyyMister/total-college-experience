@@ -95,6 +95,12 @@ You will need externally kept data for testing:
 - [ ] Right after a reply to your comment arrives, load the autosave and play into the slot again. Verify the same reply arrives once.
 - [ ] In a dev build, use F9's "Affection of X for the reader = N" with N = -40 to make a contact hostile, comment on her post and verify no reply ever comes.
 - [ ] Comment on a contact's post asking her out and verify her reply neither accepts nor sets a day, time or place.
+- [ ] In a dev build, use F9's "X tags the reader at the next ending" during a public scene with X, play into the next slot and verify her post appears with "with @your_handle" under it, and "tagged you" on her page.
+- [ ] Right after a tagged post arrives, load the autosave and play into the slot again. Verify the post appears once.
+- [ ] In a dev build, force a tag and kiss someone in that scene. Verify F9 says why the scene tags nobody and no post comes.
+- [ ] In a dev build, force a tag during a hangout arranged by text with somebody who is not your girlfriend. Verify no tag comes.
+- [ ] In a dev build, force a tag and make the next feed replies call fail. Verify no tagged post ever arrives.
+- [ ] Comment on a tagged post, play into the next slot and verify her reply arrives under your comment.
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 

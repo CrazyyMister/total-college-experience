@@ -79,11 +79,15 @@ import { deliverSlotPosts, rollFeedExtrasIfNewSlot, rollSuggestions } from './lo
 import {
   filterEventsByAttendance,
   normalizeSchedule,
-  textLedgerCharKeys,
+  phoneMemoryCharKeys,
   type SchedulePromptInput
 } from '../prompts/schedulePrompt'
 import { hasTexted } from '../prompts/textingPrompt'
-import { buildTextLedgerPrompt, mergeLedgerReplies } from '../prompts/textLedgerPrompt'
+import {
+  buildTextLedgerPrompt,
+  fittedTextLedger,
+  mergeLedgerReplies
+} from '../prompts/textLedgerPrompt'
 import { SETTING } from '../prompts/setting'
 import {
   buildClosingPrompt,
@@ -1983,8 +1987,12 @@ function startTextLedger(
       const result = await window.api.llm.completeLedger(request, LOOP_LLM_GROUP)
       if (runStale(run) || stale()) return null
       if (result.ok) {
-        bankTextLedger({ key: textLedgerKeyOf(schedule), reply: result.data })
-        return result.data
+        // Held to what the slot gave it before anything reads or banks it.
+        const { reply, report } = fittedTextLedger(result.data, schedule)
+        for (const line of report) console.warn('[text-ledger]', line)
+        loopState.textLedgerReport = report
+        bankTextLedger({ key: textLedgerKeyOf(schedule), reply })
+        return reply
       }
 
       console.warn('[text-ledger] the texting bookkeeping call failed:', result.error)
@@ -2011,15 +2019,21 @@ function startTextLedger(
 }
 
 /**
- * The fingerprint the texting-ledger prefetch is keyed on: the slot plus every message
- * id it would read. Ids are never reused, so equal keys mean byte-identical `THE MESSAGES` blocks.
+ * The fingerprint the texting-ledger prefetch is keyed on: the slot plus every message id it
+ * would read, and then the feed's exchanges, each by its id and whose it is, only where there are
+ * any — so a slot with none keys as it did before the feed was read. Ids are never reused and an
+ * exchange never changes once closed, so equal keys mean byte-identical blocks.
  */
-function textLedgerKeyOf(schedule: SchedulePromptInput): string {
+export function textLedgerKeyOf(schedule: SchedulePromptInput): string {
+  const feed = schedule.feed ?? []
   return [
     globalSlotOf(schedule.date, schedule.time),
     ...schedule.threads.map(
       (thread) => `${thread.charKey}:${thread.messages.map((m) => m.id).join(',')}`
-    )
+    ),
+    ...(feed.length > 0
+      ? [`feed:${feed.map((exchange) => `${exchange.id}/${exchange.charKey}`).join(',')}`]
+      : [])
   ].join('|')
 }
 
@@ -2042,7 +2056,7 @@ function bankTextLedger(bank: BankedTextLedger): void {
 function prefetchTextLedger(): void {
   const game = useGameStore.getState()
   const schedule = scheduleInput(game.date, game.time)
-  if (textLedgerCharKeys(schedule).length === 0) {
+  if (phoneMemoryCharKeys(schedule).length === 0) {
     if (loopState.textLedgerPrefetch) loopState.textLedgerPrefetch.stale = true
     loopState.textLedgerPrefetch = null
     return
@@ -2071,7 +2085,7 @@ function claimTextLedger(date: number, time: TimeSlot): Promise<LedgerResponse |
   const prefetch = loopState.textLedgerPrefetch
 
   const schedule = scheduleInput(date, time)
-  if (textLedgerCharKeys(schedule).length === 0) {
+  if (phoneMemoryCharKeys(schedule).length === 0) {
     if (prefetch) prefetch.stale = true
     loopState.textLedgerPrefetch = null
     return Promise.resolve({})

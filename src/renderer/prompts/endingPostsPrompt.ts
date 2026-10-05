@@ -100,7 +100,7 @@ function characterBlock(input: EndingPostsInput): string[] {
         // Where she is in her cycle, for a Promiscuous girl's DTF days.
         { date, offset: info.moodCycleOffset ?? 0 }
       ),
-      ...memoryLines(character, dedupedMemoriesFor(info).slice(-3), info.textMemory),
+      ...memoryLines(character, dedupedMemoriesFor(info).slice(-3), info),
       postingLine(poster)
     ]
   })

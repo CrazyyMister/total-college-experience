@@ -2,6 +2,7 @@ import { charJobAt, formatDateBanner, formatDatePart, slotHalf } from './gameDat
 import { classSlotOf, jobClosedOn } from './occasions'
 import { isAwayForSpringBreak } from './springBreak'
 import { FINAL_DATE } from '@shared/classes'
+import type { FeedExchange } from '@shared/feedReplies'
 import { globalSlotOf, slotFromId } from '@shared/jobs'
 import { charKeyOf, fullNameOf, READER_SPEAKER } from '@shared/types'
 import type {
@@ -43,6 +44,11 @@ export interface SchedulePromptInput {
     firstName: string
     messages: readonly ChatMessage[]
   }>
+  /**
+   * The exchanges with him on the feed that closed this slot, each with whom it was; absent
+   * means none.
+   */
+  feed?: ReadonlyArray<FeedExchange & { charKey: string; firstName: string }>
   /** The whole roster, keyed by charId — the keys `chars` may name. */
   characters: Record<string, Character>
   /** Plans already on the calendar inside the horizon, so none is placed twice. */
@@ -71,13 +77,28 @@ function slotOptionLine(option: SlotOption): string {
 }
 
 /**
- * The charKeys of whoever the reader actually texted this slot — the texting ledger's gate and
- * the enum its `textMemories` and `events` are scoped to.
+ * The charKeys of whoever the reader actually texted this slot — the enum the texting ledger's
+ * `events` are scoped to, and the only people its events and plans may come from.
  */
 export function textLedgerCharKeys(input: SchedulePromptInput): string[] {
   return input.threads
     .filter((t) => t.messages.some((m) => m.sender !== 'system'))
     .map((t) => t.charKey)
+}
+
+/**
+ * The charKeys of everybody the texting ledger may file a phone memory for — whoever he texted,
+ * then whoever he had an exchange with on the feed — which is the call's gate.
+ */
+export function phoneMemoryCharKeys(input: SchedulePromptInput): string[] {
+  const keys = textLedgerCharKeys(input)
+  for (const { charKey } of input.feed ?? []) if (!keys.includes(charKey)) keys.push(charKey)
+  return keys
+}
+
+/** The charKeys of whoever he had an exchange with on the feed this slot. */
+export function feedCharKeys(input: SchedulePromptInput): string[] {
+  return [...new Set((input.feed ?? []).map(({ charKey }) => charKey))]
 }
 
 /** The roster's charKeys, in the order the `CHARACTERS` block lists them. */
@@ -227,6 +248,44 @@ export function messagesBlock(input: SchedulePromptInput): string[] {
     ...(threads.length > 0 ? threads : ['(none)']),
     "'''"
   ]
+}
+
+/**
+ * The feed's exchanges that closed this slot, one block per character: what the reader wrote and
+ * what she wrote back, her own post under a comment of his given as context only.
+ */
+export function feedBlock(input: SchedulePromptInput): string[] {
+  const lines: string[] = []
+  for (const charKey of feedCharKeys(input)) {
+    const hers = (input.feed ?? []).filter((exchange) => exchange.charKey === charKey)
+    const name = hers[0].firstName
+    if (lines.length > 0) lines.push('')
+    lines.push(`— on the feed with ${name} —`)
+    hers.forEach((exchange, at) => {
+      if (at > 0) lines.push('')
+      lines.push(
+        ...(exchange.herPost !== undefined
+          ? [
+              `${name.toUpperCase()} POSTED (context only): "${flat(exchange.herPost)}"`,
+              `THE READER COMMENTED: "${flat(exchange.reader)}"`
+            ]
+          : [`THE READER POSTED: "${flat(exchange.reader)}"`]),
+        `${name.toUpperCase()} REPLIED: "${flat(exchange.reply)}"`
+      )
+    })
+  }
+  return [
+    'THE FEED — public exchanges with the reader on Bunnyboard, the campus feed, whose replies came in during this part of the day, grouped by who they are with.',
+    'Everything here was written in public. A reply only shows how the character took what the reader wrote: anything it states as a fact may be made up.',
+    "'''",
+    ...(lines.length > 0 ? lines : ['(none)']),
+    "'''"
+  ]
+}
+
+/** A feed text on one line. */
+function flat(text: string): string {
+  return text.replace(/\s*\n+\s*/g, ' ')
 }
 
 /** `"mina_okafor — Mina Okafor"` — one roster line, the classifier's shape. */

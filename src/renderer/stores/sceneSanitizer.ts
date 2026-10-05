@@ -13,8 +13,9 @@ import {
   milestoneEmotionOf,
   milestoneSoured,
   milestoneStatusLines as milestoneLinesFor,
-  overTextDesc,
-  ROMANTIC_EVENTS
+  phoneMemoryDesc,
+  ROMANTIC_EVENTS,
+  withTextMemory
 } from '@shared/relationship'
 import { storedMemoryDesc } from '@shared/readerVoice'
 import { parseAction, showAction, spriteAction } from '@shared/sceneActions'
@@ -31,6 +32,7 @@ import {
   type LedgerResponse,
   MEMORY_TYPES,
   type MemoryType,
+  type TextMemorySource,
   type RelationshipEvent,
   roomBgIdOf,
   type SceneGift,
@@ -345,13 +347,18 @@ export function ledgerMemories(ledger: LedgerResponse, log = true): ValidMemory[
   return kept
 }
 
+/** One phone memory that survived validation, with where it came from. */
+interface ValidPhoneMemory extends ValidMemory {
+  source: TextMemorySource
+}
+
 /**
- * The ledger's texting memories, validated exactly as {@link ledgerMemories} validates its own
- * rows, and then **capped at one per character**.
+ * The ledger's phone memories, validated exactly as {@link ledgerMemories} validates its own
+ * rows, and then **capped at one per character**; a row with no source is from his texts.
  */
-function ledgerTextMemories(ledger: LedgerResponse, log = true): ValidMemory[] {
+function ledgerTextMemories(ledger: LedgerResponse, log = true): ValidPhoneMemory[] {
   const { charKeyToId } = useGameStore.getState()
-  const kept: ValidMemory[] = []
+  const kept: ValidPhoneMemory[] = []
   const seen = new Set<string>()
 
   for (const entry of ledger.textMemories ?? []) {
@@ -377,7 +384,12 @@ function ledgerTextMemories(ledger: LedgerResponse, log = true): ValidMemory[] {
       continue
     }
     seen.add(charId)
-    kept.push({ charId, type: entry.type, desc: storedMemoryDesc(entry.desc) })
+    kept.push({
+      charId,
+      type: entry.type,
+      desc: storedMemoryDesc(entry.desc),
+      source: entry.source === 'feed' ? 'feed' : 'texts'
+    })
   }
 
   return kept
@@ -626,10 +638,10 @@ function memoryStatusLine(entry: ValidMemory): SceneLine {
  * What this slot's texting left one girl with, in a scene memory's words plus the one clause
  * that says where it came from.
  */
-function textMemoryStatusLine(entry: ValidMemory): SceneLine {
+function textMemoryStatusLine(entry: ValidPhoneMemory): SceneLine {
   return memoryLineOf(statusNameOf(entry.charId), {
     type: entry.type,
-    desc: overTextDesc(entry.desc)
+    desc: phoneMemoryDesc(entry.desc, entry.source)
   })
 }
 
@@ -761,7 +773,11 @@ export function applyLedger(ledger: LedgerResponse): DatingPassOutcome {
   // Still the finished slot's date: `advanceSlot` runs later in the boundary.
   // Replaces rather than appends — the phone holds one impression.
   for (const entry of ledgerTextMemories(ledger)) {
-    game.setTextMemory(entry.charId, { date: game.date, type: entry.type, desc: entry.desc })
+    game.setTextMemory(
+      entry.charId,
+      { date: game.date, type: entry.type, desc: entry.desc },
+      entry.source
+    )
   }
 
   for (const [charId, events] of ledgerEvents(ledger)) {
@@ -816,10 +832,11 @@ export function projectLedger(
   }
 
   for (const entry of ledgerTextMemories(ledger, false)) {
-    projected[entry.charId] = {
-      ...entryFor(entry.charId),
-      textMemory: { date, type: entry.type, desc: entry.desc }
-    }
+    projected[entry.charId] = withTextMemory(
+      entryFor(entry.charId),
+      { date, type: entry.type, desc: entry.desc },
+      entry.source
+    )
   }
 
   // Last, like the apply, so the cap evicts in the same order.

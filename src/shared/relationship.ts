@@ -26,7 +26,8 @@ import type {
   MemoryType,
   RelationshipEvent,
   SceneLine,
-  TextMark
+  TextMark,
+  TextMemorySource
 } from './types'
 
 /** Affection scoring, disposition tiers and flag transitions. */
@@ -142,7 +143,10 @@ export function withMemoryReplaced<T extends MemoryHolders>(
   }
   if (info.textMemory && sameMemory(info.textMemory, match)) {
     if (next) out.textMemory = next
-    else delete out.textMemory
+    else {
+      delete out.textMemory
+      delete (out as Partial<CharInfo>).textMemorySource
+    }
     changed = true
   }
   return changed ? out : null
@@ -210,9 +214,19 @@ export function memorySentence(name: string, entry: Pick<CharMemory, 'type' | 'd
   return `${before}${run}${after}`
 }
 
-/** A texting memory's description with the clause that says where it came from. */
-export function overTextDesc(desc: string): string {
-  return `${desc.replace(/[.!?…]+$/, '')} over text.`
+/** Her info with the phone's one impression of the reader replaced, and where it came from. */
+export function withTextMemory(
+  info: CharInfo,
+  memory: CharMemory,
+  source: TextMemorySource
+): CharInfo {
+  const { textMemorySource: _source, ...rest } = info
+  return { ...rest, textMemory: memory, ...(source === 'feed' ? { textMemorySource: 'feed' } : {}) }
+}
+
+/** The phone's memory's description with the clause that says where it came from. */
+export function phoneMemoryDesc(desc: string, source: TextMemorySource = 'texts'): string {
+  return `${desc.replace(/[.!?…]+$/, '')} ${source === 'feed' ? 'on Bunnyboard' : 'over text'}.`
 }
 
 /** Which way each of the four verbs went, for the run the status box paints. */
