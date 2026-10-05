@@ -1,60 +1,32 @@
 # Venus University
 
-Venus University is a single-player AI-driven dating sim available for web and desktop (via Electron).
+A personal, private build of Venus University: a single-player, AI-driven dating sim in visual-novel form. A cloud LLM writes the scenes and a locally managed ComfyUI renders the character art. It is an Electron desktop app (React, TypeScript, Zustand).
 
-The supported way to play is the itch.io page:
-**https://venus-dev.itch.io/venus-university**
+## What it needs
 
-This is a read-only snapshot mirror of my private development repository. I am not accepting PRs or issues at the moment, if you have feedback or suggestions, please send me an email (listed on the itch.io page above) or make a bug report in the community.
+- Windows, with an NVIDIA GPU or an AMD RDNA 3/4 GPU for ComfyUI.
+- Node 22.
+- An API key for the text model, entered in Settings.
 
-## What's missing
-
-- `assets/characters` — default characters are zipped so you can\'t preview their NSFW images on GitHub. Unzip them before use.
-- `assets/sound/music` and `assets/sound/ambient_music` — check `assets/sound/README.md` on how to obtain
-- `.github/` — the private repository's CI configuration.
-- `build/itch-page/` — the store page's pictures.
-- `private/` — the supporters ledger.
-
-and probably some other things. If they're not here, I probably excluded them for some reason or other.
-
-## Running from this repo
-
-- Unzip the cast first. Every zip unpacks to `assets/characters/<id>/`, so from `assets/characters`:
-  `for z in *.zip; do unzip -q "$z"; done` (or extract each one in place with your archiver).
-- `npm run dev` then starts with the backgrounds, the sound effects and the pre-generated characters; only the music
-  tracks are missing. Character generation should work: the pose manifest and openpose skeletons under `assets/pose`
-  are included.
-- An external API is required to play. API keys are stored in `data/settings.json`, encrypted at rest
-  with Windows DPAPI (Electron's `safeStorage`); where DPAPI is unavailable it falls back to
-  storing the key as plain text in the same file.
-- The browser build (`npm run build:web`) is untested from this repo.
-
-## Building
-
-Requires Node 22.
+## Running in development
 
 ```
-npm ci
-npm run typecheck
-npm test
-npm run build
+npm install
 npm run dev
 ```
 
-## Verifying a release
+Everything the player sets up lives in `data/` (settings, saves and the characters made in the game); it is gitignored and there is no server.
 
-Releases are Windows zips distributed on itch.io. To compare a release against this source:
+Before committing, `npm run typecheck` and `npm test` have to pass.
 
-1. Extract the shipped app: `npx @electron/asar extract app.asar out-shipped` (from inside the
-   release zip's `resources` folder).
-2. Build the matching tagged snapshot from this repository:
-   `git checkout vX.Y.Z && npm ci && npm run build`.
-3. Compare the built `out/main` and `out/preload` (which bundle no art) with the shipped copies.
+## Where things are written down
 
-The two builds won't be byte identical since it's missing the music.
+- `DESIGN_GUIDE.md` — what the game is, where things live and the rules every change keeps. Start here.
+- `UI_STYLE_GUIDE.md` — how anything on screen looks and moves.
+- `TESTING_PLAN.md` — the steps for testing the game by hand.
+- `ROTEIRO_COLLEGE_SIM.md` and the `PLANO_*.md` files — the roadmap and the plans for each stage of it.
 
 ## Licence
 
 - Code is licensed under AGPL-3.0-only — see `LICENSE`.
 - Image, audio and video files are all rights reserved — see `LICENSE-ASSETS.md`.
-- If you spot security issues, please read `SECURITY.md` before reporting
