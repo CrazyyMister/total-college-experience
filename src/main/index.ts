@@ -186,6 +186,17 @@ function createWindow(): void {
   }
 }
 
+// One run at a time per user-data folder, which the packaged exe and the dev app share: a second
+// launch brings the first window forward and exits before it can print, spawn or touch `data`.
+if (!app.requestSingleInstanceLock()) app.exit(0)
+
+app.on('second-instance', () => {
+  const win = BrowserWindow.getAllWindows()[0]
+  if (!win) return
+  if (win.isMinimized()) win.restore()
+  win.focus()
+})
+
 // Before anything can print: the app log wraps the console for the whole run.
 installConsoleLog()
 

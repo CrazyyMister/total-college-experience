@@ -1,8 +1,8 @@
 # Venus University — Pre-release testing plan
 
-Run this before every `butler push` after doing `npmsrun release`
+Run this after `npm run release`, in a test folder, before updating the executable you play from.
 
-- **Desktop**: copy `release/win-unpacked` to an outside folder and start "Venus University.exe"
+- **Desktop**: update a test folder with `npm run exe:update -- --to "D:\Venus Teste"` and start "Venus University.exe" from there; after everything passes, run `npm run exe:update` for the folder you play from.
 
 These tests are not intended to catch everything, it just runs over high traffic areas to get bang-for-testing-buck.
 
@@ -27,6 +27,8 @@ You will need externally kept data for testing:
 - [ ] Verify that version matches.
 - [ ] In the packaged .exe (not in npm run dev), open the main menu with network. Verify the footer shows only the version (and the image generation notice if ComfyUI is missing), that Settings has no "Ask to update on launch", and that the exe's data/app.log has no "[update]" lines and data/update does not exist.
 - [ ] Open credits and check that all supporters/testers are there.
+- [ ] Verify the main menu has no X link and no "Support Development"; Feedback opens and Download log works; Credits lists the supporters.
+- [ ] With the game open, start "Venus University.exe" again and verify no second window opens.
 - [ ] Open Settings and click everything. Drag the music slider down to see that it still works.
 - [ ] In Settings verify there is no "Remember my key" and that "Characters text photos" can be toggled.
 
@@ -141,4 +143,4 @@ You will need externally kept data for testing:
 
 ### Graduation and Goodbyes
 - [ ] Attend graduation, click through a goodbye, then go home.
-- [ ] Back up game data. Re-extract the version, enter an API key and skip generation. Restore the data and verify that everything is there.
+- [ ] Back up game data. Close the game, run `npm run exe:remove -- --to "D:\Venus Teste"` and then `npm run exe:update -- --to "D:\Venus Teste"`, open the exe, enter an API key, restore the backup and verify that everything is there.

@@ -16,7 +16,9 @@
     "typecheck": "npm run typecheck:node && npm run typecheck:web && npm run typecheck:test",
     "test": "vitest run",
     "sim:romance": "vitest run -c vitest.sim.config.ts scripts/sim/npcRomance.sim.ts",
-    "release": "node scripts/release.mjs"
+    "release": "node scripts/release.mjs",
+    "exe:update": "node scripts/exeFolder.mjs update",
+    "exe:remove": "node scripts/exeFolder.mjs remove"
   },
   "dependencies": {
     "@electron-toolkit/utils": "^4.0.0",
