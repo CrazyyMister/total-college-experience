@@ -1956,7 +1956,8 @@ const FeedPost = memo(function FeedPost({
   requested,
   random,
   gossip,
-  self
+  self,
+  taggedHandle
 }: {
   charId?: string
   emoji?: string
@@ -1981,6 +1982,8 @@ const FeedPost = memo(function FeedPost({
   gossip?: boolean
   /** Who he is and whether he may comment; given only on a contact's post, the one he comments on. */
   self?: FeedSelf
+  /** His handle, on a post of hers that tags him. */
+  taggedHandle?: string
 }): JSX.Element {
   // Her page, her like and the request for her number, each addressed to the store from here
   // rather than handed down, so nothing but the post itself changes under the row.
@@ -2038,6 +2041,7 @@ const FeedPost = memo(function FeedPost({
         )}
       </div>
       <p className="vu-bb-post-text">{post.text}</p>
+      {taggedHandle && <p className="vu-bb-post-tag">with @{taggedHandle}</p>}
       <div className="vu-bb-post-actions">
         <motion.button
           className={`vu-bb-like${post.liked ? ' vu-bb-like--on' : ''}`}
@@ -2464,6 +2468,7 @@ function rowOf(entry: FeedEntry, requestsSent: readonly string[], self: FeedSelf
       stranger={entry.stranger}
       requested={entry.stranger && requestsSent.includes(charId)}
       {...(entry.stranger ? {} : { self })}
+      {...(post.tagsReader ? { taggedHandle: self.handle } : {})}
     />
   )
 }

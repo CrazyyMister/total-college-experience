@@ -379,6 +379,9 @@ export function ContactPage({
                   ) : (
                     <li key={entry.post.id}>
                       {entry.post.text}{' '}
+                      {entry.post.tagsReader && (
+                        <span className="vu-contact-tagged">tagged you</span>
+                      )}
                       <motion.button
                         className={`vu-contact-like${entry.post.liked ? ' vu-contact-like--on' : ''}`}
                         type="button"

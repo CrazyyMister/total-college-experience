@@ -191,7 +191,11 @@ import { startHangoutScene } from './loop/hangouts'
 import {
   cancelFeedReplies,
   readerPostAnswersFor,
-  startReaderFeedAnswers
+  readerTagFor,
+  readerTagSceneOf,
+  startReaderFeedAnswers,
+  type ReaderTagAsk,
+  type ReaderTagScene
 } from './loop/readerPosts'
 import {
   liveView,
@@ -476,6 +480,7 @@ async function beginSlot(): Promise<void> {
   // rather than banked; idempotent.
   useGameStore.getState().answerReaderPosts(opening.readerPostAnswers ?? [])
   useGameStore.getState().answerReaderComments(opening.readerCommentAnswers ?? [])
+  if (opening.readerTag) useGameStore.getState().deliverReaderTag(opening.readerTag)
 
   // Folded into the slot-save minted before the call went out, which is the start-of-slot
   // decision point.
@@ -662,13 +667,14 @@ async function fetchSlotIntro(
   npcOverlay: NpcSlotOverlay | null = null,
   view: PostLedgerView = liveView(),
   /**
-   * The romance the ending settled into and who it has posting for sure; absent for an opening
-   * no ending precedes.
+   * The romance the ending settled into, who it has posting for sure and who it has tagging the
+   * reader; absent for an opening no ending precedes.
    */
   romance: {
     map: NpcRomanceMap
     guaranteed: GuaranteedPosters
     gossip: GossipTopic | null
+    tag: ReaderTagAsk | null
   } | null = null,
   call: { group?: string; stale?: () => boolean } = {}
 ): Promise<SlotOpening | null> {
@@ -684,11 +690,15 @@ async function fetchSlotIntro(
   const game = useGameStore.getState()
 
   // Who posts a status update this slot, as charKeys — the whole roster, strangers included —
-  // the roll's picks and whoever the romance has posting for sure, in roster order.
+  // the roll's picks and whoever the romance has posting for sure, in roster order. Whoever tags
+  // the reader posts that instead.
   const guaranteed = new Map(
     (romance?.guaranteed.posters ?? []).map((poster) => [poster.charId, poster])
   )
-  const rolled = new Set(pickSlotPosters(game.chars, game.characters))
+  const tagger = romance?.tag?.charId
+  const rolled = new Set(
+    pickSlotPosters(game.chars, game.characters).filter((charId) => charId !== tagger)
+  )
   const postingKeys = new Set(
     game.chars
       .filter((charId) => rolled.has(charId) || guaranteed.has(charId))
@@ -841,9 +851,14 @@ async function fetchSlotIntro(
   const gossip = gossipTopic ? introGossipOf(gossipTopic, view.charInfo) : null
   const gossipAuthor = gossip ? drawGossipAuthor() : null
 
-  // What the reader's waiting posts and comments get, decided beside the opening that delivers
-  // it: the replies calls go out now, beside the opening's own.
-  const replies = startReaderFeedAnswers(view.charInfo, view.stats, { group, stale })
+  // What the reader's waiting posts and comments get, and the post tagging him, decided beside
+  // the opening that delivers it: their calls go out now, beside the opening's own.
+  const replies = startReaderFeedAnswers(
+    view.charInfo,
+    view.stats,
+    { group, stale },
+    romance?.tag ?? null
+  )
 
   // Built once and re-sent verbatim on retry; only a hand edit replaces it.
   let request = buildSlotIntroPrompt(
@@ -879,7 +894,11 @@ async function fetchSlotIntro(
     if (runStale(run) || stale()) return null
     if (result.ok) {
       // The replies get a little longer than the opening, and only what is in by then is banked.
-      const { posts: readerPostAnswers, comments: readerCommentAnswers } = await replies.settle()
+      const {
+        posts: readerPostAnswers,
+        comments: readerCommentAnswers,
+        tag: readerTag
+      } = await replies.settle()
       if (runStale(run) || stale()) return null
       const written = result.data.lines.map((line) => line.text.trim()).filter(Boolean)
       // What the narration actually said about the place it was handed. A rumor about
@@ -897,6 +916,7 @@ async function fetchSlotIntro(
         ...(invitationPhoto ? { invitationPhoto } : {}),
         ...(readerPostAnswers.length > 0 ? { readerPostAnswers } : {}),
         ...(readerCommentAnswers.length > 0 ? { readerCommentAnswers } : {}),
+        ...(readerTag ? { readerTag } : {}),
         posts: result.data.posts,
         // Only the hints of posters who made it into the prompt can come back written.
         ...(romance && romance.guaranteed.driftPosts.length > 0
@@ -1596,7 +1616,7 @@ async function runEnding(solo: boolean): Promise<void> {
   // `advance()` parks again at the boundary rather than crossing an ending in flight.
   unpark()
 
-  const opening = await fetchEndingOpening(merged, dropped)
+  const opening = await fetchEndingOpening(merged, dropped, readerTagSceneOf(ledger))
   if (!opening) return
   if (runStale(run) || dropped()) return
 
@@ -1660,11 +1680,13 @@ function introBreakupsOf(
 
 /**
  * The opening for the slot this ending leads into, or null when the player gave up on it or
- * `dropped` answers true. Sent as the ending's bookkeeping.
+ * `dropped` answers true. Sent as the ending's bookkeeping. `tagScene` is the scene that ended,
+ * absent for an exam's ending, which tags nobody.
  */
 async function fetchEndingOpening(
   ledger: LedgerResponse,
-  dropped: () => boolean = () => false
+  dropped: () => boolean = () => false,
+  tagScene?: ReaderTagScene
 ): Promise<BankedOpening | null> {
   const game = useGameStore.getState()
   const { date, time } = nextSlot(game.date, game.time)
@@ -1734,6 +1756,7 @@ async function fetchEndingOpening(
   // gives the reader's waiting posts their likes, there being no later opening to; the
   // tutorial leaves them waiting for the next.
   if (isTutorialSlot(date, time) || isGraduationSlot(date, time)) {
+    loopState.readerTagReport = ['Tag: the slot opens with no call, so nobody tags the reader']
     const answers = isGraduationSlot(date, time) ? readerPostAnswersFor(view.charInfo, stats) : []
     return {
       lines: [],
@@ -1753,6 +1776,18 @@ async function fetchEndingOpening(
     }
   }
 
+  // Who posts for sure, and who of the scene that ended tags the reader instead of posting.
+  const guaranteed = slotRomancePosters(npcRomance, view.charInfo, date, time)
+  const tag = tagScene
+    ? readerTagFor(
+        tagScene,
+        view.charInfo,
+        new Set(guaranteed.posters.map(({ charId }) => charId)),
+        npcRelationships
+      )
+    : null
+  if (!tagScene) loopState.readerTagReport = ["Tag: an exam's ending tags nobody"]
+
   // The running summary rides along: `history` will not hold it until the boundary commits it.
   const opening = await fetchSlotIntro(
     date,
@@ -1765,8 +1800,9 @@ async function fetchEndingOpening(
     view,
     {
       map: npcRomance,
-      guaranteed: slotRomancePosters(npcRomance, view.charInfo, date, time),
-      gossip: gossipTopic
+      guaranteed,
+      gossip: gossipTopic,
+      tag
     },
     { group: ENDING_LLM_GROUP, stale: dropped }
   )
@@ -2657,9 +2693,12 @@ async function crossSlotBoundary(): Promise<void> {
   useGameStore
     .getState()
     .answerReaderComments(loopState.bankedOpening?.readerCommentAnswers ?? [])
-  // The buttons that set up the replies belong to the opening just applied.
+  const readerTag = loopState.bankedOpening?.readerTag
+  if (readerTag) useGameStore.getState().deliverReaderTag(readerTag)
+  // The buttons that set up the replies and the tag belong to the opening just applied.
   loopState.debugFeedReplier = null
   loopState.debugFeedRepliesFail = false
+  loopState.debugReaderTagger = null
   // The whole scene is cleared before the write, so the boundary save records `scene: null`;
   // `beginSlot` clears the same things again, but after the write.
   useGameStore.getState().setCast([])

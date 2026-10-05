@@ -764,6 +764,8 @@ export interface SocialPost {
   likedOn?: number
   /** The one comment the reader left on it; absent for none. */
   comment?: ReaderComment
+  /** She tagged the reader in it, about the scene they had just been in; absent for none. */
+  tagsReader?: true
 }
 
 /** The reader's comment on a contact's post, and her one reply to it. */
@@ -788,6 +790,18 @@ export interface ReaderCommentAnswer {
   commentId: string
   /** Her reply; absent when she gives none. */
   reply?: string
+}
+
+/**
+ * A contact's post about the scene that just ended, tagging the reader: decided and written at
+ * the ending, banked with the opening and filed once on her feed as the slot opens.
+ */
+export interface ReaderTag {
+  charId: string
+  /** crypto.randomUUID(), minted at the ending; what stops a replayed boundary filing it twice. */
+  postId: string
+  text: string
+  likes: number
 }
 
 /** One post the reader wrote on the feed. */
@@ -1221,6 +1235,11 @@ export interface SlotOpening {
    * slot opens. Absent for an opening with none, which leaves them waiting.
    */
   readerCommentAnswers?: ReaderCommentAnswer[]
+  /**
+   * The post a contact who was in the scene that ended wrote about it, tagging the reader, filed
+   * on her feed as the slot opens. Absent for an opening with none.
+   */
+  readerTag?: ReaderTag
   /** The plans the merged ledger found, normalized and attendance-filtered. */
   events: CalendarEvent[]
   /** Who that filtering took off an event, announced by text at step 1. */

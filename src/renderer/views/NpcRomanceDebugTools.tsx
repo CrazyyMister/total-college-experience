@@ -31,7 +31,11 @@ import {
 } from '../stores/photoDebugActions'
 import { usePhotoStore } from '../stores/photoStore'
 import { readerPostDebugRows } from '../stores/loop/readerPosts'
-import { debugFailFeedReplies, debugFeedReplier } from '../stores/feedDebugActions'
+import {
+  debugFailFeedReplies,
+  debugFeedReplier,
+  debugReaderTagger
+} from '../stores/feedDebugActions'
 import { gestures, lift, press } from './motion'
 
 /** The development build's test buttons for the roster's romance, under the read-out. */
@@ -74,7 +78,8 @@ const TOOLS: readonly Tool[] = [
   { label: 'X’s wingman actions are N days older', run: (x, _y, n) => debugAgeWingman(x, n) },
   { label: 'X & Y’s breakup is N days older', run: (x, y, n) => debugAgeBreakup(x, y, n) },
   { label: 'X replies to the reader’s latest post', run: (x) => debugFeedReplier(x) },
-  { label: 'The next feed replies call fails', run: () => debugFailFeedReplies() }
+  { label: 'The next feed replies call fails', run: () => debugFailFeedReplies() },
+  { label: 'X tags the reader at the next ending', run: (x) => debugReaderTagger(x) }
 ]
 
 /** Pickers for the two characters and the number, and a button for each thing to set up. */

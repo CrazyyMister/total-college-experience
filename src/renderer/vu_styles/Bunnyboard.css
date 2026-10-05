@@ -1028,6 +1028,14 @@
   font: 500 15px/1.5 var(--font-body);
 }
 
+/* The game's line under a post that tags him: his handle, in the post's meta voice. */
+.vu-bb-post-tag {
+  margin: 0;
+  color: var(--vu-text-muted);
+  font: 500 12px var(--font-mono);
+  letter-spacing: 0.04em;
+}
+
 /* Every post carries one, in both of its states. */
 .vu-bb-like {
   display: flex;

@@ -1,6 +1,7 @@
 /**
  * The reader's own posts on the feed: how long one may be, how many a slot holds, and what the
- * game decides of each — its likes and who replies — fixed by the post's id and applied once.
+ * game decides of each — its likes and who replies — fixed by the post's id and applied once;
+ * and who of a finished scene tags him in a post about it.
  */
 
 import { seededRand } from './hash'
@@ -11,6 +12,7 @@ import type {
   ReaderPost,
   ReaderPostAnswer,
   ReaderPostReply,
+  ReaderTag,
   SocialPost,
   TimeSlot
 } from './types'
@@ -294,4 +296,90 @@ export function readerHandle(firstName: string, lastName: string): string {
     .filter(Boolean)
     .join('_')
     .toLowerCase()
+}
+
+/** How likely a scene ending with somebody able to tag the reader is to have one of them do it. */
+export const READER_TAG_CHANCE = 0.2
+
+/** What a finished scene was, as the tag reads it, off the ledger as it came back. */
+export interface TagScene {
+  inPublic: boolean
+  /** The kisses and nights the ledger reported, with anybody at all. */
+  acts: number
+  /** The romance between the roster and the wingman actions the ledger reported. */
+  romance: number
+  /** The reader's own milestones the ledger reported beyond a number given or a block lifted. */
+  milestones: number
+  /** Whoever the scene was planned with or arranged with by text, and whether he dates her. */
+  dates: ReadonlyArray<{ charId: string; isLover: boolean }>
+}
+
+/** Why a finished scene tags nobody: each thing it holds that a post would expose. */
+export function sceneTagBars(scene: TagScene): string[] {
+  return [
+    ...(scene.inPublic ? [] : ['private']),
+    ...(scene.acts > 0 ? ['a kiss or a night'] : []),
+    ...(scene.romance > 0 ? ['romance or wingman reported'] : []),
+    ...(scene.milestones > 0 ? ["a milestone of the reader's"] : []),
+    ...(scene.dates.some((one) => !one.isLover) ? ['a date with somebody not his lover'] : [])
+  ]
+}
+
+/** One character the scene held, as the tag reads her. */
+export interface TagCandidate {
+  charId: string
+  /** She was no longer in the scene when it ended. */
+  left: boolean
+  /** As the ending leaves her. */
+  contact: boolean
+  blocked: boolean
+  disposition: Disposition
+  /** She posts for sure in the slot the ending opens. */
+  posting: boolean
+}
+
+/** The dispositions that may tag the reader. */
+const TAG_DISPOSITIONS: ReadonlySet<Disposition> = new Set(['devoted', 'trusted', 'friendly'])
+
+/** Why a character the scene held may not tag the reader, or null when she may. */
+export function tagSkipOf(candidate: TagCandidate): string | null {
+  if (candidate.left) return 'left before the end'
+  if (!candidate.contact) return 'not a contact'
+  if (candidate.blocked) return 'has him blocked'
+  if (!TAG_DISPOSITIONS.has(candidate.disposition)) return `${candidate.disposition}, below friendly`
+  if (candidate.posting) return 'posts for sure this slot'
+  return null
+}
+
+/**
+ * Who tags the reader of those who may: `forced` whenever it is among them, and otherwise one of
+ * them at {@link READER_TAG_CHANCE}; null for nobody. The roll is null where nothing was rolled.
+ */
+export function pickReaderTagger(
+  eligible: readonly string[],
+  forced: string | null,
+  rand: () => number = Math.random
+): { tagger: string | null; roll: number | null } {
+  if (forced !== null && eligible.includes(forced)) return { tagger: forced, roll: null }
+  if (eligible.length === 0) return { tagger: null, roll: null }
+  const roll = rand()
+  if (roll >= READER_TAG_CHANCE) return { tagger: null, roll }
+  return { tagger: eligible[Math.floor(rand() * eligible.length)], roll }
+}
+
+/**
+ * Her feed with the tagged post filed, dated with the slot it lands in; the feed itself when the
+ * post is already on it, so a replayed boundary files it once.
+ */
+export function withReaderTag(
+  feed: readonly SocialPost[],
+  tag: ReaderTag,
+  date: number,
+  time: TimeSlot
+): readonly SocialPost[] {
+  if (feed.some((post) => post.id === tag.postId)) return feed
+  return [
+    ...feed,
+    { id: tag.postId, text: tag.text, date, time, likes: tag.likes, tagsReader: true }
+  ]
 }

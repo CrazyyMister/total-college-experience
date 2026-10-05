@@ -16,8 +16,8 @@ import { objectSchema } from './schema'
 import { memoryLines, personaFor, profileLines, spaced } from './scenePrompt'
 
 /**
- * The replies under one of the reader's feed posts — his contacts' and anonymous students' — and
- * a contact's reply to his comment on hers.
+ * The replies under one of the reader's feed posts — his contacts' and anonymous students' —
+ * a contact's reply to his comment on hers, and a contact's post tagging him.
  */
 
 /** A contact the game picked to reply. */
@@ -217,6 +217,60 @@ export function buildCommentReplyPrompt(input: CommentReplyInput): StructuredReq
     `The reply is never sexual or intimate, even when the comment is: ${p.subject} may be embarrassed, change the subject or laugh it off without playing along.`,
     `${p.Subject} makes no plan, invites him nowhere and promises nothing. If the comment asks to meet up, ${p.subject} may react to it but agrees to no day, time or place.`,
     'Name nobody but people the post or the comment already names.'
+  ].join('\n')
+
+  return {
+    system: personaFor(input.lessNsfwText),
+    user,
+    schema: feedRepliesSchema([charKey]),
+    cacheKey: input.playthroughId
+  }
+}
+
+/** Everything the tag post's builder reads; assembled by the loop, which owns the store. */
+export interface ReaderTagInput {
+  /** The cloud-LLM cache key — the playthrough, exactly as the scene calls use it. */
+  playthroughId: string
+  /** The player's `lessNsfwText` setting; picks which persona heads the call. */
+  lessNsfwText: boolean
+  /** The reader's accumulated stats, used for relationship requirement guidance. */
+  stats?: PlayerStats
+  /** The reader's first name. */
+  readerFirstName: string
+  /** The day the post is weighed at: her affection and memories as they stand then. */
+  date: number
+  /** The contact who posts. */
+  contact: FeedReplier
+  /** The summary of the scene the two of them were just in. */
+  summary: string
+  /** Every first name the post may use, the reader's among them. */
+  names: readonly string[]
+}
+
+/** Builds the request for a contact's post about the scene just ended, tagging the reader. */
+export function buildReaderTagPrompt(input: ReaderTagInput): StructuredRequest {
+  const { character, charKey } = input.contact
+  const name = character.firstName
+  const p = pronounsOf(character.gender)
+  const user = [
+    ...spaced(['CONTACT', ...contactEntry(input.contact, input.date, input.stats)]),
+    ...spaced([
+      'THE SCENE',
+      `${name} and the reader, whose first name is ${input.readerFirstName}, were just in this scene together:`,
+      input.summary.replace(/\s*\n+\s*/g, ' ')
+    ]),
+    ...spaced(['NAMES', `The only names the post may use: ${input.names.join(', ')}.`]),
+    'YOUR TURN',
+    `Hey RITA, write the post ${name} puts up on Bunnyboard, the campus social feed, about that scene, tagging the reader in it.`,
+    `Fill "replies" with exactly one entry. "who" is "${charKey}".`,
+    `"text" is the post itself: one or two short lines in ${p.possessive} own voice, the way ${p.subject} would actually type it, under ${READER_REPLY_MAX} characters. Lowercase, slang and emoji are fine if that is how ${p.subject} writes. No narration and no stage directions.`,
+    'The game adds the tag itself: write no @, no handle and no username.',
+    'The post is public: the whole campus reads it.',
+    'It says only what the scene above says happened and adds no fact of its own.',
+    'It is about what they did and where they were, never about what anybody said, confessed or felt.',
+    'Nothing romantic or physical: no flirting, no touching, nothing about how the reader looks.',
+    'No secret, no plan and no promise: nothing about meeting again.',
+    'Use no name that is not listed under NAMES.'
   ].join('\n')
 
   return {

@@ -13,7 +13,7 @@ import {
 import { escapeRegExp } from '@shared/sentences'
 import { pronounsOf } from '@shared/pronouns'
 import { swappedPhoto, type MessagePhoto } from '@shared/photos'
-import { withAnsweredComment, withAnsweredPosts } from '@shared/feedReplies'
+import { withAnsweredComment, withAnsweredPosts, withReaderTag } from '@shared/feedReplies'
 import { displaySlotsOf, retireCgs } from './stageDisplay'
 import {
   chargeAbsences,
@@ -93,6 +93,7 @@ import {
   type ExamRecord,
   type FeedExtras,
   type ReaderCommentAnswer,
+  type ReaderTag,
   type ReaderPost,
   type ReaderPostAnswer,
   type GameHistory,
@@ -940,6 +941,11 @@ interface GameStoreState {
   deleteReaderComment: (charId: string, postId: string) => void
   /** Applies what an ending decided of his comments, stamped with this slot; idempotent. */
   answerReaderComments: (answers: readonly ReaderCommentAnswer[]) => void
+  /**
+   * Files a contact's post tagging the reader on her feed, stamped with this slot, while she is
+   * still his contact and has not blocked him; idempotent.
+   */
+  deliverReaderTag: (tag: ReaderTag) => void
   /** Files the people the Friends tab offers this slot. */
   setSuggestions: (charIds: readonly string[]) => void
   /** Opens an exam, or clears one at the boundary. */
@@ -2407,6 +2413,16 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       }
       return charInfo === state.charInfo ? {} : { charInfo }
     }),
+
+  deliverReaderTag: (tag) =>
+    set((state) =>
+      patchCharInfo(state, tag.charId, (info) => {
+        if (!info?.flags?.gaveContactInfo || info.flags.blocked) return null
+        const feed = info.feed ?? []
+        const filed = withReaderTag(feed, tag, state.date, state.time)
+        return filed === feed ? null : { ...info, feed: [...filed] }
+      })
+    ),
 
   setGaveContactInfo: (charId) =>
     set((state) =>

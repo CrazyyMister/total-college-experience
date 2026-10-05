@@ -451,6 +451,15 @@
   font-style: normal;
 }
 
+/* The game's word that a post of hers tags him, a reading beside the words she wrote. */
+.vu-contact-tagged {
+  margin-right: 6px;
+  color: var(--vu-text-muted);
+  font: 700 11px var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 /* His comment under a post and her reply, a quieter thread under the like, read and never
    written here. */
 .vu-contact-comment {

@@ -1,13 +1,20 @@
+import { rollPostLikes } from '@shared/feed'
 import {
   FEED_REPLIES_DEADLINE_MS,
   fittedReply,
+  pickReaderTagger,
   pickReplyingContacts,
   pickReplyStrangers,
+  READER_TAG_CHANCE,
   readerPostLikes,
+  sceneTagBars,
+  tagSkipOf,
   unansweredPosts,
   type LikingContact,
-  type ReplyingContact
+  type ReplyingContact,
+  type TagScene
 } from '@shared/feedReplies'
+import { npcFriendsOf, type NpcRelationshipMap } from '@shared/npcRelationships'
 import { unknownNameIn, type GossipName } from '@shared/npcRomanceGossip'
 import { tierOf, type PlayerStats } from '@shared/playerStats'
 import { affectionFor, dispositionOf } from '@shared/relationship'
@@ -15,22 +22,26 @@ import {
   charKeyOf,
   type CharInfo,
   type FeedRepliesResponse,
+  type LedgerResponse,
   type ReaderComment,
   type ReaderCommentAnswer,
   type ReaderPost,
   type ReaderPostAnswer,
   type ReaderPostReply,
+  type ReaderTag,
   type SocialPost,
   type StructuredRequest
 } from '@shared/types'
 import {
   buildCommentReplyPrompt,
   buildFeedRepliesPrompt,
+  buildReaderTagPrompt,
   type FeedReplier
 } from '../../prompts/feedRepliesPrompt'
 import { FEED_EMOJI, GOSSIP_HANDLE_POOL } from '../../prompts/feedRandoms'
 import { hasTexted } from '../../prompts/textingPrompt'
-import { useGameStore } from '../gameStore'
+import { stageContextOf, useGameStore } from '../gameStore'
+import { stageAt } from '../stageStep'
 import { retrySilently } from '../silentRetry'
 import { lessNsfwTextNow } from './promptState'
 import { currentRun, loopState, runStale } from './state'
@@ -68,7 +79,16 @@ export function readerPostDebugRows(): { key: string; text: string }[] {
       key: `comment-${comment.id}`,
       text: `Comment on ${useGameStore.getState().characters[charId]?.firstName ?? charId}'s post "${post.text.slice(0, 30)}": "${comment.text.slice(0, 40)}" · waiting on her reply`
     })),
-    ...loopState.feedRepliesReport.map((text, at) => ({ key: `report-${at}`, text }))
+    ...loopState.feedRepliesReport.map((text, at) => ({ key: `report-${at}`, text })),
+    {
+      key: 'tag-forced',
+      text: `Next ending: ${
+        loopState.debugReaderTagger
+          ? `${useGameStore.getState().characters[loopState.debugReaderTagger]?.firstName ?? loopState.debugReaderTagger} tags the reader`
+          : 'no tag forced'
+      }`
+    },
+    ...loopState.readerTagReport.map((text, at) => ({ key: `tag-${at}`, text }))
   ]
 }
 
@@ -223,10 +243,22 @@ interface PendingComment {
   outcome?: Promise<ReplyOutcome>
 }
 
-/** What an opening banks of his waiting posts and comments. */
+/** What an opening banks of his waiting posts and comments, and of the post tagging him. */
 interface ReaderFeedAnswers {
   posts: ReaderPostAnswer[]
   comments: ReaderCommentAnswer[]
+  tag?: ReaderTag
+}
+
+/** The post an ending has a contact write about the scene, tagging the reader, as it is asked for. */
+export interface ReaderTagAsk {
+  charId: string
+  postId: string
+  likes: number
+  /** The summary of the scene that ended. */
+  summary: string
+  /** Everybody the scene held; the post may name those of them the reader knows. */
+  castIds: string[]
 }
 
 /** The replies an opening asked for, settled once the opening itself is in. */
@@ -235,7 +267,8 @@ export interface PendingReaderFeedAnswers {
    * What the opening banks, waiting at most the deadline more: a post answered with its likes
    * and whatever replies survived, or its likes alone on a content block; a comment answered
    * with her reply, or with none where she gives none, the writer blocked it or the reply was
-   * dropped; anything else — a failure, or past the deadline — left out, still waiting.
+   * dropped; anything else — a failure, or past the deadline — left out, still waiting. The tag
+   * is banked only when it came back written and survived its checks, and never waits.
    */
   settle: () => Promise<ReaderFeedAnswers>
 }
@@ -253,21 +286,55 @@ function waitingComments(): Array<{ charId: string; post: SocialPost; comment: R
 }
 
 /**
- * Asks for the replies to every post and comment of his still waiting, one call each, beside
- * the opening being asked for under `group`: the contacts and the strangers who reply to a post
- * are picked off its id, the likes as {@link readerPostAnswersFor} has them, and a comment is
- * answered by the contact whose post it is on unless she is hostile or no longer his contact.
+ * The post tagging the reader as the feed keeps it, or why it is dropped: cut to length, and
+ * dropped for any @ — the game writes the only one — or for naming somebody on the roster the
+ * reader cannot name or who was not in the scene.
+ */
+function sanitizedTag(
+  reply: FeedRepliesResponse,
+  charKey: string,
+  castIds: readonly string[],
+  charInfo: Readonly<Record<string, CharInfo | undefined>>
+): { text: string } | { dropped: string } {
+  const entry = (reply.replies ?? []).find((one) => one?.who === charKey)
+  const text = fittedReply(typeof entry?.text === 'string' ? entry.text : '')
+  if (text === null) return { dropped: 'empty or with no whole sentence under the limit' }
+  if (text.includes('@')) return { dropped: `carrying an @: "${text}"` }
+  const game = useGameStore.getState()
+  const roster: GossipName[] = game.chars.flatMap((charId) => {
+    const character = game.characters[charId]
+    return character
+      ? [
+          {
+            firstName: character.firstName,
+            lastName: character.lastName,
+            known: castIds.includes(charId) && charInfo[charId]?.nameKnown === true
+          }
+        ]
+      : []
+  })
+  if (unknownNameIn(text, roster)) return { dropped: `naming somebody: "${text}"` }
+  return { text }
+}
+
+/**
+ * Asks for the replies to every post and comment of his still waiting, one call each, and for
+ * the post `tag` names, beside the opening being asked for under `group`: the contacts and the
+ * strangers who reply to a post are picked off its id, the likes as {@link readerPostAnswersFor}
+ * has them, and a comment is answered by the contact whose post it is on unless she is hostile
+ * or no longer his contact.
  */
 export function startReaderFeedAnswers(
   charInfo: Readonly<Record<string, CharInfo | undefined>>,
   stats: PlayerStats,
-  call: { group: string; stale: () => boolean }
+  call: { group: string; stale: () => boolean },
+  tag: ReaderTagAsk | null = null
 ): PendingReaderFeedAnswers {
   const run = currentRun()
   const game = useGameStore.getState()
   const waiting = unansweredPosts(game.readerPosts)
   const commented = waitingComments()
-  if (waiting.length === 0 && commented.length === 0) {
+  if (waiting.length === 0 && commented.length === 0 && tag === null) {
     loopState.feedRepliesReport = []
     return { settle: async () => ({ posts: [], comments: [] }) }
   }
@@ -377,6 +444,30 @@ export function startReaderFeedAnswers(
     }
   })
 
+  const tagger = tag ? replierOf(tag.charId) : null
+  const pendingTag =
+    tag && tagger
+      ? {
+          ask: tag,
+          charKey: tagger.charKey,
+          outcome: send(
+            tag.postId,
+            buildReaderTagPrompt({
+              ...common,
+              contact: tagger,
+              summary: tag.summary,
+              names: [
+                game.playerFirstName,
+                ...tag.castIds.flatMap((charId) => {
+                  const character = game.characters[charId]
+                  return character && charInfo[charId]?.nameKnown ? [character.firstName] : []
+                })
+              ]
+            })
+          )
+        }
+      : null
+
   return {
     settle: async () => {
       let timer: ReturnType<typeof setTimeout> | undefined
@@ -385,11 +476,12 @@ export function startReaderFeedAnswers(
       })
       const race = (outcome: Promise<ReplyOutcome>): Promise<ReplyOutcome> =>
         Promise.race([outcome, late])
-      const [postOutcomes, commentOutcomes] = await Promise.all([
+      const [postOutcomes, commentOutcomes, tagOutcome] = await Promise.all([
         Promise.all(pendingPosts.map(({ outcome }) => race(outcome))),
         Promise.all(
           pendingComments.map(({ outcome }) => (outcome ? race(outcome) : Promise.resolve(null)))
-        )
+        ),
+        pendingTag ? race(pendingTag.outcome) : Promise.resolve(null)
       ])
       clearTimeout(timer)
       // Whatever is still out is cut off here, so nothing it brings back can land anywhere.
@@ -472,7 +564,39 @@ export function startReaderFeedAnswers(
       })
 
       loopState.feedRepliesReport = report
-      return { posts, comments }
+
+      // The tag is about a scene already over: whatever keeps it from landing drops it for good.
+      let banked: ReaderTag | undefined
+      if (pendingTag && tagOutcome) {
+        const head = `Tag call for ${name(pendingTag.ask.charId)}`
+        if (tagOutcome.kind === 'late') {
+          loopState.readerTagReport.push(`${head}: past the deadline, no tag`)
+        } else if (tagOutcome.kind === 'failed') {
+          loopState.readerTagReport.push(`${head}: failed (${tagOutcome.why}), no tag`)
+        } else if (tagOutcome.kind === 'blocked') {
+          loopState.readerTagReport.push(`${head}: blocked for its content, no tag`)
+        } else {
+          const checked = sanitizedTag(
+            tagOutcome.reply,
+            pendingTag.charKey,
+            pendingTag.ask.castIds,
+            charInfo
+          )
+          if ('dropped' in checked) {
+            console.warn('[feed replies] dropped the tag post,', checked.dropped)
+            loopState.readerTagReport.push(`${head}: dropped, ${checked.dropped}`)
+          } else {
+            loopState.readerTagReport.push(`${head}: written, "${checked.text}"`)
+            banked = {
+              charId: pendingTag.ask.charId,
+              postId: pendingTag.ask.postId,
+              text: checked.text,
+              likes: pendingTag.ask.likes
+            }
+          }
+        }
+      }
+      return { posts, comments, ...(banked ? { tag: banked } : {}) }
     }
   }
 }
@@ -492,4 +616,117 @@ export function cancelFeedReplies(parent?: string): void {
       .filter((one) => parent === undefined || one.parent === parent)
       .map(({ group }) => group)
   )
+}
+
+/** The reader's milestones a scene may report without anything in it being private. */
+const PUBLIC_MILESTONES: ReadonlySet<string> = new Set(['gave_contact_info', 'unblocked'])
+
+/** A finished scene as the tag reads it: what it held, who was in it and its summary. */
+export interface ReaderTagScene extends TagScene {
+  cast: string[]
+  /** Those of the cast no longer in the scene when it ended. */
+  departed: string[]
+  summary: string | null
+}
+
+/**
+ * The scene that just ended as the tag reads it, off the store and off the scene's own ledger as
+ * it came back, before any of its rows were filtered: every kiss, night, romance row and wingman
+ * action it reported counts, with anybody at all. A date is a scene arranged by text, or a plan
+ * on the calendar for this slot with somebody in the cast.
+ */
+export function readerTagSceneOf(ledger: LedgerResponse): ReaderTagScene {
+  const game = useGameStore.getState()
+  const cast = [...game.cast]
+  const partners = new Set<string>()
+  if (game.sceneTextLedgerSkip) partners.add(game.sceneTextLedgerSkip)
+  for (const event of game.events) {
+    if (event.date !== game.date || event.time !== game.time) continue
+    for (const charId of event.charIds) if (cast.includes(charId)) partners.add(charId)
+  }
+  return {
+    inPublic: game.sceneInPublic,
+    acts: (ledger.acts ?? []).length,
+    romance: (ledger.romance ?? []).length,
+    milestones: (ledger.events ?? []).filter((one) => !PUBLIC_MILESTONES.has(one?.event)).length,
+    dates: [...partners].map((charId) => ({
+      charId,
+      isLover: game.charInfo[charId]?.flags?.isLover === true
+    })),
+    cast,
+    departed: stageAt([...game.sceneLog, ...game.pendingLines], stageContextOf(game)).departed,
+    summary: game.sceneSummary
+  }
+}
+
+/**
+ * Who of the scene that ended tags the reader in a post about it, rolled once here, or null:
+ * nobody from a scene that would expose something, and otherwise one of those still in it at its
+ * end who are his contacts as the ending leaves them, have not blocked him, are friendly or
+ * better and do not post for sure in the slot it opens. Writes the development read-out.
+ */
+export function readerTagFor(
+  scene: ReaderTagScene,
+  charInfo: Readonly<Record<string, CharInfo | undefined>>,
+  posting: ReadonlySet<string>,
+  npcRelationships: NpcRelationshipMap,
+  rand: () => number = Math.random
+): ReaderTagAsk | null {
+  const game = useGameStore.getState()
+  const name = (charId: string): string => game.characters[charId]?.firstName ?? charId
+  const forced = loopState.debugReaderTagger
+  const report = [
+    `Tag: ${scene.inPublic ? 'public' : 'private'}, ${scene.acts} kisses or nights, ` +
+      `${scene.romance} romance or wingman rows, ${scene.milestones} milestones of his` +
+      (scene.dates.length > 0
+        ? `, a date with ${scene.dates.map((one) => `${name(one.charId)}${one.isLover ? ' (his lover)' : ''}`).join(', ')}`
+        : '')
+  ]
+  loopState.readerTagReport = report
+
+  const bars = sceneTagBars(scene)
+  if (bars.length > 0) {
+    report.push(`  the scene tags nobody: ${bars.join(', ')}`)
+    return null
+  }
+  if (!scene.summary) {
+    report.push('  the scene tags nobody: no summary')
+    return null
+  }
+
+  const eligible: string[] = []
+  for (const charId of scene.cast) {
+    const info = charInfo[charId]
+    const affection = info ? affectionFor(info, game.date, game.characters[charId]) : 0
+    const skip = tagSkipOf({
+      charId,
+      left: scene.departed.includes(charId),
+      contact: Boolean(info?.flags?.gaveContactInfo),
+      blocked: Boolean(info?.flags?.blocked),
+      disposition: dispositionOf(affection),
+      posting: posting.has(charId)
+    })
+    report.push(`  ${name(charId)}: ${skip ?? 'may tag'}`)
+    if (skip === null) eligible.push(charId)
+  }
+  if (forced && !eligible.includes(forced)) {
+    report.push(`  forced ${name(forced)} cannot tag here`)
+  }
+
+  const { tagger, roll } = pickReaderTagger(eligible, forced, rand)
+  report.push(
+    tagger && roll === null
+      ? `  ${name(tagger)} tags the reader, forced`
+      : roll === null
+        ? '  nobody may tag'
+        : `  ${Math.round(READER_TAG_CHANCE * 100)}% rolled ${roll.toFixed(2)} → ${tagger ? `${name(tagger)} tags the reader` : 'no tag'}`
+  )
+  if (!tagger) return null
+  return {
+    charId: tagger,
+    postId: crypto.randomUUID(),
+    likes: rollPostLikes(npcFriendsOf(npcRelationships, tagger, game.chars).length, rand),
+    summary: scene.summary,
+    castIds: scene.cast
+  }
 }

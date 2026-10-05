@@ -90,6 +90,11 @@ You will need externally kept data for testing:
 - [ ] Right after the replies arrive, load the autosave and play into the slot again. Verify the same replies arrive once.
 - [ ] In a dev build, use F9 to make the next feed replies call fail. Verify the post keeps waiting, likes included, and both arrive in a later slot.
 - [ ] Have a contact block you after your post and before the next slot. Verify her reply does not appear.
+- [ ] Comment on a contact's post from today, play into the next slot and verify her reply arrives under your comment, with her face and @, and that her page shows both.
+- [ ] Leave 3 comments in one half of the day and verify the box says why it is shut. Delete one and verify you can comment again.
+- [ ] Right after a reply to your comment arrives, load the autosave and play into the slot again. Verify the same reply arrives once.
+- [ ] In a dev build, use F9's "Affection of X for the reader = N" with N = -40 to make a contact hostile, comment on her post and verify no reply ever comes.
+- [ ] Comment on a contact's post asking her out and verify her reply neither accepts nor sets a day, time or place.
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 
