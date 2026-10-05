@@ -31,6 +31,9 @@ You will need externally kept data for testing:
 - [ ] With the game open, start "Venus University.exe" again and verify no second window opens.
 - [ ] Open Settings and click everything. Drag the music slider down to see that it still works.
 - [ ] In Settings verify there is no "Remember my key" and that "Characters text photos" can be toggled.
+- [ ] Open Settings from the main menu and click "Clean up photos". Verify it says how many photos and how many MB, cancel and verify nothing is deleted, click again and confirm. Verify the photo files are gone and that every photo in a conversation is still there.
+- [ ] Open Settings inside a game and verify there is no "Clean up photos".
+- [ ] While a photo is sending, quit to the menu and click "Clean up photos". Verify it refuses and the photo still arrives.
 
 ### Manage Characters
 - [ ] Open manage characters and import a character. Click it and open Edit Character. Click through all expressions on each outfit. Open NSFW CG and room BG.

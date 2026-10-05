@@ -114,7 +114,7 @@
 - `.vu-ring` — the dotted circle `spin` turns, drawn in `currentColor`; it is a shape rather than a state, and the word beside it says what it means.
 - `.vu-pic-action` — the pill a picture raises saying what a click on it does, revealed with the picture's own hover or focus.
 - `.vu-x` — the ✕ that removes the thing it rides; it carries no position, and it is always a sibling of the face it rides rather than a child of it.
-- `.vu-pill` — the flat outline pill for a utility beside the thing it acts on, never an answer a foot offers.
+- `.vu-pill` — the flat outline pill for a utility beside the thing it acts on, never an answer a foot offers; Settings' Game data row is three of them, the last absent where a game is loaded, and the last's count and its result are each a confirm dialog.
 - `.vu-link` — an outward link inside prose: accent ink, underlined at rest, since it leaves the app and that is worth saying before the cursor is on it.
 - `.vu-deadnote` / `.vu-deadnote-pill` — the wrapper around a control and the pill a hover raises over it (§14).
 - `.vu-title` — a screen's name over its own tint blob, the blob leaning while the word does not.

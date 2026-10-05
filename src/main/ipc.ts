@@ -146,6 +146,8 @@ import {
   cancelAllPhotos,
   cancelPlaythroughPhotos,
   cancelTextPhotos,
+  countOrphanPhotos,
+  deleteOrphanPhotos,
   deleteTextPhotos,
   listTextPhotos,
   readTextPhoto,
@@ -417,6 +419,9 @@ export function registerIpcHandlers(): void {
     assertDevBuild()
     return listTextPhotos(playthroughId)
   })
+  // The photo files no save names: counted, then deleted, both refused while a photo is drawn.
+  handle('photos:countOrphans', () => countOrphanPhotos())
+  handle('photos:deleteOrphans', () => deleteOrphanPhotos())
   handle('photos:deleteFiles', (_event, playthroughId: string, refs: PhotoRef[]) => {
     assertDevBuild()
     return deleteTextPhotos(playthroughId, refs)

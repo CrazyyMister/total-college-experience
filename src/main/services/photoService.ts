@@ -1,7 +1,8 @@
 import { randomUUID } from 'crypto'
-import { access, mkdir, readdir, readFile, rename, rm, unlink } from 'fs/promises'
+import { access, mkdir, readdir, readFile, rename, rm, stat, unlink } from 'fs/promises'
 import { join } from 'path'
 import { appError, messageOf } from '@shared/errors'
+import type { AppError } from '@shared/types'
 import { imageTypeOf } from '@shared/imageBytes'
 import { cancelGroup, cancelKeys, enqueue } from '@shared/jobQueue'
 import {
@@ -12,9 +13,11 @@ import {
   type PhotoRef,
   type PhotoRenderRequest
 } from '@shared/photos'
+import { photoOrphans, type PhotoSave } from '@shared/photoOrphans'
+import { listedSaveIds } from '@shared/saveRules'
 import { getPhotoTempPath, getPlaythroughPhotosPath } from '../paths'
 import { generatePhoto, start as startComfy } from './comfyService'
-import { assertSafePlaythroughId } from './saveService'
+import { assertSafePlaythroughId, loadSave, playthroughIds, saveIdsOf } from './saveService'
 import { getSettings } from './settingsService'
 
 /**
@@ -184,4 +187,120 @@ export async function cancelAllPhotos(): Promise<void> {
 export async function cancelAdultPhotos(): Promise<void> {
   const adult = [...inFlight.values()].filter((photo) => photo.adult)
   await Promise.all(adult.map((photo) => cancelKeys(groupOf(photo.playthroughId), [photo.file])))
+}
+
+/** The photo files no save names, counted and weighed. */
+interface OrphanPhotoTally {
+  files: number
+  bytes: number
+}
+
+/** The orphans of one playthrough, each with its size. */
+interface OrphanSweep {
+  playthroughId: string
+  orphans: { file: string; bytes: number }[]
+}
+
+/** Whether any photo is queued or drawing. */
+function photosInFlight(): boolean {
+  return inFlight.size > 0
+}
+
+/** The refusal for a photo still on its way, which would look like an orphan until it lands. */
+function photoBusy(): AppError {
+  return appError(
+    'PHOTO_CLEANUP_BUSY',
+    'A photo is still being drawn. Wait for it to arrive, then try again.'
+  )
+}
+
+/** The regular `.png` files of a playthrough's photos folder; none where it has no folder. */
+async function pngFilesOf(playthroughId: string): Promise<string[]> {
+  try {
+    const entries = await readdir(getPlaythroughPhotosPath(playthroughId), { withFileTypes: true })
+    return entries
+      .filter((entry) => entry.isFile() && entry.name.endsWith('.png'))
+      .map((entry) => entry.name)
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return []
+    throw appError('PHOTO_CLEANUP_UNREADABLE', 'Could not read a photos folder.', messageOf(err))
+  }
+}
+
+/** One save's messages, or null in their place where the save does not read. */
+async function messagesOfSave(playthroughId: string, saveId: string): Promise<PhotoSave> {
+  try {
+    const save = await loadSave(playthroughId, saveId)
+    const conversations = Object.values(save.bunnyboard.conversations)
+    return { saveId, messages: conversations.flatMap((conversation) => conversation.messages) }
+  } catch {
+    return { saveId, messages: null }
+  }
+}
+
+/**
+ * Finds the orphan photos of every playthrough: all of its saves are read, and one that does not
+ * read refuses the whole sweep. A playthrough with no save is left alone.
+ */
+async function sweepOrphans(): Promise<OrphanSweep[]> {
+  if (photosInFlight()) throw photoBusy()
+  const sweeps: OrphanSweep[] = []
+  const ids = await playthroughIds()
+  for (const [index, playthroughId] of ids.entries()) {
+    const saveIds = listedSaveIds(await saveIdsOf(playthroughId))
+    if (saveIds.length === 0) continue
+    // Listed before the saves are read, so a file that lands meanwhile is never judged.
+    const files = await pngFilesOf(playthroughId)
+    const saves: PhotoSave[] = []
+    for (const saveId of saveIds) saves.push(await messagesOfSave(playthroughId, saveId))
+
+    const sweep = photoOrphans(saves, files)
+    if ('refused' in sweep) {
+      throw appError(
+        'PHOTO_CLEANUP_UNREADABLE',
+        `Playthrough ${index + 1} (folder ${playthroughId}) has a save that cannot be read: ${sweep.refused}.json. No photo was deleted.`
+      )
+    }
+    const orphans: OrphanSweep['orphans'] = []
+    for (const file of sweep.orphans) {
+      const info = await stat(join(getPlaythroughPhotosPath(playthroughId), file)).catch(() => null)
+      if (info) orphans.push({ file, bytes: info.size })
+    }
+    sweeps.push({ playthroughId, orphans })
+  }
+  return sweeps
+}
+
+/** The sum of a sweep's orphans. */
+function tallyOf(sweeps: readonly OrphanSweep[]): OrphanPhotoTally {
+  const orphans = sweeps.flatMap((sweep) => sweep.orphans)
+  return { files: orphans.length, bytes: orphans.reduce((sum, orphan) => sum + orphan.bytes, 0) }
+}
+
+/** How many photo files, and how many bytes, no save of any playthrough names. */
+export async function countOrphanPhotos(): Promise<OrphanPhotoTally> {
+  return tallyOf(await sweepOrphans())
+}
+
+/**
+ * Deletes the photo files no save names, found afresh; a photo that starts drawing before a file
+ * goes stops the rest. Answers what it deleted.
+ */
+export async function deleteOrphanPhotos(): Promise<OrphanPhotoTally> {
+  const sweeps = await sweepOrphans()
+  const deleted: OrphanSweep[] = []
+  for (const { playthroughId, orphans } of sweeps) {
+    const gone: OrphanSweep['orphans'] = []
+    deleted.push({ playthroughId, orphans: gone })
+    for (const orphan of orphans) {
+      if (photosInFlight()) throw photoBusy()
+      await unlink(join(getPlaythroughPhotosPath(playthroughId), orphan.file)).then(
+        () => gone.push(orphan),
+        (err: NodeJS.ErrnoException) => {
+          if (err.code !== 'ENOENT') throw err
+        }
+      )
+    }
+  }
+  return tallyOf(deleted)
 }

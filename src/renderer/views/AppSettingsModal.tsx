@@ -25,7 +25,8 @@ import { SelectField } from '../components/SelectField'
 import { TextField } from '../components/TextField'
 import { CheckField } from '../components/CheckField'
 import { SfwCheckList } from '../components/SfwCheckList'
-import { useSettingsStore } from '../stores/settingsStore'
+import { useGameStore } from '../stores/gameStore'
+import { useSettingsStore, type PhotoTally } from '../stores/settingsStore'
 import { useAudioStore } from '../stores/audioStore'
 import { useUiStore } from '../stores/uiStore'
 import { gestures, lift, panelUnderTab, press, quietLift, quietPress, veilIn } from './motion'
@@ -44,6 +45,11 @@ export interface AppSettingsModalProps {
    * reach the line behind it. Absent is the menu's own route, which closes the stack.
    */
   onClose?: () => void
+}
+
+/** A tally as the sentence's subject: "3 photos (1.2 MB)". */
+function photoCount({ files, bytes }: PhotoTally): string {
+  return `${files} ${files === 1 ? 'photo' : 'photos'} (${(bytes / (1024 * 1024)).toFixed(1)} MB)`
 }
 
 /** How long a slider stands still before what it reads is written. */
@@ -87,6 +93,11 @@ export function AppSettingsModal({ theme, onClose }: AppSettingsModalProps): JSX
   const update = useSettingsStore((s) => s.update)
   const exportBackup = useSettingsStore((s) => s.exportBackup)
   const importBackup = useSettingsStore((s) => s.importBackup)
+  const countOrphanPhotos = useSettingsStore((s) => s.countOrphanPhotos)
+  const deleteOrphanPhotos = useSettingsStore((s) => s.deleteOrphanPhotos)
+  // A photo that just arrived is in no save yet, so the photo cleanup is offered only with no
+  // game loaded.
+  const noGameLoaded = useGameStore((s) => s.playthroughId === null)
   const closeModal = useUiStore((s) => s.closeModal)
   const close = onClose ?? ((): void => closeModal('settings'))
 
@@ -152,6 +163,14 @@ export function AppSettingsModal({ theme, onClose }: AppSettingsModalProps): JSX
   const [restoring, setRestoring] = useState(false)
   // Whether the gate in front of a restore is up: it writes over everything already here.
   const [confirmRestore, setConfirmRestore] = useState(false)
+  // The photo cleanup's stage: counting, or deleting what the count showed once confirmed.
+  const [cleaning, setCleaning] = useState<'counting' | 'deleting' | null>(null)
+  // What the count found, while the gate in front of deleting it is up, and what a delete
+  // removed, while the line saying so is.
+  const [orphans, setOrphans] = useState<PhotoTally | null>(null)
+  const [cleaned, setCleaned] = useState<PhotoTally | null>(null)
+  // Whether any of the three data buttons is working, which holds the others.
+  const dataBusy = backingUp || restoring || cleaning !== null
   // Whether the gate in front of leaving unsaved text behind is up.
   const [closing, setClosing] = useState(false)
   // Whether Save's own write is in flight, which is the button's label and nothing else.
@@ -708,8 +727,8 @@ export function AppSettingsModal({ theme, onClose }: AppSettingsModalProps): JSX
                   id="settings-backup-export"
                   className="vu-pill"
                   type="button"
-                  disabled={backingUp || restoring}
-                  {...gestures(backingUp || restoring, quietLift, quietPress)}
+                  disabled={dataBusy}
+                  {...gestures(dataBusy, quietLift, quietPress)}
                   onClick={() => {
                     setBackingUp(true)
                     void exportBackup().finally(() => setBackingUp(false))
@@ -721,12 +740,33 @@ export function AppSettingsModal({ theme, onClose }: AppSettingsModalProps): JSX
                   id="settings-backup-import"
                   className="vu-pill"
                   type="button"
-                  disabled={backingUp || restoring}
-                  {...gestures(backingUp || restoring, quietLift, quietPress)}
+                  disabled={dataBusy}
+                  {...gestures(dataBusy, quietLift, quietPress)}
                   onClick={() => setConfirmRestore(true)}
                 >
                   {restoring ? 'Restoring…' : 'Restore from backup'}
                 </motion.button>
+                {noGameLoaded && (
+                  <motion.button
+                    id="settings-photo-cleanup"
+                    className="vu-pill"
+                    type="button"
+                    disabled={dataBusy}
+                    {...gestures(dataBusy, quietLift, quietPress)}
+                    onClick={() => {
+                      setCleaning('counting')
+                      void countOrphanPhotos()
+                        .then((tally) => setOrphans(tally))
+                        .finally(() => setCleaning(null))
+                    }}
+                  >
+                    {cleaning === 'counting'
+                      ? 'Counting…'
+                      : cleaning === 'deleting'
+                        ? 'Cleaning up…'
+                        : 'Clean up photos'}
+                  </motion.button>
+                )}
               </div>
               <span className="vu-check-note">
                 Saves are stored on disk in the data folder. &quot;Back up game data&quot; exports them as a
@@ -792,6 +832,44 @@ export function AppSettingsModal({ theme, onClose }: AppSettingsModalProps): JSX
               setRestoring(true)
               void importBackup().finally(() => setRestoring(false))
             }}
+          />
+        )}
+
+        {orphans !== null && (
+          <ConfirmModal
+            key="photo-cleanup"
+            id="settings-photo-cleanup-confirm"
+            theme={theme}
+            title={orphans.files === 0 ? 'No photos to clean up' : 'Delete unused photos?'}
+            message={
+              orphans.files === 0
+                ? 'Every photo file on disk is shown by one of your saves.'
+                : `${photoCount(orphans)} that none of your saves shows will be deleted. The photos you see in conversations stay.`
+            }
+            confirmText={orphans.files === 0 ? 'OK' : 'Delete'}
+            cancelText="Cancel"
+            onCancel={orphans.files === 0 ? undefined : () => setOrphans(null)}
+            onConfirm={() => {
+              const found = orphans
+              setOrphans(null)
+              if (found.files === 0) return
+              setCleaning('deleting')
+              void deleteOrphanPhotos()
+                .then((tally) => setCleaned(tally))
+                .finally(() => setCleaning(null))
+            }}
+          />
+        )}
+
+        {cleaned !== null && (
+          <ConfirmModal
+            key="photo-cleaned"
+            id="settings-photo-cleaned"
+            theme={theme}
+            title="Photos cleaned up"
+            message={`${photoCount(cleaned)} deleted.`}
+            confirmText="OK"
+            onConfirm={() => setCleaned(null)}
           />
         )}
 

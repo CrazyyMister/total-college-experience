@@ -36,6 +36,16 @@ interface SettingsStoreState {
    * picked no file; a restore that lands reloads the window onto the data it wrote.
    */
   importBackup: () => Promise<boolean>
+  /** How many photo files no save names and how many bytes they take; null where it was refused. */
+  countOrphanPhotos: () => Promise<PhotoTally | null>
+  /** Deletes those files and answers what went; null where it was refused. */
+  deleteOrphanPhotos: () => Promise<PhotoTally | null>
+}
+
+/** A count of photo files and the bytes they take. */
+export interface PhotoTally {
+  files: number
+  bytes: number
 }
 
 /** The tail of the settings-write lane; every `update` call links onto it. */
@@ -114,6 +124,20 @@ export const useSettingsStore = create<SettingsStoreState>((set, get) => ({
     // Coming up again on the restored data is the one way to be sure nothing stale survives it.
     if (result.data) window.location.reload()
     return result.data
+  },
+
+  countOrphanPhotos: async () => {
+    const result = await window.api.photos.countOrphans()
+    if (result.ok) return result.data
+    useUiStore.getState().showError(result.error)
+    return null
+  },
+
+  deleteOrphanPhotos: async () => {
+    const result = await window.api.photos.deleteOrphans()
+    if (result.ok) return result.data
+    useUiStore.getState().showError(result.error)
+    return null
   }
 }))
 

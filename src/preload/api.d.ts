@@ -416,6 +416,10 @@ export interface VenusUniversityApi {
     cancel: (playthroughId: string, refs: PhotoRef[]) => Promise<Result<void>>
     /** The photo files a playthrough holds; the development build only. */
     files: (playthroughId: string) => Promise<Result<string[]>>
+    /** How many photo files, and how many bytes, no save of any playthrough names. */
+    countOrphans: () => Promise<Result<{ files: number; bytes: number }>>
+    /** Deletes the photo files no save names, found afresh; answers what it deleted. */
+    deleteOrphans: () => Promise<Result<{ files: number; bytes: number }>>
     /** Removes these photos' files; the development build only. */
     deleteFiles: (playthroughId: string, refs: PhotoRef[]) => Promise<Result<void>>
   }

@@ -106,7 +106,7 @@
   min-height: 0;
 }
 
-/* The sliders and the two data copies are each a set rather than a run of settings, so they
+/* The sliders and the data buttons are each a set rather than a run of settings, so they
    sit tighter than the column's own rhythm and the heading over each keeps the column's
    spacing to the paragraph above. */
 .vu-settings-sound-heading,
@@ -120,7 +120,7 @@
   gap: 8px;
 }
 
-/* The two copies of the player's data, and the line under them saying why they are here. */
+/* The buttons that act on the player's data, and the line under them saying why they are here. */
 .vu-settings-data {
   display: flex;
   flex-direction: column;
@@ -129,6 +129,7 @@
 
 .vu-settings-data-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
 }
 
