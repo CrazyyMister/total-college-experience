@@ -125,6 +125,12 @@ You will need externally kept data for testing:
 - [ ] Load a save written before the Breakthrough bar and verify the bar is empty on every contact page.
 - [ ] Edit a memory from a half of the day that holds only that one memory, changing it to a worse verb, and verify the bar goes down; delete it and verify it goes down again.
 - [ ] In a dev build, open F9 and verify the Breakthrough meter section lists every character with her meter and how many of her memories carry no half of the day, a man as well as a woman.
+- [ ] In a dev build, fill a contact's Breakthrough with F9, start a scene with her and verify there is no Breakthrough button on the first action and one from the second, and that she is outlined.
+- [ ] Use Breakthrough with a direction, verify the outline and the bar clear at once, that the button is gone for her in the same scene, and that the instruction and the direction are in the scene call in data/app.log for that turn only.
+- [ ] Rewind a few lines before a Breakthrough turn and interject. Verify the use is cut and she is outlined again.
+- [ ] Make a Breakthrough turn fail and retry it. Verify the instruction is sent again; cancel it and verify the typed words come back.
+- [ ] Use Breakthrough with a man and verify the instruction says the advance is friendship, trust or respect.
+- [ ] Load a save written before Breakthrough and play a scene. Verify it plays on without an error.
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 
