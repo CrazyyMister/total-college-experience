@@ -141,6 +141,11 @@ You will need externally kept data for testing:
 - [ ] In a scene of three, let one leave before the end. Verify that in the next scene she has the encounter without its text.
 - [ ] With more encounters than the newest half carries text for, verify in data/app.log that the newest have their summary and the older ones only the day, the place and who was there.
 - [ ] Load a save from before encounters kept who and where, play a scene and verify it plays on without an error.
+- [ ] Play a scene where a contact tells you something about her family and something she only says she will do. On the memory screen verify both facts are listed, the second marked as only said. Correct one, delete the other and verify only the kept one reaches her next scene in data/app.log.
+- [ ] Close the memory screen with Escape and verify the facts on screen are kept.
+- [ ] Reload the boundary save before answering the memory screen and verify the facts are asked again and none is saved twice.
+- [ ] Have a contact tell a secret with nobody else there, then play a scene with her and someone who does not know it. Verify in data/app.log that her facts block marks the secret and names that person.
+- [ ] Load a save from before facts and play a scene. Verify it plays on without an error.
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 
