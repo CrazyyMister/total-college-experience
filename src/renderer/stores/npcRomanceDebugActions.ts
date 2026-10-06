@@ -513,3 +513,82 @@ export function debugAgeBreakup(a: string, b: string, days: number): DebugResult
   })
   return done(`They broke up on day ${ended}, ${game.date - ended} days ago.`)
 }
+
+/** What each test fact says, as a phrase completing her name, with the category it files under. */
+const DEBUG_FACTS = {
+  family: { category: 'family', kind: 'happened', text: 'has an older sister, Joy, who is a nurse in Boston' },
+  plan: { category: 'plans_promises', kind: 'said', text: 'plans to move to Spain after graduation' },
+  secret: { category: 'secrets', kind: 'happened', text: 'is afraid of dogs and has never told anybody' }
+} as const
+
+/** Files a fact about her through the store the boundary files through, known to her alone. */
+export function debugFact(charId: string, which: keyof typeof DEBUG_FACTS): DebugResult {
+  if (!import.meta.env.DEV) return NOT_DEV
+  const game = useGameStore.getState()
+  const character = game.characters[charId]
+  if (!character) return refused('Pick a character.')
+  const made = DEBUG_FACTS[which]
+  const held = game.facts.filter((fact) => fact.id.startsWith('f9')).length
+  game.fileFacts(
+    [
+      {
+        id: `f9n${held}`,
+        about: charId,
+        category: made.category,
+        text: made.text,
+        kind: made.kind,
+        knownBy: [charId],
+        date: game.date,
+        time: game.time
+      }
+    ],
+    []
+  )
+  const said = made.kind === 'said' ? ` said that ${pronounsOf(character.gender).subject}` : ''
+  return done(`${character.firstName}${said} ${made.text}: filed, known to ${pronounsOf(character.gender).object} alone.`)
+}
+
+/** Files `count` filler facts about her, to see where a scene's block stops carrying them. */
+export function debugManyFacts(charId: string, count: number): DebugResult {
+  if (!import.meta.env.DEV) return NOT_DEV
+  const game = useGameStore.getState()
+  const character = game.characters[charId]
+  if (!character) return refused('Pick a character.')
+  const held = game.facts.filter((fact) => fact.id.startsWith('f9')).length
+  const added = Array.from({ length: Math.max(0, Math.min(200, Math.round(count))) }, (_, at) => ({
+    id: `f9n${held + at}`,
+    about: charId,
+    category: 'tastes_habits' as const,
+    text: `likes the number ${held + at + 1}`,
+    kind: 'happened' as const,
+    knownBy: [charId],
+    date: game.date,
+    time: game.time
+  }))
+  game.fileFacts(added, [])
+  return done(`${added.length} facts filed about ${character.firstName}, "likes the number …".`)
+}
+
+/** Lets `learnerId` know the newest fact `aboutId` knows, as a scene's learned row would. */
+export function debugLearnFact(learnerId: string, aboutId: string): DebugResult {
+  if (!import.meta.env.DEV) return NOT_DEV
+  const game = useGameStore.getState()
+  const learner = game.characters[learnerId]
+  const about = game.characters[aboutId]
+  if (!learner || !about) return refused('Pick two characters.')
+  const fact = [...game.facts].reverse().find((one) => one.knownBy.includes(aboutId))
+  if (!fact) return refused(`${about.firstName} knows no fact yet.`)
+  if (fact.knownBy.includes(learnerId)) return refused(`${learner.firstName} already knows it.`)
+  game.fileFacts([], [{ factId: fact.id, charId: learnerId }])
+  return done(`${learner.firstName} now knows: ${about.firstName} ${fact.text}.`)
+}
+
+/** Takes every fact off the save. */
+export function debugForgetFacts(): DebugResult {
+  if (!import.meta.env.DEV) return NOT_DEV
+  const game = useGameStore.getState()
+  const count = game.facts.length
+  if (count === 0) return refused('There are no facts.')
+  useGameStore.setState({ facts: [] })
+  return done(`${count} facts forgotten.`)
+}

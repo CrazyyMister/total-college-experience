@@ -1,5 +1,5 @@
 import { breakthroughReady, breakthroughsOfTurn } from '@shared/breakthrough'
-import { castWhoSawAll } from '@shared/encounters'
+import { checkFacts } from '@shared/facts'
 import { GAME_OVER_SCENES, gameOverReasonOf } from '@shared/gameOver'
 import { earnLine, spendLine, spentOf } from '@shared/money'
 import {
@@ -36,6 +36,7 @@ import {
   type EventCancellation,
   type GameSave,
   type PlaythroughRecord,
+  type FactsReply,
   type LedgerResponse,
   type SceneLine,
   type SceneState,
@@ -103,6 +104,7 @@ import {
   ledgerStoryFallback,
   shortenSceneSoFar
 } from '../prompts/scenePrompt'
+import { buildFactsPrompt } from '../prompts/factsPrompt'
 import { useGrabBagStore } from './grabBagStore'
 import {
   namesCharacter,
@@ -117,7 +119,6 @@ import {
   applyLedger,
   bondedCharIds,
   breakthroughOutcomesOf,
-  ledgerActs,
   ledgerMemories,
   ledgerNpcRomance,
   memoryStatusLines,
@@ -229,7 +230,7 @@ import {
   rollSlotEncounterGroups,
   slotRomancePosters
 } from './loop/npc'
-import { applyRumorPass, rollRumorPass, sceneLeavers } from './loop/rumors'
+import { applyRumorPass, rollRumorPass, sceneSawAll } from './loop/rumors'
 import {
   deliverSlotGossip,
   drawGossipAuthor,
@@ -284,10 +285,14 @@ import {
 } from './loop/state'
 import { buildStatusSteps, markStatusLine } from './loop/statusSteps'
 import {
+  factsOfAnswers,
+  learnedOfAnswers,
   memoryEditRows,
   memoryEditsOf,
-  type MemoryAnswer,
-  type MemoryEditRow
+  reviewAsks,
+  type MemoryEditRow,
+  type SceneAnswer,
+  type SceneReview
 } from './loop/memoryEdit'
 
 /**
@@ -595,6 +600,7 @@ function finishFarewell(charId: string | null): void {
   game.setSceneEnding(false)
   game.setStatusShown(false)
   loopState.pendingLedgerResult = null
+  loopState.pendingFacts = null
   resetTurnSlice()
   // Kept before the stage holding it goes: the menu reads the goodbye back from here.
   game.setFarewellLog(game.sceneLog)
@@ -1644,22 +1650,31 @@ async function runEnding(solo: boolean): Promise<void> {
   // same message set and the two calls agree on their scheduling blocks.
   const schedule = scheduleInput(game.date, game.time)
   const ledgerCall = startLedger(schedule, dropped)
+  // Beside the ledger and never part of it: a failed or blocked call leaves the scene without facts.
+  const factsCall = startFacts(dropped)
   // Usually the prefetch fired when the scene started; a resumed scene
   // or a mismatched message set pays for the call here instead.
   const textLedgerCall = claimTextLedger(game.date, game.time)
   // A solo scene wrote its own landing: no goodbye.
   const closingCall = solo ? Promise.resolve(true) : runClosing(dropped)
 
-  const [ledger, textLedger, closed] = await Promise.all([ledgerCall, textLedgerCall, closingCall])
+  const [ledger, textLedger, closed, facts] = await Promise.all([
+    ledgerCall,
+    textLedgerCall,
+    closingCall,
+    factsCall
+  ])
   // The player walked out of this scene, or interjected over its ending: nothing below may land.
   if (runStale(run) || dropped()) return
   useGameStore.getState().setBusy(false)
   // Abandoned: nothing is written, and the Game View is already leaving for the menu.
-  if (!closed || ledger === null || textLedger === null) return
+  if (!closed || ledger === null || textLedger === null || facts === null) return
 
   // One object from here down: the status lines, the save and the boundary read it.
   const merged = mergeLedgerReplies(ledger, textLedger)
   loopState.pendingLedgerResult = merged
+  // Kept only where it says something, so a save of a scene with no facts carries no key.
+  loopState.pendingFacts = (facts.facts?.length ?? 0) + (facts.learned?.length ?? 0) > 0 ? facts : null
 
   // Hands the scene back to a player parked on the spinner while the opening is still out;
   // `advance()` parks again at the boundary rather than crossing an ending in flight.
@@ -1678,6 +1693,7 @@ async function runEnding(solo: boolean): Promise<void> {
       queuedScene(loopState.endBase, loopState.endLines ?? [], {
         endPending: true,
         ledger: merged,
+        ...(loopState.pendingFacts ? { facts: loopState.pendingFacts } : {}),
         opening
       })
     )
@@ -2029,6 +2045,64 @@ function startLedger(
       if (answer.prompt !== undefined) {
         request = { ...withoutLogFrom(request), user: answer.prompt }
       }
+    }
+  })()
+}
+
+/** How many silent resends the facts call spends before the scene is left without facts. */
+const FACTS_SILENT_RETRIES = 3
+
+/**
+ * Fires the facts call for the scene that ended, in parallel with its ledger. It answers an empty
+ * reply where nobody was cast or the call failed for good, never asking the player; null is an
+ * abandoned or dropped ending.
+ */
+function startFacts(dropped: () => boolean): Promise<FactsReply | null> {
+  const run = currentRun()
+  const game = useGameStore.getState()
+  const cast = loopState.closingCast ?? []
+  if (cast.length === 0) return Promise.resolve({})
+  let request = buildFactsPrompt(
+    cast,
+    // The scene as *written*, as the ledger reads it.
+    [...game.sceneLog, ...game.pendingLines],
+    promptState(),
+    reader(),
+    game.facts
+  )
+  const summary = game.sceneSummary
+
+  return (async () => {
+    // Spent on the first content block: the log is swapped for its summary.
+    let blockedFallbackTried = false
+    for (let spent = 0; ; ) {
+      const result = await window.api.llm.completeFacts(request, ENDING_LLM_GROUP)
+      if (runStale(run) || dropped()) return null
+      if (result.ok) return result.data
+
+      if (result.error.code === 'LLM_BLOCKED') {
+        const folded = blockedFallbackTried ? null : ledgerStoryFallback(request.user, summary)
+        blockedFallbackTried = true
+        if (folded !== null) {
+          console.warn('[facts] blocked — re-sending with the scene folded into its summary')
+          request = { ...request, user: folded }
+          continue
+        }
+        console.warn('[facts] blocked — leaving the scene without facts')
+        return {}
+      }
+
+      // Backs off in silence and never reaches the player; an interjection wakes the sleep.
+      const again = await silentRetry('facts', result.error, spent, {
+        limit: FACTS_SILENT_RETRIES,
+        onSleep: (cancel) => loopState.parkedWaiters.push(cancel)
+      })
+      if (runStale(run) || dropped()) return null
+      if (!again) {
+        console.warn('[facts] the facts call failed — leaving the scene without facts:', result.error)
+        return {}
+      }
+      spent += 1
     }
   })()
 }
@@ -2428,6 +2502,7 @@ export function dropEnding(): void {
   for (const wake of parked) wake()
   loopState.endingAbandoned = false
   loopState.pendingLedgerResult = null
+  loopState.pendingFacts = null
   loopState.bankedOpening = null
   loopState.romanceLog = []
   loopState.endBase = null
@@ -2579,8 +2654,8 @@ export function dismissStatusModal(): void {
 }
 
 /**
- * The boundary's memory question: a row per memory the ledger filed for the scene's girls, and
- * a blank one for each it filed nothing for, dated with the scene's own day.
+ * The boundary's memory rows: a row per memory the ledger filed for the scene's girls, and a
+ * blank one for each it filed nothing for, dated with the scene's own day.
  */
 function sceneMemoryRows(ledger: LedgerResponse | null): MemoryEditRow[] {
   const { cast, characters, date, time } = useGameStore.getState()
@@ -2588,30 +2663,64 @@ function sceneMemoryRows(ledger: LedgerResponse | null): MemoryEditRow[] {
   return memoryEditRows(here, ledger ? ledgerMemories(ledger, false) : [], { date, time })
 }
 
-/** Puts the memory question on screen and resolves with the rows as the player leaves them. */
-function askMemoryEdits(rows: readonly MemoryEditRow[]): Promise<readonly MemoryAnswer[]> {
+/**
+ * What the boundary asks: the memory rows, and the facts the scene's facts reply passes the
+ * check against the save, with who came to know one already filed. `saw` is who took in the
+ * summary. Nothing is filed by building it.
+ */
+function sceneReview(
+  ledger: LedgerResponse | null,
+  facts: FactsReply | null,
+  saw: readonly string[]
+): SceneReview {
+  const game = useGameStore.getState()
+  const checked = checkFacts(facts, {
+    date: game.date,
+    time: game.time,
+    cast: game.cast.filter((charId) => game.characters[charId]),
+    charIdOf: (charKey) => game.charKeyToId[charKey],
+    nameKnown: (charId) => game.charInfo[charId]?.nameKnown === true,
+    firstNameOf: (charId) => game.characters[charId]?.firstName,
+    existing: game.facts,
+    saw,
+    warn: (message) => console.warn(message)
+  })
+  return { memories: sceneMemoryRows(ledger), ...checked }
+}
+
+/** Puts the question on screen and resolves with the rows as the player leaves them. */
+function askSceneReview(review: SceneReview): Promise<SceneAnswer> {
   return new Promise((resolve) => {
     loopState.memoryGate = resolve
-    useGameStore.getState().setMemoryEdit(rows)
+    useGameStore.getState().setMemoryEdit(review)
   })
 }
 
-/** Files what the answers changed: a filed memory rewritten or dropped, a blank row recorded. */
-function fileMemoryEdits(rows: readonly MemoryEditRow[], answers: readonly MemoryAnswer[]): void {
-  const { date, time } = useGameStore.getState()
-  for (const { charId, match, next } of memoryEditsOf(rows, answers, { date, time })) {
+/**
+ * Files what the answers changed: a filed memory rewritten or dropped, a blank row recorded, and
+ * the facts and who learned one that the player left in.
+ */
+function fileSceneReview(review: SceneReview, answer: SceneAnswer): void {
+  const { date, time, cast } = useGameStore.getState()
+  for (const { charId, match, next } of memoryEditsOf(review.memories, answer.memories, { date, time })) {
     if (match) useGameStore.getState().replaceMemory(charId, match, next)
     else if (next) useGameStore.getState().recordMemory(charId, next)
   }
+  useGameStore
+    .getState()
+    .fileFacts(
+      factsOfAnswers(review.facts, answer.facts, cast),
+      learnedOfAnswers(review.learned, answer.learned)
+    )
 }
 
-/** The memory question's one answer: Save, Escape and a click on the dimming alike. */
-export function saveMemoryEdits(answers: readonly MemoryAnswer[]): void {
+/** The question's one answer: Save, Escape and a click on the dimming alike. */
+export function saveSceneReview(answer: SceneAnswer): void {
   const gate = loopState.memoryGate
   if (!gate) return
   loopState.memoryGate = null
   useGameStore.getState().setMemoryEdit(null)
-  gate(answers)
+  gate(answer)
 }
 
 /**
@@ -2627,6 +2736,8 @@ async function crossSlotBoundary(): Promise<void> {
   // is cleared below, so nothing offers to rewind the scene under the cover.
   loopState.statusSteps = []
   const ledger = loopState.pendingLedgerResult
+  const proposedFacts = loopState.pendingFacts
+  loopState.pendingFacts = null
   // Re-run: `resolveScene` is pure, so the numbers the player just read are the ones that land.
   const { deltas } = resolveScene()
   loopState.pendingLedgerResult = null
@@ -2741,13 +2852,8 @@ async function crossSlotBoundary(): Promise<void> {
   // Filed under the slot the scene ran in, so before the clock moves on.
   // The encounter is filed with who of the cast took in the whole scene, off the acts the ledger
   // reported and who had left by the end; both are read here and never recomputed later.
-  useGameStore
-    .getState()
-    .commitSceneToHistory(
-      game.date,
-      game.time,
-      castWhoSawAll(useGameStore.getState().cast, sceneLeavers(), ledgerActs(ledger, false))
-    )
+  const saw = sceneSawAll(ledger)
+  useGameStore.getState().commitSceneToHistory(game.date, game.time, saw)
   // Stamped with the finishing slot and before the cast clears below: the ask-out roll reads it
   // after a reload. An empty cast is recorded too.
   useGameStore.getState().recordLastSlotCast()
@@ -2756,17 +2862,18 @@ async function crossSlotBoundary(): Promise<void> {
   const over = gameOverReasonOf(useGameStore.getState())
   if (!over) {
     // What the curtain holds for once it is down: one row per memory the ledger filed for
-    // somebody in the scene, and a blank one for each girl it gave nothing.
-    const rows = sceneMemoryRows(ledger)
+    // somebody in the scene, a blank one for each girl it gave nothing, and the facts proposed.
+    const review = sceneReview(ledger, proposedFacts, saw)
+    const asks = reviewAsks(review)
     // The spinner closes the input for the fade; `advance()` would otherwise hand the box back.
     useGameStore.getState().setWaitingForLine(true)
-    await coverSlotCrossing(rows.length > 0)
+    await coverSlotCrossing(asks)
     // The player left while it closed; `cancelCrossing` has already taken the cover down.
     if (runStale(run)) return
-    if (rows.length > 0) {
-      const answers = await askMemoryEdits(rows)
+    if (asks) {
+      const answer = await askSceneReview(review)
       if (runStale(run)) return
-      fileMemoryEdits(rows, answers)
+      fileSceneReview(review, answer)
       // Only now does the curtain say its piece.
       answerCrossing()
     }
@@ -2855,6 +2962,7 @@ export function enterGame(
   const ending = save.scene.endPending === true
   live.setSceneEnding(ending)
   loopState.pendingLedgerResult = save.scene.ledger ?? null
+  loopState.pendingFacts = save.scene.facts ?? null
   // The opening the ending already paid for; the boundary replays it, `OLD_ACTION_PROMPT`
   // stripped from its lines too.
   const banked = save.scene.opening ?? null

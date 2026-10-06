@@ -36,7 +36,7 @@ import {
   transcriptIndexOf,
   type StageContext
 } from './stageStep'
-import type { MemoryEditRow } from './loop/memoryEdit'
+import type { SceneReview } from './loop/memoryEdit'
 import type { StatusModal } from './loop/statusSteps'
 import { noNsfwImagesOf, useSettingsStore } from './settingsStore'
 import {
@@ -68,6 +68,7 @@ import { MAX_RAISES, newJobState, RAISE_EVERY } from '@shared/jobs'
 import type { ExamPeriod } from '@shared/academics'
 import type { DatingPassOutcome } from '@shared/dating'
 import { encounterOf, historyLineOf } from '@shared/encounters'
+import { withFactsFiled, type FactLearned } from '@shared/facts'
 import type {
   NpcFriendship,
   NpcRelationshipMap,
@@ -106,6 +107,7 @@ import {
   type ReaderPost,
   type ReaderPostAnswer,
   type Encounters,
+  type Fact,
   type GameHistory,
   type GameSave,
   type Gender,
@@ -253,6 +255,8 @@ interface GameStoreState {
   history: GameHistory
   /** Who was in each finished scene and where, by day and slot. Persisted. */
   encounters: Encounters
+  /** What the reader's scenes showed about people and about him, oldest first. Persisted. */
+  facts: Fact[]
   /** The Bunnyboard app: conversations, friend requests and badges. Persisted. */
   bunnyboard: BunnyboardState
   /** Plans the reader has made, oldest first. Persisted. */
@@ -486,7 +490,7 @@ interface GameStoreState {
    * {@link statusModal} and never written to a save: the boundary is replayed from the ending's
    * save and asks again.
    */
-  memoryEdit: readonly MemoryEditRow[] | null
+  memoryEdit: SceneReview | null
 
   /** Scene lines not yet reached by playback. Consumed one per advance. */
   pendingLines: SceneLine[]
@@ -605,7 +609,7 @@ interface GameStoreState {
   /** Raises or drops the scene-end screen; the loop owns which and when. */
   setStatusModal: (modal: StatusModal | null) => void
   /** Raises or drops the boundary's memory question; the loop owns which rows and when. */
-  setMemoryEdit: (rows: readonly MemoryEditRow[] | null) => void
+  setMemoryEdit: (review: SceneReview | null) => void
   /** Replaces the playback queue with a freshly received scene's lines. */
   setPendingLines: (lines: SceneLine[]) => void
   /** Appends to the tail of the playback queue, as streamed lines arrive. */
@@ -746,6 +750,11 @@ interface GameStoreState {
    * a memory she does not hold changes nothing.
    */
   replaceMemory: (charId: string, match: CharMemory, next: CharMemory | null) => void
+  /**
+   * Files the facts a scene showed and the characters who came to know one already filed. A
+   * fact under an id already held replaces it, so a boundary run twice files each once.
+   */
+  fileFacts: (added: readonly Fact[], learned: readonly FactLearned[]) => void
   /** Files what this slot's texting left her with, **replacing** the last slot's. */
   /** Replaces the phone's one impression of the reader, with where it came from. */
   setTextMemory: (charId: string, entry: CharMemory, source: TextMemorySource) => void
@@ -1337,6 +1346,7 @@ const initialState = {
   playerSchedule: {} as Record<number, string>,
   history: {} as GameHistory,
   encounters: {} as Encounters,
+  facts: [] as Fact[],
   bunnyboard: emptyBunnyboard(),
   events: [] as CalendarEvent[],
   occasions: [] as Occasion[],
@@ -1423,7 +1433,7 @@ const initialState = {
   classifierError: null as AppError | null,
   inputDraft: '',
   statusModal: null as StatusModal | null,
-  memoryEdit: null as readonly MemoryEditRow[] | null,
+  memoryEdit: null as SceneReview | null,
   pendingLines: [] as SceneLine[],
   currentLine: null as SceneLine | null,
   cgReady: {} as Record<string, boolean>,
@@ -1464,6 +1474,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       playerSchedule: save.playerSchedule,
       history: save.history,
       encounters: save.encounters ?? {},
+      facts: save.facts ?? [],
       bunnyboard: save.bunnyboard,
       events: save.events,
       occasions: record.occasions,
@@ -1648,7 +1659,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
 
   setStatusModal: (modal) => set({ statusModal: modal }),
 
-  setMemoryEdit: (rows) => set({ memoryEdit: rows }),
+  setMemoryEdit: (review) => set({ memoryEdit: review }),
 
   setPendingLines: (lines) => set({ pendingLines: lines }),
 
@@ -2124,6 +2135,12 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
     set((state) =>
       patchCharInfo(state, charId, (info) => (info ? withMemoryReplaced(info, match, next) : null))
     ),
+
+  fileFacts: (added, learned) =>
+    set((state) => {
+      const next = withFactsFiled(state.facts, added, learned)
+      return next ? { facts: next } : {}
+    }),
 
   setCrush: (charId) =>
     set((state) =>
@@ -2972,6 +2989,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       playerSchedule: state.playerSchedule,
       history: state.history,
       ...(Object.keys(state.encounters).length > 0 ? { encounters: state.encounters } : {}),
+      ...(state.facts.length > 0 ? { facts: state.facts } : {}),
       bunnyboard: state.bunnyboard,
       events: state.events,
       job: state.job,

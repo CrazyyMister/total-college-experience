@@ -43,6 +43,7 @@ const api: VenusUniversityApi = {
     classifyHangout: (request) => ipcRenderer.invoke('llm:classifyHangout', request),
     completeScene: (request, group) => ipcRenderer.invoke('llm:completeScene', request, group),
     completeLedger: (request, group) => ipcRenderer.invoke('llm:completeLedger', request, group),
+    completeFacts: (request, group) => ipcRenderer.invoke('llm:completeFacts', request, group),
     completeIntro: (request, group) => ipcRenderer.invoke('llm:completeIntro', request, group),
     completeEndingPosts: (request, group) =>
       ipcRenderer.invoke('llm:completeEndingPosts', request, group),

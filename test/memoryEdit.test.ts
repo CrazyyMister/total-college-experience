@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import type { CharMemory, MemoryMoment, MemoryType } from '@shared/types'
+import type { CharMemory, Fact, MemoryMoment, MemoryType } from '@shared/types'
 import {
+  factsOfAnswers,
+  learnedOfAnswers,
   memoryEditRows,
   memoryEditsOf,
+  type FactAnswer,
   type MemoryAnswer,
   type MemoryEditRow
 } from '../src/renderer/stores/loop/memoryEdit'
@@ -82,5 +85,66 @@ describe('memoryEditsOf reads each answer as the edit it makes', () => {
         next: { date: 9, time: 1, type: 'disliked', desc: 'the reader was late' }
       }
     ])
+  })
+})
+
+describe('factsOfAnswers reads each answer as the fact it leaves', () => {
+  const fact = (about: string, knownBy: string[]): Fact => ({
+    id: `d9t1n${about}`,
+    about,
+    category: 'family',
+    text: 'has a sister',
+    kind: 'happened',
+    knownBy,
+    date: 9,
+    time: 1
+  })
+  const answer = (over: Partial<FactAnswer> = {}): FactAnswer => ({
+    text: 'has a sister',
+    category: 'family',
+    kind: 'happened',
+    knownBy: ['a'],
+    ...over
+  })
+  const cast = ['a', 'b', 'c']
+
+  it('drops a fact whose words were cleared and keeps the others', () => {
+    const rows = [fact('a', ['a']), fact('b', ['b'])]
+    const kept = factsOfAnswers(rows, [answer({ text: '   ' }), answer({ knownBy: ['b'] })], cast)
+    expect(kept.map((one) => one.id)).toEqual(['d9t1nb'])
+  })
+
+  it('takes the corrected words, category and kind, in the voice of "the reader"', () => {
+    const [kept] = factsOfAnswers(
+      [fact('a', ['a'])],
+      [answer({ text: 'is afraid of you', category: 'secrets', kind: 'said' })],
+      cast
+    )
+    expect(kept).toMatchObject({ text: 'is afraid of the reader', category: 'secrets', kind: 'said' })
+  })
+
+  it('knows it to whoever of the scene is ticked and always to the person it is about', () => {
+    const [kept] = factsOfAnswers([fact('a', ['a'])], [answer({ knownBy: ['c', 'zed'] })], cast)
+    expect(kept.knownBy).toEqual(['a', 'c'])
+  })
+
+  it('leaves a fact about the reader to exactly whoever is ticked', () => {
+    const [kept] = factsOfAnswers(
+      [fact('reader', ['b'])],
+      [answer({ knownBy: ['c'] })],
+      cast
+    )
+    expect(kept.knownBy).toEqual(['c'])
+  })
+})
+
+describe('learnedOfAnswers', () => {
+  it('keeps the rows left ticked, and every row without an answer', () => {
+    const rows = [
+      { factId: 'f1', charId: 'a' },
+      { factId: 'f2', charId: 'b' },
+      { factId: 'f3', charId: 'c' }
+    ]
+    expect(learnedOfAnswers(rows, [true, false])).toEqual([rows[0], rows[2]])
   })
 })

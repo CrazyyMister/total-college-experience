@@ -128,3 +128,100 @@
   overflow: hidden auto;
   resize: none;
 }
+
+/* ---- facts ---------------------------------------------------------------- */
+
+/* A section's name inside the scroller, over the hint that says what its rows are. */
+.vu-memedit-head {
+  margin: 14px 0 -4px;
+  color: var(--vu-text-body);
+  font: 700 12px var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* One fact on three lines: who and how on the first, its words on the second and who knows it
+   on the third, the face standing the whole height at the first column. The row keeps the base
+   row's padding and the list owns the gap. */
+.vu-factrow {
+  position: relative;
+  display: grid;
+  grid-template-columns: 48px 150px minmax(0, 1fr);
+  gap: 10px 14px;
+  align-items: start;
+}
+
+/* The face column when the fact is about the reader, who has no face: it keeps the columns of
+   every other row in the list. */
+.vu-factrow-face {
+  grid-row: 1 / span 3;
+  grid-column: 1;
+  width: 48px;
+}
+
+/* Who it is about, level with the pickers beside it. */
+.vu-factrow > .vu-memrow-name {
+  grid-column: 2;
+  line-height: 44px;
+}
+
+/* The category and the kind, side by side. */
+.vu-factrow-pick {
+  display: grid;
+  grid-column: 3;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+/* Its words, under the name and the pickers, two lines deep and no more. */
+.vu-factrow-text {
+  grid-column: 2 / -1;
+  height: calc(2lh + 33px);
+  overflow: hidden auto;
+  resize: none;
+}
+
+/* The people of the scene, each a face and a box, wrapping onto further lines. */
+.vu-factrow-knows {
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 2 / -1;
+  gap: 8px 22px;
+  align-items: center;
+}
+
+.vu-factrow-knows-label {
+  color: var(--vu-text-muted);
+  font: 700 12px var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.vu-factrow-knower {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Her face as a small archway beside her box, lifted onto the surface like the memory row's. */
+.vu-factrow-knower-face {
+  --paper-face: var(--vu-surface);
+  flex: none;
+  width: 28px;
+  height: 34px;
+  background: var(--vu-surface);
+}
+
+/* Who learned a fact, beside the fact: the box with her name, then the sentence she learned. */
+.vu-learnedrow {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+}
+
+.vu-learnedrow-text {
+  flex: 1;
+  min-width: 0;
+  color: var(--vu-text-body);
+  font: 500 15px/1.4 var(--font-body);
+}

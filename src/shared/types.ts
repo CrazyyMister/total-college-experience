@@ -228,6 +228,57 @@ export type BreakthroughOutcome = 'worked' | 'partly' | 'failed'
 /** Every {@link BreakthroughOutcome}, in schema and prompt order; the one list both read. */
 export const BREAKTHROUGH_OUTCOMES: readonly BreakthroughOutcome[] = ['worked', 'partly', 'failed']
 
+/** What a fact is about; the list is append-only, and the prompt and the schema both print it. */
+export const FACT_CATEGORIES = [
+  'family',
+  'past',
+  'tastes_habits',
+  'plans_promises',
+  'secrets',
+  'about_reader'
+] as const
+
+/** One of {@link FACT_CATEGORIES}. */
+export type FactCategory = (typeof FACT_CATEGORIES)[number]
+
+/** Whether a fact is known to have happened or is only what somebody said. */
+export type FactKind = 'happened' | 'said'
+
+/** The `about` of a fact that is about the reader, who has no charId. */
+export const FACT_ABOUT_READER = 'reader'
+
+/**
+ * Something lasting a scene showed about a person or the reader, kept on the save. `text`
+ * completes "<Name> …"; `knownBy` is the characters who know it, the reader always knowing.
+ */
+export interface Fact {
+  /** `d<day>t<half>n<position>`: the slot it was filed in and where in that scene's list. */
+  id: string
+  /** The charId it is about, or {@link FACT_ABOUT_READER}. */
+  about: string
+  category: FactCategory
+  text: string
+  kind: FactKind
+  knownBy: string[]
+  date: number
+  time: TimeSlot
+}
+
+/**
+ * What the facts call answers for a finished scene, before anything is checked: the facts it
+ * proposes and who in the scene came to know one already on the save.
+ */
+export interface FactsReply {
+  facts?: Array<{
+    about: string
+    category: FactCategory
+    text: string
+    said: boolean
+    heardBy: string[]
+  }>
+  learned?: Array<{ fact: string; charKey: string }>
+}
+
 /**
  * Where the phone's one impression of the reader came from: his texts with her, or an exchange
  * with her on the feed.
@@ -1288,6 +1339,8 @@ export interface SceneState {
   endPending?: boolean
   /** The resolved bookkeeping reply held alongside {@link endPending}. */
   ledger?: LedgerResponse
+  /** What the facts call answered, held beside {@link ledger}; absent when it answered nothing. */
+  facts?: FactsReply
   /**
    * The **next** slot's opening, already paid for and held alongside {@link endPending}, so the
    * boundary replays it rather than calling again.
@@ -1470,6 +1523,8 @@ export interface GameSave {
   history: GameHistory
   /** Who was in each finished scene and where, from the first slot that kept it; absent reads as none. */
   encounters?: Encounters
+  /** The facts the reader's scenes filed about people and about him, oldest first; absent reads as none. */
+  facts?: Fact[]
   /** The Bunnyboard app: conversations, friend requests and badges. */
   bunnyboard: BunnyboardState
   /** Plans the reader has made, oldest first. */

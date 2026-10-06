@@ -1,13 +1,21 @@
+import type { FactLearned } from '@shared/facts'
 import { storedMemoryDesc } from '@shared/readerVoice'
 import {
+  FACT_ABOUT_READER,
   memoryAt,
   type CharMemory,
+  type Fact,
+  type FactCategory,
+  type FactKind,
   type MemoryMark,
   type MemoryMoment,
   type MemoryType
 } from '@shared/types'
 
-/** The boundary's memory question as data — its rows off the ledger, and what the answers change. */
+/**
+ * The boundary's question as data — its rows off the ledger and the facts call, and what the
+ * answers change.
+ */
 
 /** One row of the question: who, and the memory the ledger filed that the row stands for. */
 export interface MemoryEditRow {
@@ -93,4 +101,64 @@ export function memoryEditsOf(
     }
   })
   return edits
+}
+
+/** What the boundary asks: the memories, the facts proposed for the scene, and who learned one. */
+export interface SceneReview {
+  memories: MemoryEditRow[]
+  /** The new facts, each as it will be filed unless the player changes it. */
+  facts: Fact[]
+  learned: FactLearned[]
+}
+
+/** What the player left on a fact: its words, kind and who knows. A blank text drops the fact. */
+export interface FactAnswer {
+  text: string
+  category: FactCategory
+  kind: FactKind
+  knownBy: string[]
+}
+
+/** The question's one answer, each list answering the same list of the review. */
+export interface SceneAnswer {
+  memories: MemoryAnswer[]
+  facts: FactAnswer[]
+  /** Whether each learned row is kept. */
+  learned: boolean[]
+}
+
+/** Whether the review has anything to ask. */
+export function reviewAsks(review: SceneReview): boolean {
+  return review.memories.length > 0 || review.facts.length > 0 || review.learned.length > 0
+}
+
+/**
+ * The facts the answers leave: a fact with no words is dropped, and the rest are as the player
+ * left them, known to the person they are about and to whoever of `cast` is ticked.
+ */
+export function factsOfAnswers(
+  rows: readonly Fact[],
+  answers: readonly FactAnswer[],
+  cast: readonly string[]
+): Fact[] {
+  const kept: Fact[] = []
+  rows.forEach((fact, index) => {
+    const answer = answers[index]
+    if (!answer) return
+    const text = storedMemoryDesc(answer.text).replace(/\s+/g, ' ')
+    if (!text) return
+    const heard = cast.filter((charId) => answer.knownBy.includes(charId))
+    const knownBy =
+      fact.about === FACT_ABOUT_READER || heard.includes(fact.about) ? heard : [fact.about, ...heard]
+    kept.push({ ...fact, text, category: answer.category, kind: answer.kind, knownBy })
+  })
+  return kept
+}
+
+/** The learned rows the player left ticked. */
+export function learnedOfAnswers(
+  rows: readonly FactLearned[],
+  kept: readonly boolean[]
+): FactLearned[] {
+  return rows.filter((_, index) => kept[index] !== false)
 }

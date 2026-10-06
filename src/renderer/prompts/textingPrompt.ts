@@ -1,5 +1,6 @@
 import { affectionFor, dedupedMemoriesFor, emptyFlags } from '@shared/relationship'
 import { encountersOf, PHONE_ENCOUNTER_CAP } from '@shared/encounters'
+import { factsKnownBy, PHONE_FACT_CAP } from '@shared/facts'
 import { ROOM_LOCATION } from '@shared/locations'
 import type { NpcRelationshipMap } from '@shared/npcRelationships'
 import type { NpcRomanceMap } from '@shared/npcRomance'
@@ -19,6 +20,7 @@ import {
   type ChatMessage,
   type Conversation,
   type Encounters,
+  type Fact,
   type Gender,
   type Haunt,
   type JobState,
@@ -42,6 +44,7 @@ import {
   lorebookBlock
 } from './lorebook'
 import { encounterLines } from './encounters'
+import { factLines } from './facts'
 import { occasionLoreLines } from './occasions'
 import { objectSchema } from './schema'
 import { memoryLines, profileLines, scheduleLines, yearMajorLine } from './scenePrompt'
@@ -102,6 +105,8 @@ export interface TextingPromptState {
   npcRomance?: NpcRomanceMap
   /** Who was in each finished scene and where; absent reads as none. */
   encounters?: Encounters
+  /** The facts the reader's scenes filed, oldest first; absent reads as none. */
+  facts?: readonly Fact[]
   /** The save's class roster, keyed by class code — names the schedules. */
   classes: Record<string, ClassEntry>
   /** The reader's own timetable, sparse slot → class code. */
@@ -428,6 +433,14 @@ export function buildTextingPrompt(
       character,
       encountersOf(character.charId, state.encounters, PHONE_ENCOUNTER_CAP),
       Object.fromEntries(state.roster.map((other) => [other.charId, other])),
+      state.charInfo
+    ),
+    // What she knows of the people around her; nobody else is on the phone with them.
+    ...factLines(
+      character,
+      factsKnownBy(character.charId, state.facts, PHONE_FACT_CAP),
+      [],
+      Object.fromEntries([character, ...state.roster].map((other) => [other.charId, other])),
       state.charInfo
     ),
     ...(romance.length > 0 ? ['', ...romance] : [])

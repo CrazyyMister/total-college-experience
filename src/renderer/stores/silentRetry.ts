@@ -24,6 +24,8 @@ function silentlyRetryable(code: string): boolean {
 }
 
 export interface SilentRetryOptions {
+  /** How many resends this call may spend before it falls through; the default is five. */
+  limit?: number
   /** Asked before each resend: true abandons the retry and falls through to the modal. */
   skip?: () => boolean
   /** Handed a canceller for the sleep in progress. */
@@ -40,10 +42,10 @@ export async function retrySilently(
   spent: number,
   options: SilentRetryOptions = {}
 ): Promise<boolean> {
-  if (spent >= SILENT_RETRIES || !silentlyRetryable(error.code)) return false
+  if (spent >= (options.limit ?? SILENT_RETRIES) || !silentlyRetryable(error.code)) return false
   if (options.skip?.()) return false
   const delay = SILENT_BACKOFF_MS[spent] ?? SILENT_BACKOFF_MS[SILENT_BACKOFF_MS.length - 1]
-  console.warn(`[${call}] retrying silently in ${delay}ms (${spent + 1}/${SILENT_RETRIES})`)
+  console.warn(`[${call}] retrying silently in ${delay}ms (${spent + 1}/${options.limit ?? SILENT_RETRIES})`)
   await new Promise<void>((resolve) => {
     const timer = setTimeout(resolve, delay)
     options.onSleep?.(() => {

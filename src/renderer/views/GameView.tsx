@@ -96,7 +96,7 @@ import {
   goHome,
   endInDebt,
   forward,
-  saveMemoryEdits,
+  saveSceneReview,
   speakerNameOf,
   startFarewellScene,
   submitAction,
@@ -2116,9 +2116,9 @@ export function GameView(): JSX.Element {
         {memoryEdit && (
           <SceneMemoriesModal
             key="scene-memories"
-            rows={memoryEdit}
+            review={memoryEdit}
             theme={half}
-            onSave={saveMemoryEdits}
+            onSave={saveSceneReview}
           />
         )}
       </AnimatePresence>

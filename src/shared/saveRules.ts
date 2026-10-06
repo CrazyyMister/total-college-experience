@@ -51,6 +51,7 @@ const SAVE_REQUIRED: Record<
     | 'bio'
     | 'tallies'
     | 'encounters'
+    | 'facts'
     | 'thumbnail'
   >,
   true

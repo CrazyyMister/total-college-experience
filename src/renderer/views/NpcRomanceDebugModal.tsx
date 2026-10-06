@@ -2,6 +2,7 @@ import { lazy, Suspense, useState, type JSX } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'motion/react'
 import { breakthroughMeterNow, lastBreakthroughUse, METER_MAX } from '@shared/breakthrough'
+import { factsKnownBy } from '@shared/facts'
 import { pairKeyOf } from '@shared/npcRelationships'
 import {
   ENCOURAGED_DAYS,
@@ -10,6 +11,7 @@ import {
   REJECTION_COOLDOWN_DAYS,
   WINGMAN_KEEP_DAYS
 } from '@shared/npcRomance'
+import { pronounsOf } from '@shared/pronouns'
 import { dedupedMemoriesFor } from '@shared/relationship'
 import { useModalShell } from '../components/useModalShell'
 import { TitleTab } from '../components/TitleTab'
@@ -89,6 +91,20 @@ function sectionsOf(): DebugSection[] {
               ? ` · ${uses.length} uses, last on ${dated(lastUse.date)}, ${lastUse.time === 0 ? 'day' : 'night'}, ${uses[uses.length - 1]?.outcome ?? 'no result'}`
               : ''
           }${info?.nameKnown ? '' : ' · name not known'}`
+        }
+      })
+    },
+    {
+      title: 'Facts',
+      rows: game.chars.map((charId) => {
+        const character = game.characters[charId]
+        const about = game.facts.filter((fact) => fact.about === charId).length
+        return {
+          key: charId,
+          who: name(charId),
+          facts: `${factsKnownBy(charId, game.facts).length} facts known · ${about} about ${
+            character ? pronounsOf(character.gender).object : 'them'
+          }`
         }
       })
     },

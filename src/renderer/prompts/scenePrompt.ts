@@ -9,6 +9,7 @@ import { fullDescriptionOf, kindSentenceOf, projectStandingLine } from '@shared/
 import type { ClassKind, ProjectProgress } from '@shared/academics'
 import { isPosition, POSITIONS } from '@shared/positions'
 import { ENCOUNTER_CAP, encountersOf } from '@shared/encounters'
+import { factCapFor, factsKnownBy } from '@shared/facts'
 import { pronounsOf } from '@shared/pronouns'
 import { readerize } from '@shared/readerVoice'
 import { cgAction, showAction, spriteAction } from '@shared/sceneActions'
@@ -40,6 +41,7 @@ import {
   charKeyOf,
   type CharMemory,
   type Encounters,
+  type Fact,
   type ClassEntry,
   type ClassSlot,
   fullNameOf,
@@ -78,6 +80,7 @@ import {
 } from './lorebook'
 import { farewellNowLines, graduationCastLines } from './graduation'
 import { encounterLines } from './encounters'
+import { factLines } from './facts'
 import { moodLine } from './moods'
 import { springBreakLines } from './springBreak'
 import {
@@ -195,6 +198,8 @@ export interface PromptState {
   slotRumor?: LoreRumor
   /** Who was in each finished scene and where; absent reads as none. */
   encounters?: Encounters
+  /** The facts the reader's scenes filed, oldest first; absent reads as none. */
+  facts?: readonly Fact[]
   /** The save's class roster, keyed by class code. */
   classes: Record<string, ClassEntry>
   /** The reader's own timetable, sparse slot → class code. */
@@ -378,7 +383,7 @@ export function personaFor(lessNsfwText: boolean): string {
 }
 
 /** {@link personaFor} for the calls that stage no cast — the ledgers and the solo scene. */
-function ledgerPersonaFor(lessNsfwText: boolean): string {
+export function ledgerPersonaFor(lessNsfwText: boolean): string {
   return lessNsfwText ? SFW_LEDGER_PERSONA : LEDGER_PERSONA
 }
 
@@ -625,6 +630,16 @@ function castBlock(cast: readonly Character[], state: PromptState): string[] {
       ...encounterLines(
         character,
         encountersOf(character.charId, state.encounters, Math.min(ENCOUNTER_CAP, memoryBudget)),
+        people,
+        charInfo
+      )
+    )
+    // What she knows of the people around her, newest within a budget by cast size.
+    lines.push(
+      ...factLines(
+        character,
+        factsKnownBy(character.charId, state.facts, factCapFor(cast.length)),
+        cast,
         people,
         charInfo
       )

@@ -1,6 +1,7 @@
 import type {
   BankedOpening,
   Character,
+  FactsReply,
   LedgerResponse,
   SaveDraft,
   SceneLine,
@@ -12,7 +13,7 @@ import type { ExamPeriod } from '@shared/academics'
 import type { HangoutPrefetch } from './hangouts'
 import type { Verdict } from './classify'
 import type { StatusStep } from './statusSteps'
-import type { MemoryAnswer } from './memoryEdit'
+import type { SceneAnswer } from './memoryEdit'
 
 /**
  * Everything the slot loop holds between calls, in one object, so {@link resetLoopState} is
@@ -155,8 +156,8 @@ export const loopState = {
   /** What an ending call's failure modal is waiting on, while the player answers it. */
   endingGate: null as ((answer: EndingAnswer) => void) | null,
 
-  /** What the boundary's memory question is waiting on, while the player answers it. */
-  memoryGate: null as ((answers: readonly MemoryAnswer[]) => void) | null,
+  /** What the boundary's question is waiting on, while the player answers it. */
+  memoryGate: null as ((answer: SceneAnswer) => void) | null,
 
   /** Serializes the ending's failure modals — two calls, one screen. */
   modalQueue: Promise.resolve() as Promise<void>,
@@ -193,6 +194,9 @@ export const loopState = {
 
   /** The resolved ledger, held until playback drains alongside the store's `sceneEnding`. */
   pendingLedgerResult: null as LedgerResponse | null,
+
+  /** What the facts call answered, held beside the ledger until the boundary checks it. */
+  pendingFacts: null as FactsReply | null,
 
   /** Everyone who was in the scene being wrapped up — the ledger's cast, kept for its retry. */
   closingCast: null as Character[] | null,
@@ -322,6 +326,7 @@ export function resetLoopState(): void {
   loopState.endingToken = {}
   loopState.sceneCall = null
   loopState.pendingLedgerResult = null
+  loopState.pendingFacts = null
   loopState.lastLedgerPrompt = null
   loopState.lastTextLedgerPrompt = null
   loopState.lastIntroPrompt = null

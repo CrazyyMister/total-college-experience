@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   BankedOpening,
+  FactsReply,
   GameSave,
   LedgerResponse,
   Result,
@@ -123,6 +124,22 @@ describe('enterGame', () => {
     expect(game.currentLine).toEqual({ speaker: '', text: 'Goodbye.' })
     expect(game.statusShown).toBe(false)
     expect(game.awaitingInput).toBe(false)
+  })
+
+  it('resumes an ending with the facts reply it banked, and none where it banked none', () => {
+    const facts = { facts: [{ about: 'a', category: 'family', text: 'has a sister', said: false, heardBy: [] }] }
+    const scene: SceneState = {
+      ...replyScene(['Goodbye.'], []),
+      endPending: true,
+      ledger: {},
+      facts: facts as FactsReply,
+      resumeOnLine: true
+    }
+    enterGame(saveOf(scene), playthroughRecord(), {})
+    expect(loopState.pendingFacts).toEqual(facts)
+
+    enterGame(saveOf({ ...scene, facts: undefined }), playthroughRecord(), {})
+    expect(loopState.pendingFacts).toBeNull()
   })
 
   it('folds a slot opening back only into a boundary save', () => {

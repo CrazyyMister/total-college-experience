@@ -21,6 +21,7 @@ import type {
   InstallResult,
   JobProgress,
   HangoutClassifierResponse,
+  FactsReply,
   LedgerResponse,
   LogLevel,
   PlaythroughSummary,
@@ -125,6 +126,8 @@ export interface VenusUniversityApi {
     completeScene: (request: StructuredRequest, group: string) => Promise<Result<SceneResponse>>
     /** Sends the end-of-scene bookkeeping prompt. Never streams. */
     completeLedger: (request: StructuredRequest, group: string) => Promise<Result<LedgerResponse>>
+    /** Sends the end-of-scene facts prompt, beside the ledger's. Never streams. */
+    completeFacts: (request: StructuredRequest, group: string) => Promise<Result<FactsReply>>
     /** Sends the slot-opening narration prompt. Never streams. */
     completeIntro: (
       request: StructuredRequest,

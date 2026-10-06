@@ -244,11 +244,13 @@ function onLine(scene: SceneState): SceneState {
 /** `scene` as a resolved scene still playing out its ending, with whatever the ending banked. */
 function asEnding(scene: SceneState): SceneState {
   const ledger = loopState.pendingLedgerResult
+  const facts = loopState.pendingFacts
   const opening = loopState.bankedOpening
   return {
     ...scene,
     endPending: true,
     ...(ledger ? { ledger } : {}),
+    ...(facts ? { facts } : {}),
     ...(opening ? { opening } : {})
   }
 }

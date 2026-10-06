@@ -12,7 +12,7 @@ function placeOf(where: string): string {
 }
 
 /** Who else was there, each by first name; one the reader cannot name is marked as such. */
-function companyOf(
+export function companyOf(
   charIds: readonly string[],
   people: Readonly<Record<string, Character>>,
   charInfo: Readonly<Record<string, CharInfo>>

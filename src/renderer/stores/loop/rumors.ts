@@ -1,4 +1,5 @@
 import { globalSlotOf } from '@shared/jobs'
+import { castWhoSawAll } from '@shared/encounters'
 import { rumorPass, upsertJealousyMemory, type RumorPassOutcome } from '@shared/rumors'
 import type { CharInfo, Gender, LedgerResponse, TimeSlot } from '@shared/types'
 import { stageContextOf, useGameStore } from '../gameStore'
@@ -48,6 +49,15 @@ function sceneStageNow(): StageFacts {
 export function sceneLeavers(): string[] {
   const { departed, offStage } = sceneStageNow()
   return [...new Set([...departed, ...Object.keys(offStage)])]
+}
+
+/**
+ * Who of the cast took in the whole scene: not anybody who left it, and not anybody a private
+ * kiss or night the ledger reported went on without. Read off the stage and the ledger as they
+ * stand, so reading it again before the clock moves gives the same answer.
+ */
+export function sceneSawAll(ledger: LedgerResponse | null): string[] {
+  return castWhoSawAll(useGameStore.getState().cast, sceneLeavers(), ledgerActs(ledger, false))
 }
 
 /**

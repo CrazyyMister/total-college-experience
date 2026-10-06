@@ -27,6 +27,7 @@ import type {
   HangoutClassifierResponse,
   InstallProgress,
   JobProgress,
+  FactsReply,
   LedgerResponse,
   OutfitSet,
   Position,
@@ -311,6 +312,11 @@ export function registerIpcHandlers(): void {
   // The end-of-scene bookkeeping call: no deltas, its own schema.
   handle('llm:completeLedger', (_event, request: StructuredRequest, group: string) =>
     runAbortable(group, (signal) => completeStructured<LedgerResponse>(request, signal))
+  )
+
+  // The end-of-scene facts call, fired beside the ledger: no deltas, its own schema.
+  handle('llm:completeFacts', (_event, request: StructuredRequest, group: string) =>
+    runAbortable(group, (signal) => completeStructured<FactsReply>(request, signal))
   )
 
   // The slot-opening narration: no deltas, its own schema.
