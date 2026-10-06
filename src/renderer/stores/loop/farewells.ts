@@ -30,6 +30,22 @@ export function friendCharIds(): string[] {
 }
 
 /**
+ * Every friend in the order the graduation picture takes them: the girlfriends first, then the
+ * rest, each by affection, highest first. A tie keeps roster order.
+ */
+export function endingPictureCharIds(): string[] {
+  const game = useGameStore.getState()
+  return friendCharIds()
+    .map((charId) => ({
+      charId,
+      lover: game.charInfo[charId].flags?.isLover === true,
+      affection: affectionFor(game.charInfo[charId], game.date, game.characters[charId])
+    }))
+    .sort((a, b) => Number(b.lover) - Number(a.lover) || b.affection - a.affection)
+    .map((entry) => entry.charId)
+}
+
+/**
  * The goodbyes the menu can still offer: {@link friendCharIds} minus the ones already said,
  * lowest affection first, so the one he is closest to is the last goodbye. A tie keeps roster
  * order.

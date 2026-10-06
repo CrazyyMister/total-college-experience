@@ -13,12 +13,12 @@ export const ENDING_PICTURE_SIZE: ImageSize = '4K'
 /** The name the picture is offered under when the reader downloads their own copy. */
 export const ENDING_ART_FILE_NAME = 'ending.png'
 
-/** Nothing this app builds puts more than a full roster on one sheet. */
-const MAX_ENDING_FRIENDS = 12
+/** How many people the reference sheet holds at most: the girlfriends first, then the closest. */
+export const ENDING_PICTURE_FRIENDS = 6
 
 /** Throws `ENDING_REQUEST_INVALID` unless `friendCount` and `sheet` can be sent to the model. */
 export function assertEndingRequest(friendCount: number, sheet: Uint8Array): void {
-  if (!Number.isInteger(friendCount) || friendCount < 1 || friendCount > MAX_ENDING_FRIENDS) {
+  if (!Number.isInteger(friendCount) || friendCount < 1 || friendCount > ENDING_PICTURE_FRIENDS) {
     throw appError(
       'ENDING_REQUEST_INVALID',
       'Failed to generate CG.',

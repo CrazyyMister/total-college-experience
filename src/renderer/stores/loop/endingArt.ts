@@ -1,4 +1,5 @@
 import { messageOf } from '@shared/errors'
+import { ENDING_PICTURE_FRIENDS } from '@shared/endingPicture'
 import {
   alphaBounds,
   layoutLineup,
@@ -14,7 +15,7 @@ import { retrySilently } from '../silentRetry'
 import { useUiStore } from '../uiStore'
 import { canvasToBase64 } from './encode'
 import { armEndingPosts } from './endingPosts'
-import { friendCharIds } from './farewells'
+import { endingPictureCharIds } from './farewells'
 import { writeEpilogueSave } from './saves'
 import { currentRun, loopState, runStale, LOOP_LLM_GROUP } from './state'
 
@@ -98,8 +99,8 @@ function trimOf(bitmap: ImageBitmap): LineupSprite | null {
 }
 
 /**
- * Every friend's sprite trimmed, evened out and laid side by side on black — the cast list the
- * image model is handed.
+ * The first friends of `charIds` that have a sprite, as many as the picture holds, each trimmed,
+ * evened out and laid side by side on black — the cast list the image model is handed.
  */
 async function stitchFriendLineup(
   charIds: readonly string[]
@@ -109,6 +110,7 @@ async function stitchFriendLineup(
   const drawn: string[] = []
   const sprites: LineupSprite[] = []
   for (const charId of charIds) {
+    if (drawn.length >= ENDING_PICTURE_FRIENDS) break
     const bitmap = await spriteOf(charId)
     if (!bitmap) continue
     const sprite = trimOf(bitmap)
@@ -120,6 +122,12 @@ async function stitchFriendLineup(
 
   const layout = layoutLineup(sprites)
   if (layout.placements.length === 0) return null
+  const characters = useGameStore.getState().characters
+  console.log(
+    `[ending] graduation picture: ${drawn.length} of ${charIds.length} friends: ${drawn
+      .map((charId) => characters[charId]?.firstName ?? charId)
+      .join(', ')}`
+  )
 
   const sheet = document.createElement('canvas')
   sheet.width = layout.width
@@ -206,7 +214,7 @@ async function fetchEndingArt(charIds: readonly string[], reuse: boolean): Promi
 function armEndingArt(): void {
   if (loopState.endingArt) return
   const game = useGameStore.getState()
-  const friends = friendCharIds()
+  const friends = endingPictureCharIds()
   if (friends.length === 0) return
 
   const reuse = game.endingArtWanted
