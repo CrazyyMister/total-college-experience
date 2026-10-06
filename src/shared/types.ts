@@ -930,6 +930,25 @@ export interface FeedExtras {
 /** Playthrough scene summaries, keyed by day and time slot. */
 export type GameHistory = Record<number, Partial<Record<TimeSlot, string>>>
 
+/**
+ * One finished scene with somebody in it: who was there, where, and what it came to. The
+ * summary and the stood-up plans are kept apart; `GameHistory`'s line is the two rejoined.
+ */
+export interface Encounter {
+  /** The scene's whole cast, whoever left it before the end. */
+  who: string[]
+  /** The part of `who` that takes in the summary: stayed to the end, no private act without them. */
+  saw: string[]
+  /** What the classifier said the scene was set in: a place id or loose words; absent when it said nothing. */
+  where?: string
+  summary: string
+  /** The "did not show up" lines of the slot, joined; absent when there were none. */
+  absent?: string
+}
+
+/** The encounters, under the same day and slot as the history line of the same scene. */
+export type Encounters = Record<number, Partial<Record<TimeSlot, Encounter>>>
+
 /** Who a Bunnyboard chat message is from. `system` lines are app-written. */
 export type ChatSender = 'player' | 'contact' | 'system'
 
@@ -1449,6 +1468,8 @@ export interface GameSave {
   playerSchedule: Record<number, string>
   /** The playthrough log — the summary each finished scene left behind, by day and slot. */
   history: GameHistory
+  /** Who was in each finished scene and where, from the first slot that kept it; absent reads as none. */
+  encounters?: Encounters
   /** The Bunnyboard app: conversations, friend requests and badges. */
   bunnyboard: BunnyboardState
   /** Plans the reader has made, oldest first. */

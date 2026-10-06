@@ -67,6 +67,7 @@ import type { Weather } from '@shared/weather'
 import { MAX_RAISES, newJobState, RAISE_EVERY } from '@shared/jobs'
 import type { ExamPeriod } from '@shared/academics'
 import type { DatingPassOutcome } from '@shared/dating'
+import { encounterOf, historyLineOf } from '@shared/encounters'
 import type {
   NpcFriendship,
   NpcRelationshipMap,
@@ -104,6 +105,7 @@ import {
   type ReaderTag,
   type ReaderPost,
   type ReaderPostAnswer,
+  type Encounters,
   type GameHistory,
   type GameSave,
   type Gender,
@@ -249,6 +251,8 @@ interface GameStoreState {
   playerSchedule: Record<number, string>
   /** The playthrough log — every finished scene's summary, by day and slot. Persisted. */
   history: GameHistory
+  /** Who was in each finished scene and where, by day and slot. Persisted. */
+  encounters: Encounters
   /** The Bunnyboard app: conversations, friend requests and badges. Persisted. */
   bunnyboard: BunnyboardState
   /** Plans the reader has made, oldest first. Persisted. */
@@ -667,7 +671,11 @@ interface GameStoreState {
   setEndingInFlight: (inFlight: boolean) => void
   setStatusShown: (shown: boolean) => void
   /** Files the running summary under the slot that just finished. */
-  commitSceneToHistory: (date: number, time: TimeSlot) => void
+  /**
+   * Files the finished scene under its slot: the history line, and the encounter where the cast
+   * is not empty. `saw` is the part of the cast that takes in the summary.
+   */
+  commitSceneToHistory: (date: number, time: TimeSlot, saw: readonly string[]) => void
   /**
    * Pops the next pending line and applies its `bg`, `action` and `emotion`, passing over the
    * reader's own lines in front of it. Returns false when no line landed: the queue was already
@@ -1328,6 +1336,7 @@ const initialState = {
   classes: {} as Record<string, ClassEntry>,
   playerSchedule: {} as Record<number, string>,
   history: {} as GameHistory,
+  encounters: {} as Encounters,
   bunnyboard: emptyBunnyboard(),
   events: [] as CalendarEvent[],
   occasions: [] as Occasion[],
@@ -1454,6 +1463,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       classes: record.classes,
       playerSchedule: save.playerSchedule,
       history: save.history,
+      encounters: save.encounters ?? {},
       bunnyboard: save.bunnyboard,
       events: save.events,
       occasions: record.occasions,
@@ -1827,7 +1837,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
 
   setStatusShown: (shown) => set({ statusShown: shown }),
 
-  commitSceneToHistory: (date, time) =>
+  commitSceneToHistory: (date, time, saw) =>
     set((state) => {
       if (!state.sceneSummary) return {}
       // The plans the reader stood up this slot go into the summary too, from the events' own
@@ -1841,11 +1851,21 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
           return `The reader didn't show up for ${event.title} with ${names.join(', ')}.`
         })
 
+      const absent = stood.join(' ')
+      const encounter = encounterOf(state.cast, saw, state.sceneLocation, state.sceneSummary, absent)
       return {
         history: {
           ...state.history,
-          [date]: { ...state.history[date], [time]: [state.sceneSummary, ...stood].join(' ') }
-        }
+          [date]: { ...state.history[date], [time]: historyLineOf(state.sceneSummary, absent) }
+        },
+        ...(encounter
+          ? {
+              encounters: {
+                ...state.encounters,
+                [date]: { ...state.encounters[date], [time]: encounter }
+              }
+            }
+          : {})
       }
     }),
 
@@ -2951,6 +2971,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       ),
       playerSchedule: state.playerSchedule,
       history: state.history,
+      ...(Object.keys(state.encounters).length > 0 ? { encounters: state.encounters } : {}),
       bunnyboard: state.bunnyboard,
       events: state.events,
       job: state.job,

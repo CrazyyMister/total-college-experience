@@ -8,6 +8,7 @@ import { DEFAULT_PLAYER_STATS, STAT_KEYS, type PlayerStats } from '@shared/playe
 import { fullDescriptionOf, kindSentenceOf, projectStandingLine } from '@shared/academics'
 import type { ClassKind, ProjectProgress } from '@shared/academics'
 import { isPosition, POSITIONS } from '@shared/positions'
+import { ENCOUNTER_CAP, encountersOf } from '@shared/encounters'
 import { pronounsOf } from '@shared/pronouns'
 import { readerize } from '@shared/readerVoice'
 import { cgAction, showAction, spriteAction } from '@shared/sceneActions'
@@ -38,6 +39,7 @@ import {
   type CharJob,
   charKeyOf,
   type CharMemory,
+  type Encounters,
   type ClassEntry,
   type ClassSlot,
   fullNameOf,
@@ -75,6 +77,7 @@ import {
   loreTextForKey
 } from './lorebook'
 import { farewellNowLines, graduationCastLines } from './graduation'
+import { encounterLines } from './encounters'
 import { moodLine } from './moods'
 import { springBreakLines } from './springBreak'
 import {
@@ -190,6 +193,8 @@ export interface PromptState {
    * — a continuation is built from the same state and passes it nowhere.
    */
   slotRumor?: LoreRumor
+  /** Who was in each finished scene and where; absent reads as none. */
+  encounters?: Encounters
   /** The save's class roster, keyed by class code. */
   classes: Record<string, ClassEntry>
   /** The reader's own timetable, sparse slot → class code. */
@@ -505,6 +510,8 @@ function castBlock(cast: readonly Character[], state: PromptState): string[] {
     lines.push('No other characters.')
     return lines
   }
+  // Whoever an encounter names, in the scene or not.
+  const people = byCharId([...cast, ...state.roster])
 
   for (const character of cast) {
     const key = charKeyOf(character.firstName, character.lastName)
@@ -612,6 +619,15 @@ function castBlock(cast: readonly Character[], state: PromptState): string[] {
     // Deduped before the budget is spent.
     lines.push(
       ...memoryLines(character, dedupedMemoriesFor(info).slice(-memoryBudget), info)
+    )
+    // The scenes she was in, under the same budget when it is the tighter.
+    lines.push(
+      ...encounterLines(
+        character,
+        encountersOf(character.charId, state.encounters, Math.min(ENCOUNTER_CAP, memoryBudget)),
+        people,
+        charInfo
+      )
     )
 
     // What the two of them have been texting about on Bunnyboard.

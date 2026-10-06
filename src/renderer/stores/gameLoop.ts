@@ -1,4 +1,5 @@
 import { breakthroughReady, breakthroughsOfTurn } from '@shared/breakthrough'
+import { castWhoSawAll } from '@shared/encounters'
 import { GAME_OVER_SCENES, gameOverReasonOf } from '@shared/gameOver'
 import { earnLine, spendLine, spentOf } from '@shared/money'
 import {
@@ -116,6 +117,7 @@ import {
   applyLedger,
   bondedCharIds,
   breakthroughOutcomesOf,
+  ledgerActs,
   ledgerMemories,
   ledgerNpcRomance,
   memoryStatusLines,
@@ -227,7 +229,7 @@ import {
   rollSlotEncounterGroups,
   slotRomancePosters
 } from './loop/npc'
-import { applyRumorPass, rollRumorPass } from './loop/rumors'
+import { applyRumorPass, rollRumorPass, sceneLeavers } from './loop/rumors'
 import {
   deliverSlotGossip,
   drawGossipAuthor,
@@ -2737,7 +2739,15 @@ async function crossSlotBoundary(): Promise<void> {
     }
   }
   // Filed under the slot the scene ran in, so before the clock moves on.
-  useGameStore.getState().commitSceneToHistory(game.date, game.time)
+  // The encounter is filed with who of the cast took in the whole scene, off the acts the ledger
+  // reported and who had left by the end; both are read here and never recomputed later.
+  useGameStore
+    .getState()
+    .commitSceneToHistory(
+      game.date,
+      game.time,
+      castWhoSawAll(useGameStore.getState().cast, sceneLeavers(), ledgerActs(ledger, false))
+    )
   // Stamped with the finishing slot and before the cast clears below: the ask-out roll reads it
   // after a reload. An empty cast is recorded too.
   useGameStore.getState().recordLastSlotCast()

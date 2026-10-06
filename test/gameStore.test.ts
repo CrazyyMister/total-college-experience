@@ -981,7 +981,7 @@ describe('editLogLine', () => {
 describe('commitSceneToHistory', () => {
   it('keeps the other slot of the same day', () => {
     useGameStore.setState({ sceneSummary: 'Night.', history: { 3: { 0: 'Day.' } } })
-    useGameStore.getState().commitSceneToHistory(3, 1)
+    useGameStore.getState().commitSceneToHistory(3, 1, [])
     expect(useGameStore.getState().history[3]).toEqual({ 0: 'Day.', 1: 'Night.' })
   })
 
@@ -998,10 +998,87 @@ describe('commitSceneToHistory', () => {
         calendarEvent({ id: 'e3', date: 3, time: 1, title: 'Study', noShow: [] })
       ]
     })
-    useGameStore.getState().commitSceneToHistory(3, 1)
+    useGameStore.getState().commitSceneToHistory(3, 1, [])
     expect(useGameStore.getState().history[3]?.[1]).toBe(
       "He stayed in. The reader didn't show up for Dinner with Sarah."
     )
+  })
+})
+
+describe('commitSceneToHistory and encounters', () => {
+  function inScene(over: Partial<ReturnType<typeof useGameStore.getState>> = {}): void {
+    useGameStore.setState({
+      sceneSummary: 'They talked.',
+      cast: ['a', 'b'],
+      sceneLocation: 'kendall_library',
+      ...over
+    })
+  }
+
+  it('files the encounter beside the history line, with the cast, the place and who saw', () => {
+    inScene()
+    useGameStore.getState().commitSceneToHistory(3, 1, ['a'])
+    expect(useGameStore.getState().history[3]?.[1]).toBe('They talked.')
+    expect(useGameStore.getState().encounters[3]?.[1]).toEqual({
+      who: ['a', 'b'],
+      saw: ['a'],
+      where: 'kendall_library',
+      summary: 'They talked.'
+    })
+  })
+
+  it('keeps the stood-up lines apart in the encounter and joined in the history', () => {
+    inScene({
+      characters: charactersById(character({ charId: 'z', firstName: 'Mina' })),
+      events: [calendarEvent({ id: 'e1', date: 3, time: 1, title: 'Dinner', noShow: ['z'] })]
+    })
+    useGameStore.getState().commitSceneToHistory(3, 1, ['a', 'b'])
+    expect(useGameStore.getState().encounters[3]?.[1]?.absent).toBe(
+      "The reader didn't show up for Dinner with Mina."
+    )
+    expect(useGameStore.getState().history[3]?.[1]).toBe(
+      "They talked. The reader didn't show up for Dinner with Mina."
+    )
+  })
+
+  it('files nothing for a scene with nobody in it, and still the history line', () => {
+    inScene({ cast: [] })
+    useGameStore.getState().commitSceneToHistory(3, 1, [])
+    expect(useGameStore.getState().history[3]?.[1]).toBe('They talked.')
+    expect(useGameStore.getState().encounters).toEqual({})
+  })
+
+  it('replaces the slot on a replayed boundary rather than filing it twice', () => {
+    inScene()
+    useGameStore.getState().commitSceneToHistory(3, 1, ['a'])
+    useGameStore.getState().commitSceneToHistory(3, 1, ['a'])
+    expect(Object.keys(useGameStore.getState().encounters)).toEqual(['3'])
+    expect(Object.keys(useGameStore.getState().encounters[3] ?? {})).toEqual(['1'])
+    expect(useGameStore.getState().encounters[3]?.[1]?.who).toEqual(['a', 'b'])
+  })
+
+  it('writes them to the save, and omits the field while there are none', () => {
+    expect('encounters' in useGameStore.getState().toGameSave()).toBe(false)
+    inScene()
+    useGameStore.getState().commitSceneToHistory(3, 1, ['a'])
+    const save = JSON.parse(JSON.stringify(useGameStore.getState().toGameSave())) as GameSave
+    expect(save.encounters?.[3]?.[1]?.saw).toEqual(['a'])
+
+    useGameStore.getState().reset()
+    useGameStore.getState().loadSave(save, playthroughRecord(), {})
+    expect(useGameStore.getState().encounters).toEqual(save.encounters)
+  })
+
+  it('loads a save from before encounters with none, and the history untouched', () => {
+    inScene()
+    useGameStore.getState().commitSceneToHistory(3, 1, ['a'])
+    const save = JSON.parse(JSON.stringify(useGameStore.getState().toGameSave())) as GameSave
+    delete save.encounters
+
+    useGameStore.getState().reset()
+    useGameStore.getState().loadSave(save, playthroughRecord(), {})
+    expect(useGameStore.getState().encounters).toEqual({})
+    expect(useGameStore.getState().history[3]?.[1]).toBe('They talked.')
   })
 })
 

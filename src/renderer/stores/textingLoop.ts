@@ -749,6 +749,7 @@ function textingRequestOf(
       charInfo: game.charInfo,
       npcRelationships: game.npcRelationships,
       npcRomance: game.npcRomance,
+      encounters: game.encounters,
       classes: game.classes,
       playerSchedule: game.playerSchedule,
       playerJob: game.job,

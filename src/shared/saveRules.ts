@@ -50,6 +50,7 @@ const SAVE_REQUIRED: Record<
     | 'readerPosts'
     | 'bio'
     | 'tallies'
+    | 'encounters'
     | 'thumbnail'
   >,
   true

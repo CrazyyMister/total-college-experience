@@ -3,7 +3,7 @@ import { rumorPass, upsertJealousyMemory, type RumorPassOutcome } from '@shared/
 import type { CharInfo, Gender, LedgerResponse, TimeSlot } from '@shared/types'
 import { stageContextOf, useGameStore } from '../gameStore'
 import { ledgerActs } from '../sceneSanitizer'
-import { stageAt } from '../stageStep'
+import { stageAt, type StageFacts } from '../stageStep'
 import { charHiddenLocationNow, charUnavailableNow } from '../timetable'
 
 /** What the campus saw, where it meets the store. */
@@ -35,6 +35,21 @@ function groupmatesNow(date: number, time: TimeSlot): Record<string, string[]> {
   return groupmates
 }
 
+/** The stage the scene's lines leave behind, read and queued alike. */
+function sceneStageNow(): StageFacts {
+  const game = useGameStore.getState()
+  return stageAt([...game.sceneLog, ...game.pendingLines], stageContextOf(game))
+}
+
+/**
+ * Whoever left the scene before it ended: those whose absence became a departure and those still
+ * off the stage when it ended, who had not been gone long enough to count as one.
+ */
+export function sceneLeavers(): string[] {
+  const { departed, offStage } = sceneStageNow()
+  return [...new Set([...departed, ...Object.keys(offStage)])]
+}
+
 /**
  * Rolls what the hour was seen to be — who watched the reader with whom, who they told, what
  * it cost him and what has expired — and returns it, writing nothing.
@@ -60,7 +75,7 @@ export function rollRumorPass(
     cast: game.cast,
     // The scene's departures as written, read and queued alike, so a rewind that stepped back
     // across one cannot un-settle it.
-    departed: stageAt([...game.sceneLog, ...game.pendingLines], stageContextOf(game)).departed,
+    departed: sceneStageNow().departed,
     roster: game.chars,
     charInfo,
     npcRelationships: game.npcRelationships,

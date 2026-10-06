@@ -325,6 +325,7 @@ export function promptState(): PromptState {
     charInfo: game.charInfo,
     npcRelationships: game.npcRelationships,
     npcRomance: game.npcRomance,
+    encounters: game.encounters,
     // Everyone the scene is not carrying — `game.cast`, not the departed-filtered list, or a
     // character who walked out comes back as a lorebook paragraph.
     roster: game.chars
