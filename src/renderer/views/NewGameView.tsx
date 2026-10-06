@@ -5,7 +5,7 @@ import { EMOTIONS } from '@shared/emotions'
 import { DEFAULT_PLAYER_STATS, type PlayerStats } from '@shared/playerStats'
 import { STARTING_MONEY } from '@shared/money'
 import { emptyTallies } from '@shared/tallies'
-import { placeNpcShifts, rollFreshmanJobStart, rollJobClosures } from '@shared/jobs'
+import { jobDefOf, placeNpcShifts, rollFreshmanJobStart, rollJobClosures } from '@shared/jobs'
 import { rollSemesterWeather } from '@shared/weather'
 import { COURSES, courseOf } from '@shared/courses'
 import { canBeEx, exSeedOf } from '@shared/exGirlfriend'
@@ -28,6 +28,7 @@ import {
   type FeedAssignment,
   type HiddenScheduleAssignment,
   type JobAssignment,
+  type LeftOutEntry,
   type Occasion,
   type Result,
   type ShiftSlot,
@@ -43,7 +44,11 @@ import { slotHalf } from '../prompts/gameDate'
 import { MOOD_CYCLE_LENGTH } from '../prompts/moods'
 import { dryOccasionDates } from '../prompts/weather'
 import { type ScheduleResult } from '../stores/classScheduler'
-import { buildHiddenSchedules, type HiddenScheduleInput } from '../stores/hiddenScheduler'
+import {
+  buildHiddenSchedules,
+  leftOutLine,
+  type HiddenScheduleInput
+} from '../stores/hiddenScheduler'
 import { enterGame } from '../stores/gameLoop'
 import { useGameStore } from '../stores/gameStore'
 import {
@@ -628,6 +633,7 @@ export function NewGameView(): JSX.Element {
      */
     const charJobs: Record<string, CharJob> = {}
     const takenShifts: Record<string, ShiftSlot[]> = {}
+    const jobsLeftOut: Record<string, LeftOutEntry> = {}
     for (const character of shuffle(roster)) {
       const assignment = jobs[character.charId]
       if (!assignment) continue
@@ -638,6 +644,13 @@ export function NewGameView(): JSX.Element {
         jobClosures,
         takenShifts[assignment.jobId] ?? []
       )
+      if (shifts.length < assignment.count) {
+        jobsLeftOut[character.charId] = {
+          kind: 'job',
+          place: jobDefOf(assignment.jobId)?.locationId ?? assignment.jobId,
+          reason: shifts.length === 0 ? 'no_shift' : 'short_shifts'
+        }
+      }
       if (shifts.length === 0) continue
       takenShifts[assignment.jobId] = [...(takenShifts[assignment.jobId] ?? []), ...shifts]
       charJobs[character.charId] = {
@@ -650,7 +663,7 @@ export function NewGameView(): JSX.Element {
     }
 
     // Last of the three scheduling passes, since it deals around both the others.
-    const hiddenSchedules = buildHiddenSchedules(
+    const deal = buildHiddenSchedules(
       Object.fromEntries(
         roster.flatMap((c) => {
           const assignment = haunts[c.charId]
@@ -663,6 +676,34 @@ export function NewGameView(): JSX.Element {
           return [[c.charId, input] as const]
         })
       )
+    )
+
+    const hiddenSchedules = deal.weeks
+    // Her shifts and her haunts that found no place, and a week with nothing in it at all.
+    const leftOuts: Record<string, LeftOutEntry[]> = Object.fromEntries(
+      roster.map((c) => {
+        const week = hiddenSchedules[c.charId]
+        const entries: LeftOutEntry[] = [
+          ...(jobsLeftOut[c.charId] ? [jobsLeftOut[c.charId]] : []),
+          ...(deal.leftOut[c.charId] ?? []),
+          ...(!week || Object.keys(week).length === 0
+            ? [{ kind: 'week', place: '', reason: 'nowhere' } as const]
+            : [])
+        ]
+        return [c.charId, entries]
+      })
+    )
+    let leftOutCount = 0
+    for (const c of roster) {
+      const entries = leftOuts[c.charId]
+      if (entries.length === 0) continue
+      leftOutCount += entries.length
+      console.warn(
+        `[haunts] ${c.firstName} ${c.lastName}: ${entries.map(leftOutLine).join('; ')}.`
+      )
+    }
+    console.log(
+      `[haunts] ${roster.length} weeks dealt; ${leftOutCount} thing${leftOutCount === 1 ? '' : 's'} left out.`
     )
 
     // One shuffled permutation of the cycle, dealt out one each, so no two start in phase.
@@ -700,6 +741,7 @@ export function NewGameView(): JSX.Element {
             ...(hiddenSchedule && Object.keys(hiddenSchedule).length > 0
               ? { hiddenSchedule }
               : {}),
+            leftOut: leftOuts[c.charId],
             ...(feeds[c.charId] ? { handle: feeds[c.charId].handle } : {}),
             // Written for everybody; whether she goes is March's to decide.
             ...(springBreakPlans[c.charId]

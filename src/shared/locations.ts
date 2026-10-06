@@ -47,6 +47,8 @@ export interface LocationDef {
    * it is open every half of every day. Read through {@link isLocationOpen}.
    */
   hours?: readonly ShiftSlot[]
+  /** How many characters the weekly deal may place here in one slot; absent, one. */
+  capacity?: number
 }
 
 /** The night half of every day. */
@@ -66,14 +68,16 @@ export const LOCATIONS: readonly LocationDef[] = [
     blurb: 'a student center with a tutoring office, app-booked study pods and a food court',
     icon: '🏛️',
     onCampus: true,
-    closesWithUniversity: true
+    closesWithUniversity: true,
+    capacity: 2
   },
   {
     id: 'apogee_club',
     label: 'Club Apogee',
     blurb: 'an expensive nightclub at the top of a Promenade skyscraper',
     icon: '🪩',
-    hours: TUESDAY_TO_SATURDAY_NIGHTS
+    hours: TUESDAY_TO_SATURDAY_NIGHTS,
+    capacity: 2
   },
   {
     id: 'bobbys_diner',
@@ -92,7 +96,8 @@ export const LOCATIONS: readonly LocationDef[] = [
     id: 'cutetea',
     label: 'CuteTea',
     blurb: 'a campus-favorite bubble tea shop with borrow-able board games',
-    icon: '🧋'
+    icon: '🧋',
+    capacity: 2
   },
   {
     id: 'eastern_buffet',
@@ -139,7 +144,8 @@ export const LOCATIONS: readonly LocationDef[] = [
     label: 'Lumiere Fusion',
     blurb: 'a reservations-only fine dining restaurant',
     icon: '🍽️',
-    hours: NIGHTS_AND_WEEKEND_DAYS
+    hours: NIGHTS_AND_WEEKEND_DAYS,
+    capacity: 2
   },
   {
     id: 'palaestra_stadium',
@@ -167,14 +173,16 @@ export const LOCATIONS: readonly LocationDef[] = [
     id: 'spring_mart',
     label: 'SpringMart',
     blurb: "a one-stop groceries and everyday goods shop unique to Veridan",
-    icon: '🛒'
+    icon: '🛒',
+    capacity: 3
   },
   {
     id: 'stalestein_bar',
     label: 'Stalestein Bar',
     blurb: 'a grungy underground dive bar with a small stage',
     icon: '🍺',
-    hours: EVERY_NIGHT
+    hours: EVERY_NIGHT,
+    capacity: 2
   },
   {
     id: 'thorne_auditorium',
@@ -294,6 +302,11 @@ export function locationDefOf(id: string): LocationDef | undefined {
 export function isLocationOpen(locationId: string, slot: number): boolean {
   const hours = locationDefOf(locationId)?.hours
   return !hours || hours.includes(slot as ShiftSlot)
+}
+
+/** How many characters the weekly deal may place at a place in one slot. */
+export function locationCapacity(locationId: string): number {
+  return locationDefOf(locationId)?.capacity ?? 1
 }
 
 /** What a location is called in the one sentence that prints it; an unknown id answers itself. */

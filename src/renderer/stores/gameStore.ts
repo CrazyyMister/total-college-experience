@@ -1118,6 +1118,7 @@ const PROFILE_KEYS: Record<keyof CharProfile, true> = {
   major: true,
   schedule: true,
   hiddenSchedule: true,
+  leftOut: true,
   moodCycleOffset: true,
   handle: true,
   springBreakPlans: true

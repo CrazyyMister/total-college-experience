@@ -1,8 +1,20 @@
 import { classSlotForShift, jobDefOf, SHIFT_SLOTS } from '@shared/jobs'
-import { GROCERY_LOCATION, isLocationOpen, ROOM_LOCATION } from '@shared/locations'
+import {
+  GROCERY_LOCATION,
+  isLocationOpen,
+  locationCapacity,
+  locationLabel,
+  ROOM_LOCATION
+} from '@shared/locations'
 import { shuffle } from '@shared/shuffle'
-import type { CharJob, Haunt, ShiftSlot } from '@shared/types'
-import type { HiddenScheduleAssignment } from '@shared/types'
+import type {
+  CharJob,
+  Haunt,
+  HiddenScheduleAssignment,
+  LeftOutEntry,
+  LeftOutReason,
+  ShiftSlot
+} from '@shared/types'
 
 /** Deals every character's standing haunts into the week. */
 
@@ -17,23 +29,55 @@ export interface HiddenScheduleInput extends HiddenScheduleAssignment {
 /** Keyed by charId, each a sparse `ShiftSlot` → the haunt she keeps in it. */
 export type HiddenScheduleResult = Record<string, Record<number, Haunt>>
 
-/** One deal. `inputs` is keyed by charId; the order served is shuffled per pass. */
-export function buildHiddenSchedules(
-  inputs: Record<string, HiddenScheduleInput>
-): HiddenScheduleResult {
+/** One deal: every character's week, and what each week could not place, both keyed by charId. */
+export interface HiddenScheduleDeal {
+  weeks: HiddenScheduleResult
+  leftOut: Record<string, LeftOutEntry[]>
+}
+
+/** What the log and the F9 say of one thing the deal could not place. */
+export function leftOutLine(entry: LeftOutEntry): string {
+  if (entry.kind === 'week') return 'nothing placed in her whole week'
+  const place = locationLabel(entry.place)
+  switch (entry.reason) {
+    case 'busy':
+      return `${entry.kind} at ${place}: no free period left in her week`
+    case 'closed':
+      return `${entry.kind} at ${place}: shut in every period she was free`
+    case 'full':
+      return `${entry.kind} at ${place}: full in every period she was free`
+    case 'no_shift':
+      return `shifts at ${place}: none fit her classes and the closures`
+    case 'short_shifts':
+      return `shifts at ${place}: fewer fit than the profile asked for`
+    default:
+      return `${entry.kind} at ${place}`
+  }
+}
+
+/**
+ * One deal. `inputs` is keyed by charId; the order served is shuffled per pass. A place takes as
+ * many characters in a slot as its capacity allows, and whatever a character's week could not
+ * place comes back beside it with the reason.
+ */
+export function buildHiddenSchedules(inputs: Record<string, HiddenScheduleInput>): HiddenScheduleDeal {
   const charIds = Object.keys(inputs)
   const result: HiddenScheduleResult = {}
-  for (const charId of charIds) result[charId] = {}
+  const leftOut: Record<string, LeftOutEntry[]> = {}
+  for (const charId of charIds) {
+    result[charId] = {}
+    leftOut[charId] = []
+  }
 
-  /** Which locations are already spoken for, per slot. Shifts go in first. */
-  const occupancy = new Map<number, Set<string>>()
+  /** How many characters are already spoken for at each location, per slot. Shifts go in first. */
+  const occupancy = new Map<number, Map<string, number>>()
   const occupy = (slot: number, location: string): void => {
-    const held = occupancy.get(slot)
-    if (held) held.add(location)
-    else occupancy.set(slot, new Set([location]))
+    const held = occupancy.get(slot) ?? new Map<string, number>()
+    held.set(location, (held.get(location) ?? 0) + 1)
+    occupancy.set(slot, held)
   }
   const isFree = (slot: number, location: string): boolean =>
-    !occupancy.get(slot)?.has(location)
+    (occupancy.get(slot)?.get(location) ?? 0) < locationCapacity(location)
 
   for (const charId of charIds) {
     const job = inputs[charId].job
@@ -55,17 +99,20 @@ export function buildHiddenSchedules(
   }
 
   /**
-   * Places one haunt on one character's week, or gives up on it. `exclusive`
-   * is off for a room, which nobody else can be in anyway.
+   * Places one haunt on one character's week, or gives up on it and says why. `exclusive`
+   * is off for a room, which has no limit.
    */
   const place = (charId: string, haunt: Haunt, exclusive = true): void => {
     const busy = busySlots(charId)
-    const pool = SHIFT_SLOTS.filter((slot) => {
-      if (busy.has(slot)) return false
-      if (!isLocationOpen(haunt.location, slot)) return false
-      return !exclusive || isFree(slot, haunt.location)
-    })
-    if (pool.length === 0) return
+    const free = SHIFT_SLOTS.filter((slot) => !busy.has(slot))
+    const open = free.filter((slot) => isLocationOpen(haunt.location, slot))
+    const pool = open.filter((slot) => !exclusive || isFree(slot, haunt.location))
+    if (pool.length === 0) {
+      const reason: LeftOutReason =
+        free.length === 0 ? 'busy' : open.length === 0 ? 'closed' : 'full'
+      leftOut[charId].push({ kind: haunt.kind, place: haunt.location, reason })
+      return
+    }
     const slot = shuffle(pool)[0] as ShiftSlot
     result[charId][slot] = haunt
     if (exclusive) occupy(slot, haunt.location)
@@ -99,5 +146,5 @@ export function buildHiddenSchedules(
     }
   }
 
-  return result
+  return { weeks: result, leftOut }
 }

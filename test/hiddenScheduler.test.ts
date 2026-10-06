@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { classSlotForShift, jobDefOf } from '@shared/jobs'
-import { GROCERY_LOCATION, locationDefOf, ROOM_LOCATION } from '@shared/locations'
+import {
+  GROCERY_LOCATION,
+  locationCapacity,
+  locationDefOf,
+  ROOM_LOCATION
+} from '@shared/locations'
 import type { CharJob, Haunt, ShiftSlot } from '@shared/types'
 import {
-  buildHiddenSchedules,
+  buildHiddenSchedules as dealWeeks,
   type HiddenScheduleInput
 } from '../src/renderer/stores/hiddenScheduler'
 
@@ -14,6 +19,13 @@ import {
  */
 
 const RUNS = 60
+
+/** The weeks of one deal, without what it left out. */
+function buildHiddenSchedules(
+  inputs: Record<string, HiddenScheduleInput>
+): Record<string, Record<number, Haunt>> {
+  return dealWeeks(inputs).weeks
+}
 
 /** Six characters, no classes and no jobs unless a case adds them. */
 function inputs(over: Record<string, Partial<HiddenScheduleInput>> = {}): Record<string, HiddenScheduleInput> {
@@ -59,15 +71,16 @@ function placements(
 }
 
 describe('buildHiddenSchedules', () => {
-  it('never puts two characters in one place at one hour', () => {
+  it('never puts more characters in one place at one hour than its capacity', () => {
     for (let run = 0; run < RUNS; run++) {
       const result = buildHiddenSchedules(inputs())
-      const seen = new Set<string>()
+      const seen = new Map<string, number>()
       for (const { slot, location } of placements(result)) {
         if (location === ROOM_LOCATION) continue
         const key = `${slot}:${location}`
-        expect(seen.has(key), key).toBe(false)
-        seen.add(key)
+        const held = (seen.get(key) ?? 0) + 1
+        expect(held, key).toBeLessThanOrEqual(locationCapacity(location))
+        seen.set(key, held)
       }
     }
   })
@@ -184,5 +197,84 @@ describe('buildHiddenSchedules', () => {
       )
       expect(rooms).toHaveLength(3)
     }
+  })
+})
+
+/** Five characters whose only free period is Monday day, each wanting the one haunt given. */
+function oneFreePeriod(haunt: Partial<HiddenScheduleInput>): Record<string, HiddenScheduleInput> {
+  const schedule: Record<number, string> = {}
+  for (const slot of [1, 2, 3, 4, 5, 6, 7, 8, 9]) schedule[slot] = 'BIO 210'
+  const job: CharJob = { jobId: 'fast_eats', shifts: [10, 11, 12, 13] }
+  return Object.fromEntries(
+    Array.from({ length: 5 }, (_, i) => [
+      `c${i}`,
+      {
+        homeSlots: 0,
+        study: null,
+        fun: [],
+        activity: null,
+        meal: null,
+        schedule,
+        job,
+        ...haunt
+      } satisfies HiddenScheduleInput
+    ])
+  )
+}
+
+describe('buildHiddenSchedules capacity and what it leaves out', () => {
+  it('fills a place up to its capacity and reports the rest as full', () => {
+    // Everybody is free only in slot 0, and each asks for the weekly run to the SpringMart.
+    const deal = dealWeeks(oneFreePeriod({}))
+    const ids = Object.keys(deal.weeks)
+    const placed = ids.filter((id) => deal.weeks[id][0]?.location === GROCERY_LOCATION)
+    expect(locationCapacity(GROCERY_LOCATION)).toBe(3)
+    expect(placed).toHaveLength(3)
+    const left = ids.filter((id) => !placed.includes(id))
+    expect(left).toHaveLength(2)
+    for (const id of left) {
+      expect(deal.leftOut[id]).toEqual([{ kind: 'grocery', place: GROCERY_LOCATION, reason: 'full' }])
+    }
+    for (const id of placed) expect(deal.leftOut[id]).toEqual([])
+  })
+
+  it('keeps a place with no capacity of its own to one character', () => {
+    const deal = dealWeeks(oneFreePeriod({ study: 'kendall_library' }))
+    const placed = Object.values(deal.weeks).filter((week) => week[0]?.location === 'kendall_library')
+    expect(locationCapacity('kendall_library')).toBe(1)
+    expect(placed).toHaveLength(1)
+  })
+
+  it('says why: no free period, a place shut in every free one, or a full one', () => {
+    // Her week is nothing but classes and shifts.
+    const schedule: Record<number, string> = {}
+    for (const slot of [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]) schedule[slot] = 'BIO 210'
+    const busy = dealWeeks({
+      busy: {
+        homeSlots: 1,
+        study: null,
+        fun: ['btb_arcade'],
+        activity: null,
+        meal: null,
+        schedule,
+        job: { jobId: 'fast_eats', shifts: [10, 11, 12, 13] }
+      }
+    })
+    expect(busy.leftOut.busy).toEqual([
+      { kind: 'fun', place: 'btb_arcade', reason: 'busy' },
+      { kind: 'grocery', place: GROCERY_LOCATION, reason: 'busy' },
+      { kind: 'room', place: ROOM_LOCATION, reason: 'busy' }
+    ])
+
+    // Free only in Monday day, and the club opens Tuesday to Saturday nights.
+    const closed = dealWeeks(oneFreePeriod({ fun: ['apogee_club'] }))
+    expect(closed.leftOut.c0.filter((entry) => entry.kind === 'fun')).toEqual([
+      { kind: 'fun', place: 'apogee_club', reason: 'closed' }
+    ])
+  })
+
+  it('reports nothing for a week that placed everything it was asked', () => {
+    const deal = dealWeeks(inputs())
+    for (const id of Object.keys(deal.leftOut)) expect(deal.leftOut[id]).toEqual([])
   })
 })

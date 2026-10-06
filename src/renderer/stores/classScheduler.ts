@@ -91,6 +91,8 @@ export function buildSchedules(
   const fillerPool = slotted.filter((entry) => fillerPoolOf(entry, playerCourse) !== null)
 
   const perChar: Record<string, CharSchedule> = {}
+  /** Classes the filler loop could not seat, over the whole roster. */
+  let shortBy = 0
 
   for (const character of shuffle(roster)) {
     const key = charKeyOf(character.firstName, character.lastName)
@@ -150,6 +152,7 @@ export function buildSchedules(
       if (!pick || !seat(pick)) break
       lastPool = fillerPoolOf(pick, playerCourse)
     }
+    shortBy += Math.max(0, profile.classesTaken - Object.keys(schedule).length)
 
     perChar[character.charId] = {
       year: profile.year,
@@ -157,6 +160,10 @@ export function buildSchedules(
       major: profile.major,
       schedule
     }
+  }
+
+  if (shortBy > 0) {
+    console.warn(`[classes] the filler loop left ${shortBy} class load unseated across the roster.`)
   }
 
   // A class nobody enrolled in is invisible to the game, so it is not saved — unless it is the

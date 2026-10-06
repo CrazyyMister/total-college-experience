@@ -24,6 +24,7 @@ import {
   romanceEventLog,
   romanceSectionOf
 } from '../stores/npcRomanceDebug'
+import { leftOutLine } from '../stores/hiddenScheduler'
 import { formatShortGameDate } from '../prompts/gameDate'
 import { gestures, lift, panelUnderTab, press, veilIn } from './motion'
 import '../vu_styles/NpcRomanceDebug.css'
@@ -73,6 +74,13 @@ function sectionsOf(): DebugSection[] {
     wingman = []
   } = game.npcRomance
   const leak = pendingGossipLeak()
+  const recorded = game.chars.some((charId) => game.charInfo[charId]?.leftOut !== undefined)
+  const leftOutRows: DebugRow[] = game.chars.flatMap((charId) => {
+    const entries = game.charInfo[charId]?.leftOut ?? []
+    return entries.length === 0
+      ? []
+      : [{ key: charId, who: name(charId), facts: entries.map(leftOutLine).join(' · ') }]
+  })
 
   return [
     {
@@ -93,6 +101,15 @@ function sectionsOf(): DebugSection[] {
           }${info?.nameKnown ? '' : ' · name not known'}`
         }
       })
+    },
+    {
+      title: 'Left out of the week',
+      wide: true,
+      rows: !recorded
+        ? [{ key: 'none', who: 'No record', facts: 'This game was dealt before the week kept it.' }]
+        : leftOutRows.length > 0
+          ? leftOutRows
+          : [{ key: 'none', who: 'Nothing left out', facts: 'The deal placed every haunt and shift.' }]
     },
     {
       title: 'Facts',

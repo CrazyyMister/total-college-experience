@@ -718,6 +718,18 @@ export type CrushHint = { stat: StatKey; tier: StatTier } | { met: true }
 /** What a standing haunt is for: the menu it was dealt from. */
 export type HauntKind = 'fun' | 'study' | 'activity' | 'meal' | 'grocery' | 'room'
 
+/** Why the weekly deal could not place something: no free period of hers, the place shut in all of them, or the place full in all of them. */
+export type LeftOutReason = 'busy' | 'closed' | 'full' | 'no_shift' | 'short_shifts' | 'nowhere'
+
+/** One thing a character's week could not place: a haunt, her shifts, or the whole week. */
+export interface LeftOutEntry {
+  /** The haunt's kind, `'job'` for the shifts her profile asked for, `'week'` for a week with nothing in it. */
+  kind: HauntKind | 'job' | 'week'
+  /** The location id that was wanted; empty for a week with nothing in it. */
+  place: string
+  reason: LeftOutReason
+}
+
 /** One slot of a character's week: where she is and why she is there. */
 export interface Haunt {
   /** A location id (`shared/locations.ts`) or `'room'`. */
@@ -737,6 +749,11 @@ export interface CharProfile extends CharSchedule {
    * {@link ShiftSlot} to a {@link Haunt}.
    */
   hiddenSchedule?: Record<number, Haunt>
+  /**
+   * What New Game's weekly deal could not place for her, empty when it placed everything; absent
+   * on a save from before the deal kept the account.
+   */
+  leftOut?: LeftOutEntry[]
   /**
    * Where she starts in the thirty-day mood cycle (`prompts/moods.ts`), rolled at New Game as
    * one draw from a shuffled permutation so no two of the roster share a day.
