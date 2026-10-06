@@ -28,10 +28,22 @@
   pointer-events: none;
 }
 
+/* One of the screen's two steps: the header and what stands under it. It takes the height the
+   foot leaves, so the setup's column has a box to scroll in; the foot is the screen's own and
+   stands under whichever step is up. */
+.vu-newgame-step {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 24px;
+  min-height: 0;
+}
+
 /* One geometry, worn by the archway and by the two layers that duplicate it. **The box and
    the shape are two elements**, because the doorway breathes where it stands and swells when
-   the pointer lands on Start, and both of those are `scale`: the box wears the idle and the
-   arch inside it wears the gesture, which is the wrapper the Start button already takes for
+   the pointer lands on the foot's button, and both of those are `scale`: the box wears the idle and the
+   arch inside it wears the gesture, which is the wrapper the foot's button already takes for
    the same reason. The two share an anchor and the
    arch fills its box, so the two origins are the same point and a breath about it leaves the
    silhouette exactly where the corner put it.
@@ -63,7 +75,7 @@
   transform-origin: 50% 100%;
 }
 
-/* The wave spreads from the Start button, not from the doorway's own corner: it is the
+/* The wave spreads from the foot's button, not from the doorway's own corner: it is the
    button the player is answering. Same box and same bottom-centre origin, moved so that
    origin lands on the middle of the doubled button — which is anchored to the right edge
    like this is, so the two agree at every stage width. The doorway stands over that spot
@@ -113,7 +125,7 @@
 /* ---- the grid -------------------------------------------------------------- */
 
 /* Six across and two down: all twelve are on screen from the first frame, so the cap is
-   legible before the first pick and nothing here ever scrolls. */
+   legible before the first pick. */
 .vu-newgame-grid {
   position: relative;
   display: grid;
@@ -148,7 +160,7 @@
 
 /* ---- the foot -------------------------------------------------------------- */
 
-/* One control, and the room its doubled state paints into: a transform changes nothing in
+/* One control, the step's answer, and the room its doubled state paints into: a transform changes nothing in
    layout, so the height the button reaches has to be reserved here — 51px at rest, 102
    doubled, and the lean about its own corner drops the far end some 27px below the box,
    with the paper shadow under that again. The screen's own bottom padding is what keeps
@@ -166,26 +178,6 @@
    and press; it grows into the screen from the corner it already sits in. */
 .vu-newgame-start {
   transform-origin: 100% 100%;
-}
-
-/* The ex's control and the course field sit at the far end of the foot from Start, side by
-   side on their bottoms; the foot's height is Start's, so a row this short never grows it. */
-.vu-newgame-extras {
-  display: flex;
-  align-items: flex-end;
-  gap: 24px;
-  margin-right: auto;
-}
-
-/* The ex's control is on the panel-button shape the header's fill button wears; what it says is
-   the choice made, or the offer to make one. */
-.vu-newgame-ex {
-  align-self: flex-end;
-}
-
-/* The course field is as wide as the longest course on the list wants. */
-.vu-newgame-extras .vu-field {
-  min-width: 280px;
 }
 
 /* The ex's panel is capped like every tall modal: the title and the foot stay where they are

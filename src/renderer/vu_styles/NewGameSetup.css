@@ -1,0 +1,51 @@
+/* New Game's second step: a column of cards that scrolls, standing between the header and the
+   foot the roster step shares. The column is the one scroller, and the box around it is what
+   `.vu-scroll-box` makes of it. */
+
+/* Takes the height the step leaves, so the column scrolls where the stage runs out. */
+.vu-gamesetup {
+  flex: 1 1 auto;
+  justify-content: center;
+}
+
+/* The scroller. The top padding is the room a card's title tab overhangs its corner by, and
+   the sides and foot are what the paper shadow and the lean reach — the scroller clips in both
+   axes. */
+.vu-gamesetup-scroll {
+  display: flex;
+  flex: 0 1 920px;
+  flex-direction: column;
+  gap: 76px;
+  min-width: 0;
+  padding: 68px 30px 56px;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+}
+
+/* One section: a reading, so the surface shape, flat right. The tab hangs off its top corner. */
+.vu-gamesetup-card {
+  --paper-offset: 12px 11px;
+  --paper-tilt: -1.2deg;
+  --paper-shadow: var(--vu-panel-shadow);
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 16px;
+  padding: 52px 64px 40px 72px;
+  border-radius: 80px 0 0 80px;
+}
+
+/* The hint is body text under the tab, with no label of its own above it. */
+.vu-gamesetup-card > .vu-field-hint {
+  margin: 0;
+}
+
+/* The ex's control keeps its panel-button width at the card's start rather than stretching. */
+.vu-gamesetup-ex {
+  align-self: flex-start;
+}
+
+/* The foot of the column fades into the screen's ground, not into a panel's surface. */
+.vu-gamesetup .vu-scroll-fade {
+  background: linear-gradient(transparent, var(--vu-ground));
+}

@@ -7,7 +7,7 @@ import { STARTING_MONEY } from '@shared/money'
 import { emptyTallies } from '@shared/tallies'
 import { jobDefOf, placeNpcShifts, rollFreshmanJobStart, rollJobClosures } from '@shared/jobs'
 import { rollSemesterWeather } from '@shared/weather'
-import { COURSES, courseOf } from '@shared/courses'
+import { courseOf } from '@shared/courses'
 import { canBeEx, exSeedOf } from '@shared/exGirlfriend'
 import { initialFlags } from '@shared/relationship'
 import { npcFriendsOf, rollInitialNpcRelationships } from '@shared/npcRelationships'
@@ -39,7 +39,7 @@ import { CardCaption } from '../components/CardCaption'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { ExPickerModal } from './ExPickerModal'
 import { LlmFailureModal } from '../components/LlmFailureModal'
-import { SelectField } from '../components/SelectField'
+import { useWindowKeydown } from '../components/useWindowKeydown'
 import { slotHalf } from '../prompts/gameDate'
 import { MOOD_CYCLE_LENGTH } from '../prompts/moods'
 import { dryOccasionDates } from '../prompts/weather'
@@ -98,6 +98,7 @@ import {
 } from './motion'
 import { BackIcon, ChevronIcon, CloseIcon, DiceIcon } from './screenIcons'
 import { LoadCharacterModal } from './LoadCharacterModal'
+import { NewGameSetup } from './NewGameSetup'
 import { PlayerNameModal } from './PlayerNameModal'
 import '../vu_styles/NewGame.css'
 
@@ -150,6 +151,8 @@ const BACKDROP_IN = fadeIn(0, 0.5)
 const HEADER_IN = fadeIn(0.1)
 const GRID_IN = dealt(0.25, 0.04)
 const FOOT_IN = fadeIn(0.5)
+/** One step of the two goes out and the other comes in. */
+const STEP_IN = fadeIn(0, 0.3)
 
 /** New Game: local roster assembly before Start Game writes the save. */
 export function NewGameView(): JSX.Element {
@@ -178,6 +181,8 @@ export function NewGameView(): JSX.Element {
   }, [])
 
   const [roster, setRoster] = useState<Character[]>(resumed?.characters ?? [])
+  // Which of the screen's two steps is up: the roster, or what he brings to the game beside it.
+  const [step, setStep] = useState<'roster' | 'setup'>('roster')
   // The girl he starts the game with as an ex, picked on this screen and carried by the enrollment.
   const [exChoice, setExChoice] = useState<ExChoice | null>(resumed?.enrollment.ex ?? null)
   const [choosingEx, setChoosingEx] = useState(false)
@@ -404,8 +409,13 @@ export function NewGameView(): JSX.Element {
   const exCharacter = activeEx ? roster.find((c) => c.charId === activeEx.charId) : undefined
 
   // The two gates. Both go dead and say nothing: the roster beside them is what the
-  // player would be reading either way.
-  const startDead = roster.length < ROSTER_SIZE || starting !== null || startFailure !== null
+  // player would be reading either way. The foot's button is the step's one answer: on to the
+  // setup once the roster is full, and the start from there.
+  const rosterFull = roster.length >= ROSTER_SIZE
+  const footDead =
+    step === 'roster'
+      ? !rosterFull
+      : !rosterFull || starting !== null || startFailure !== null
   // His ex is picked before the start and not during it.
   const exDead = starting !== null || startFailure !== null
   const fillDead =
@@ -418,11 +428,24 @@ export function NewGameView(): JSX.Element {
   // list because motion reports no hover *ending* for a control something covered — the
   // arch would be left hanging above the screen with nothing to bring it back.
   const covered = picking || choosingEx || inspecting !== null || warnings !== null
-  const armed = hovering && !startDead && !covered && !still
+  const armed = hovering && !footDead && !covered && !still
 
   useEffect(() => {
-    if (startDead || covered) setHovering(false)
-  }, [startDead, covered])
+    if (footDead || covered) setHovering(false)
+  }, [footDead, covered])
+
+  /** Back from the setup to the roster, with everything chosen kept. */
+  function backToRoster(): void {
+    if (starting !== null || startFailure !== null || sizing || naming || crossing) return
+    setStep('roster')
+  }
+
+  // Escape is the setup's back arrow, never the way out to the menu; the modals over it take
+  // the key first, on the capture phase.
+  useWindowKeydown((event) => {
+    if (event.key !== 'Escape' || step !== 'setup' || covered) return
+    backToRoster()
+  })
 
   // The wave leaves the moment the pointer lands, not when the doorway has finished opening:
   // waiting on the arrival put a beat of nothing between the two. They run together instead,
@@ -454,9 +477,9 @@ export function NewGameView(): JSX.Element {
     if (picked.length > 0) setRoster((prev) => [...prev, ...picked])
   }
 
-  /** Starts the game-entry sequence; a shared first name blocks it. */
-  function startGame(): void {
-    if (roster.length < ROSTER_SIZE) return
+  /** On to the setup; a shared first name on the roster blocks it. */
+  function toSetup(): void {
+    if (!rosterFull) return
 
     if (duplicateKeys.size > 0) {
       setWarnings(
@@ -467,6 +490,13 @@ export function NewGameView(): JSX.Element {
       )
       return
     }
+
+    setStep('setup')
+  }
+
+  /** Starts the game-entry sequence from the setup. */
+  function startGame(): void {
+    if (!rosterFull) return
 
     // The two questions are asked over the generation's wait, heights first; the calls
     // themselves are `stores/newGame.ts`'s.
@@ -964,63 +994,118 @@ export function NewGameView(): JSX.Element {
         </motion.div>
       </motion.div>
 
-      <motion.header
-        className="vu-newgame-header"
-        variants={HEADER_IN}
-        initial="hidden"
-        animate="shown"
-      >
-        <motion.button
-          className="vu-circle vu-newgame-back"
-          aria-label="Main Menu"
-          {...gestures(false, quietLift, quietPress)}
-          onClick={() => setView('mainMenu')}
-        >
-          <BackIcon />
-        </motion.button>
+      {/* The two steps swap in one presence, so the roster is gone before the setup arrives.
+          The decoration and the foot stand outside it and stay. */}
+      <AnimatePresence mode="wait">
+        {step === 'roster' ? (
+          <motion.div
+            key="roster"
+            className="vu-newgame-step"
+            variants={STEP_IN}
+            initial="hidden"
+            animate="shown"
+            exit="gone"
+          >
+            <motion.header
+              className="vu-newgame-header"
+              variants={HEADER_IN}
+              initial="hidden"
+              animate="shown"
+            >
+              <motion.button
+                className="vu-circle vu-newgame-back"
+                aria-label="Main Menu"
+                {...gestures(false, quietLift, quietPress)}
+                onClick={() => setView('mainMenu')}
+              >
+                <BackIcon />
+              </motion.button>
 
-        <div className="vu-title">
-          <h1 className="vu-title-text">New Game</h1>
-        </div>
+              <div className="vu-title">
+                <h1 className="vu-title-text">New Game</h1>
+              </div>
 
-        <span className="vu-newgame-count">
-          {roster.length}/{ROSTER_SIZE} characters
-        </span>
+              <span className="vu-newgame-count">
+                {roster.length}/{ROSTER_SIZE} characters
+              </span>
 
-        <motion.button
-          id="new-game-fill"
-          className="vu-btn vu-btn--outline vu-btn--panel vu-paper vu-newgame-fill"
-          {...gestures(fillDead, lift, press)}
-          disabled={fillDead}
-          onClick={fillRandom}
-        >
-          <DiceIcon pips={5} />
-          Fill empty slots randomly
-        </motion.button>
-      </motion.header>
+              <motion.button
+                id="new-game-fill"
+                className="vu-btn vu-btn--outline vu-btn--panel vu-paper vu-newgame-fill"
+                {...gestures(fillDead, lift, press)}
+                disabled={fillDead}
+                onClick={fillRandom}
+              >
+                <DiceIcon pips={5} />
+                Fill empty slots randomly
+              </motion.button>
+            </motion.header>
 
-      {/* All ROSTER_SIZE tiles are rendered, filled ones first, so the count reads at a glance. */}
-      <motion.ul
-        className="vu-newgame-grid"
-        variants={GRID_IN}
-        initial="hidden"
-        animate="shown"
-      >
-        {Array.from({ length: ROSTER_SIZE }, (_, index) => {
-          const character = roster[index]
-          return character ? (
-            <RosterTile
-              key={character.charId}
-              character={character}
-              duplicate={isDuplicate(character)}
-              onOpen={() => setInspecting(character.charId)}
-              onRemove={() => setRoster((prev) => prev.filter((c) => c.charId !== character.charId))}
+            {/* All ROSTER_SIZE tiles are rendered, filled ones first, so the count reads at a glance. */}
+            <motion.ul
+              className="vu-newgame-grid"
+              variants={GRID_IN}
+              initial="hidden"
+              animate="shown"
+            >
+              {Array.from({ length: ROSTER_SIZE }, (_, index) => {
+                const character = roster[index]
+                return character ? (
+                  <RosterTile
+                    key={character.charId}
+                    character={character}
+                    duplicate={isDuplicate(character)}
+                    onOpen={() => setInspecting(character.charId)}
+                    onRemove={() =>
+                      setRoster((prev) => prev.filter((c) => c.charId !== character.charId))
+                    }
+                  />
+                ) : (
+                  <EmptyTile key={`slot-${index}`} onPick={() => setPicking(true)} />
+                )
+              })}
+            </motion.ul>
+          </motion.div>
+        ) : (
+          <motion.div
+            key="setup"
+            className="vu-newgame-step"
+            variants={STEP_IN}
+            initial="hidden"
+            animate="shown"
+            exit="gone"
+          >
+            <motion.header
+              className="vu-newgame-header"
+              variants={HEADER_IN}
+              initial="hidden"
+              animate="shown"
+            >
+              <motion.button
+                className="vu-circle vu-newgame-back"
+                aria-label="Character select"
+                {...gestures(false, quietLift, quietPress)}
+                onClick={backToRoster}
+              >
+                <BackIcon />
+              </motion.button>
+
+              <div className="vu-title">
+                <h1 className="vu-title-text">Game setup</h1>
+              </div>
+            </motion.header>
+
+            <NewGameSetup
+              exOffered={activeEx !== null || roster.some(canBeEx)}
+              exLabel={exCharacter ? `Ex: ${exCharacter.firstName}` : 'Add an ex'}
+              course={courseChoice}
+              dead={exDead}
+              onOpenEx={() => setChoosingEx(true)}
+              onCourse={setCourseChoice}
             />
-          ) : (
-            <EmptyTile key={`slot-${index}`} onPick={() => setPicking(true)} />
-          )
-        })}
-      </motion.ul>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <motion.footer
         className="vu-newgame-foot"
@@ -1028,53 +1113,24 @@ export function NewGameView(): JSX.Element {
         initial="hidden"
         animate="shown"
       >
-        {/* The two things he may bring to the game besides the roster, at the end of the foot
-            Start is not at. */}
-        <div className="vu-newgame-extras">
-          {/* Absent while nobody on the roster can be his ex and none is chosen. */}
-          {(activeEx || roster.some(canBeEx)) && (
-            <motion.button
-              id="new-game-ex-open"
-              className="vu-btn vu-btn--outline vu-btn--panel vu-paper vu-newgame-ex"
-              {...gestures(exDead, lift, press)}
-              disabled={exDead}
-              onClick={() => setChoosingEx(true)}
-            >
-              {exCharacter ? `Ex: ${exCharacter.firstName}` : 'Add an ex'}
-            </motion.button>
-          )}
-
-          <SelectField
-            id="new-game-course"
-            label="Course"
-            value={courseChoice}
-            onChange={setCourseChoice}
-            disabled={exDead}
-            options={[
-              { value: '', label: 'No course' },
-              ...COURSES.map((course) => ({ value: course, label: course }))
-            ]}
-          />
-        </div>
-
         {/* The wrapper wears the state; the button inside keeps its own lift and press.
             `initial={false}` so a return from the timetable lands already doubled. */}
         <motion.div
           className="vu-newgame-start"
           variants={doubled}
           initial={false}
-          animate={roster.length >= ROSTER_SIZE ? 'double' : 'single'}
+          animate={rosterFull ? 'double' : 'single'}
         >
           <motion.button
-            id="new-game-start"
+            id={step === 'roster' ? 'new-game-setup-open' : 'new-game-start'}
             className="vu-btn vu-btn--primary vu-btn--panel vu-paper"
-            {...gestures(startDead, lift, press)}
-            disabled={startDead}
+            {...gestures(footDead, lift, press)}
+            disabled={footDead}
             onHoverStart={() => setHovering(true)}
             onHoverEnd={() => setHovering(false)}
-            onClick={startGame}
+            onClick={step === 'roster' ? toSetup : startGame}
           >
-            Start game
+            {step === 'roster' ? 'Game setup' : 'Start game'}
             {/* The mark says where the button goes, which is as true of one that cannot go
                 there yet — so it stays whether or not the button is live. */}
             <ChevronIcon />
@@ -1181,7 +1237,7 @@ export function NewGameView(): JSX.Element {
             error={startFailure.error}
             title="Couldn't start the game"
             retryMessage={`Failed: ${andList(startFailure.missing)}.`}
-            cancelText="Back to character select"
+            cancelText="Back to game setup"
             alwaysRetryable
             lockOut
             onRetry={retryStart}
