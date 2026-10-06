@@ -16,6 +16,7 @@ import {
   buildClassPrompt,
   decorateClasses,
   validateClassDraft,
+  type ClassGenAnswer,
   type ClassGenReply
 } from '../prompts/classPrompt'
 import {
@@ -152,7 +153,7 @@ async function sendUntilAnswered<T>(
 
 /** Fetches and validates the save's class catalog. */
 async function fetchClassDraft(current: StartAttempt): Promise<Result<ClassGenReply>> {
-  const generated = await window.api.llm.generateClasses<ClassGenReply>(
+  const generated = await window.api.llm.generateClasses<ClassGenAnswer>(
     current.classRequest,
     NEW_GAME_LLM_GROUP
   )

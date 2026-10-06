@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { appError } from '@shared/errors'
 import { charKeyOf, type Result, type StructuredRequest } from '@shared/types'
-import type { ClassGenReply } from '../src/renderer/prompts/classPrompt'
+import type { ClassGenAnswer } from '../src/renderer/prompts/classPrompt'
 import type { ProfileGenReply } from '../src/renderer/prompts/profilePrompt'
 import { character, restoreApi, stubApi } from './fixtures'
 
@@ -22,7 +22,7 @@ const roster = [character()]
 const key = charKeyOf(roster[0].firstName, roster[0].lastName)
 
 /** A catalog the scheduler accepts: one major course, one interest class. */
-function classReply(): ClassGenReply {
+function classReply(): ClassGenAnswer {
   return {
     classes: [
       {
@@ -33,13 +33,14 @@ function classReply(): ClassGenReply {
         major: 'Culinary Arts'
       }
     ],
-    characters: {
-      [key]: {
+    characters: [
+      {
+        key,
         major: 'Culinary Arts',
         majorClassesTaken: 1,
         interestClass: { code: 'BAK210', name: 'Sourdough', description: 'Starters.' }
       }
-    }
+    ]
   }
 }
 

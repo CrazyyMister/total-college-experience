@@ -63,7 +63,13 @@ interface CharClassDraft extends CharClassReply {
   classesTaken: number
 }
 
-/** This call's whole reply: catalog-side profiles keyed by charKey, plus the flat catalog. */
+/** What the model answers: one record per student in a list, each carrying its charKey, plus the flat catalog. */
+export interface ClassGenAnswer {
+  characters: Array<CharClassReply & { key: string }>
+  classes: ClassDraft[]
+}
+
+/** The answer once folded: catalog-side profiles keyed by charKey, plus the flat catalog. */
 export interface ClassGenReply {
   characters: Record<string, CharClassReply>
   classes: ClassDraft[]
@@ -173,7 +179,13 @@ export function buildClassPrompt(
         ''
       ]
     : []
-  const rest = [...readerCourse, 'STUDENTS', ...cast].join('\n')
+  const rest = [
+    'characters holds one entry per student below, its key exactly as written before their name, in the order listed.',
+    '',
+    ...readerCourse,
+    'STUDENTS',
+    ...cast
+  ].join('\n')
 
   const charSchema = {
     type: 'object',
@@ -186,12 +198,17 @@ export function buildClassPrompt(
     }
   }
 
+  // One item schema in an array costs the same at any roster size, where a property per
+  // student grows with it; left boundless, as the profile call's is.
   const schema = objectSchema('class_schedule', ['characters', 'classes'], {
     characters: {
-      type: 'object',
-      additionalProperties: false,
-      required: keys,
-      properties: Object.fromEntries(keys.map((key) => [key, charSchema]))
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['key', ...charSchema.required],
+        properties: { key: { type: 'string', enum: keys }, ...charSchema.properties }
+      }
     },
     classes: {
       type: 'array',
@@ -239,15 +256,53 @@ export function clamp(value: number, min: number, max: number, what: string): nu
 }
 
 /**
+ * Folds the answer's list of records into one keyed by charKey: a `characters` that is not a
+ * list reads as empty, an entry that is not an object or whose key names nobody on the roster
+ * is dropped, and the first entry for a key wins over any later duplicate.
+ */
+function foldClassReply(
+  answer: ClassGenAnswer,
+  keys: ReadonlySet<string>
+): Record<string, CharClassReply> {
+  const list: unknown = answer?.characters
+  if (!Array.isArray(list)) {
+    console.warn('[classes] characters was not a list; reading it as empty.')
+  }
+  const folded: Record<string, CharClassReply> = {}
+  for (const raw of Array.isArray(list) ? list : []) {
+    if (typeof raw !== 'object' || raw === null) {
+      console.warn('[classes] a characters entry was not an object; skipping it.')
+      continue
+    }
+    const entry = raw as Record<string, unknown>
+    const key = typeof entry.key === 'string' ? entry.key.trim() : ''
+    if (!keys.has(key)) {
+      console.warn(`[classes] a characters entry named the unknown key "${key}"; skipping it.`)
+      continue
+    }
+    if (folded[key]) {
+      console.warn(`[classes] ${key} was enrolled twice; keeping the first.`)
+      continue
+    }
+    folded[key] = entry as unknown as CharClassReply
+  }
+  return folded
+}
+
+/**
  * Validates a reply, renumbers a colliding course code and folds interest classes into the
  * catalog. With the reader's course, the reply must offer it with its classes, and a major that
  * differs from it only in case or spacing is written as the list's own name.
  */
 export function validateClassDraft(
-  draft: ClassGenReply,
+  draft: ClassGenAnswer,
   roster: readonly Character[],
   playerCourse?: string
 ): ClassGenReply {
+  const enrolled = foldClassReply(
+    draft,
+    new Set(roster.map((c) => charKeyOf(c.firstName, c.lastName)))
+  )
   const classes = draft.classes ?? []
   const seen = new Map<string, string>()
 
@@ -308,7 +363,7 @@ export function validateClassDraft(
   const characters: Record<string, CharClassReply> = {}
   for (const character of roster) {
     const key = charKeyOf(character.firstName, character.lastName)
-    const profile = draft.characters?.[key]
+    const profile = enrolled[key]
     if (!profile) invalid(`${fullNameOf(character)} was left unenrolled.`)
 
     const major = snapped((profile.major ?? '').trim(), fullNameOf(character))

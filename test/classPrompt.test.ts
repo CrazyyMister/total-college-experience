@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   buildClassPrompt,
   validateClassDraft,
-  type ClassGenReply
+  type ClassGenAnswer
 } from '../src/renderer/prompts/classPrompt'
 import { freeClassCode } from '../src/shared/classes'
 import { character } from './fixtures'
@@ -17,14 +17,15 @@ describe('validateClassDraft', () => {
   it('renumbers a duplicate catalog code instead of failing the reply', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const roster = [character({ charId: 'char-1', firstName: 'Sarah', lastName: 'Rose' })]
-    const draft: ClassGenReply = {
-      characters: {
-        sarah_rose: {
+    const draft: ClassGenAnswer = {
+      characters: [
+        {
+          key: 'sarah_rose',
           major: 'Biology',
           majorClassesTaken: 2,
           interestClass: { code: 'MUS 150', name: 'Choir', description: 'Singing.' }
         }
-      },
+      ],
       classes: [
         {
           code: 'BIO 210',
@@ -56,14 +57,15 @@ describe('validateClassDraft', () => {
   it('renumbers past an interest class that collides with the catalog', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const roster = [character({ charId: 'char-1', firstName: 'Sarah', lastName: 'Rose' })]
-    const draft: ClassGenReply = {
-      characters: {
-        sarah_rose: {
+    const draft: ClassGenAnswer = {
+      characters: [
+        {
+          key: 'sarah_rose',
           major: 'Biology',
           majorClassesTaken: 2,
           interestClass: { code: 'ART 101', name: 'Pots', description: 'Pots.' }
         }
-      },
+      ],
       classes: [
         {
           code: 'ART 101',
@@ -100,8 +102,8 @@ describe('validateClassDraft', () => {
 })
 
 /** A reply whose one student studies `npcMajor`, with the given number of major classes under each name. */
-function replyWith(npcMajor: string, offered: Record<string, number>): ClassGenReply {
-  const classes: ClassGenReply['classes'] = []
+function replyWith(npcMajor: string, offered: Record<string, number>): ClassGenAnswer {
+  const classes: ClassGenAnswer['classes'] = []
   for (const [major, count] of Object.entries(offered)) {
     for (let i = 0; i < count; i++) {
       classes.push({
@@ -115,16 +117,122 @@ function replyWith(npcMajor: string, offered: Record<string, number>): ClassGenR
     }
   }
   return {
-    characters: {
-      sarah_rose: {
+    characters: [
+      {
+        key: 'sarah_rose',
         major: npcMajor,
         majorClassesTaken: 2,
         interestClass: { code: 'MUS 150', name: 'Choir', description: 'Singing.' }
       }
-    },
+    ],
     classes
   }
 }
+
+/** One student's entry as the model would write it. */
+function entry(key: string, major: string, interestCode: string): ClassGenAnswer['characters'][number] {
+  return {
+    key,
+    major,
+    majorClassesTaken: 2,
+    interestClass: { code: interestCode, name: `${interestCode} class`, description: 'Something.' }
+  }
+}
+
+/** The failure a refused reply throws: an `AppError` carrying the reason in its detail. */
+function refusal(run: () => unknown): { code: string; detail?: string } {
+  try {
+    run()
+  } catch (err) {
+    return err as { code: string; detail?: string }
+  }
+  throw new Error('the reply was not refused')
+}
+
+describe('validateClassDraft folding the list of students', () => {
+  const roster = [
+    character({ charId: 'char-1', firstName: 'Sarah', lastName: 'Rose' }),
+    character({ charId: 'char-2', firstName: 'Mia', lastName: 'Kane' })
+  ]
+  const bio = (code: string): ClassGenAnswer['classes'][number] => ({
+    code,
+    name: `Biology ${code}`,
+    description: 'Cells.',
+    category: 'major',
+    major: 'Biology',
+    kind: 'lecture'
+  })
+  const catalog = [bio('BIO 1'), bio('BIO 2'), bio('BIO 3'), bio('BIO 4')]
+
+  it('keeps the first entry of a key over a later one, and files only that one’s interest class', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const out = validateClassDraft(
+      {
+        characters: [
+          entry('sarah_rose', 'Biology', 'MUS 150'),
+          entry('mia_kane', 'Biology', 'ART 101'),
+          entry('sarah_rose', 'Biology', 'DAN 200')
+        ],
+        classes: catalog
+      },
+      roster
+    )
+    expect(out.characters.sarah_rose.interestClass.code).toBe('MUS 150')
+    expect(out.classes.filter((c) => c.category === 'interest').map((c) => c.owner)).toEqual([
+      'sarah_rose',
+      'mia_kane'
+    ])
+    warn.mockRestore()
+  })
+
+  it('never turns an item that is not a roster student into a student', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const out = validateClassDraft(
+      {
+        characters: [
+          entry('sarah_rose', 'Biology', 'MUS 150'),
+          entry('mia_kane', 'Biology', 'ART 101'),
+          entry('nobody_here', 'Biology', 'DAN 200'),
+          null,
+          'mia_kane'
+        ] as unknown as ClassGenAnswer['characters'],
+        classes: catalog
+      },
+      roster
+    )
+    expect(Object.keys(out.characters).sort()).toEqual(['mia_kane', 'sarah_rose'])
+    expect(out.classes.filter((c) => c.category === 'interest')).toHaveLength(2)
+    warn.mockRestore()
+  })
+
+  it('refuses a student left out with the text it has always had', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const failure = refusal(() =>
+      validateClassDraft(
+        { characters: [entry('sarah_rose', 'Biology', 'MUS 150')], classes: catalog },
+        roster
+      )
+    )
+    expect(failure.code).toBe('CLASS_GEN_INVALID')
+    expect(failure.detail).toBe(`${roster[1].firstName} ${roster[1].lastName} was left unenrolled.`)
+    warn.mockRestore()
+  })
+
+  it.each([
+    ['the old record keyed by charKey', { sarah_rose: entry('sarah_rose', 'Biology', 'MUS 150') }],
+    ['absent', undefined],
+    ['null', null]
+  ])('reads characters that is %s as an empty list and refuses the first student', (_what, value) => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const failure = refusal(() =>
+      validateClassDraft({ characters: value, classes: catalog } as unknown as ClassGenAnswer, roster)
+    )
+    expect(failure.code).toBe('CLASS_GEN_INVALID')
+    expect(failure.detail).toBe(`${roster[0].firstName} ${roster[0].lastName} was left unenrolled.`)
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('[classes] characters was not a list'))
+    warn.mockRestore()
+  })
+})
 
 describe('validateClassDraft with the reader’s course', () => {
   const roster = [character({ charId: 'char-1', firstName: 'Sarah', lastName: 'Rose' })]
