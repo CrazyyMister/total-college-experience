@@ -11,6 +11,7 @@ import {
   withoutReaderRomance,
   withTextMemory
 } from '@shared/relationship'
+import { courseOf } from '@shared/courses'
 import { exOf } from '@shared/exGirlfriend'
 import {
   breakthroughsWithin,
@@ -291,6 +292,8 @@ interface GameStoreState {
   weather: Weather[]
   /** The girl he started with as an ex, read off the record; null where there is none. */
   ex: ExChoice | null
+  /** The course he picked at New Game, read off the record; null where he picked none. */
+  playerCourse: string | null
   /** What the reader has bought and not yet given away. Persisted. */
   inventory: OwnedItem[]
   /** What each of his classes has accumulated, keyed by class code. Persisted. */
@@ -1389,6 +1392,7 @@ const initialState = {
   jobClosures: {} as Record<string, ShiftSlot[]>,
   weather: [] as Weather[],
   ex: null as ExChoice | null,
+  playerCourse: null as string | null,
   inventory: [] as OwnedItem[],
   classRecords: {} as Record<string, ClassRecord>,
   gradesStanding: null as 'good' | 'bad' | null,
@@ -1518,6 +1522,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       jobClosures: record.jobClosures,
       weather: record.weather,
       ex: exOf(record.ex, characters, record.chars),
+      playerCourse: courseOf(record.playerCourse),
       inventory: save.inventory,
       classRecords: save.classRecords,
       gradesStanding: save.gradesStanding,

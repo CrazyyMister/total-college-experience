@@ -1668,6 +1668,7 @@ function ProfilePage(): JSX.Element {
   const bio = useGameStore((s) => s.bio)
   const setBio = useGameStore((s) => s.setBio)
   const description = useGameStore((s) => profileDescriptionOf(s))
+  const course = useGameStore((s) => s.playerCourse)
   const counts = useGameStore((s) => s.tallies)
   const classRecords = useGameStore((s) => s.classRecords)
   const classes = useGameStore((s) => s.classes)
@@ -1800,6 +1801,7 @@ function ProfilePage(): JSX.Element {
               {firstName} {lastName}
             </span>
             <span className="vu-bb-handle">@{readerHandle(firstName, lastName)}</span>
+            {course && <span className="vu-bb-handle">Course: {course}</span>}
             <p className="vu-bb-me-line">{description}</p>
           </div>
         </div>

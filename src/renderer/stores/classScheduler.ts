@@ -39,8 +39,14 @@ export const SWIM_CLASS = {
 /** The three pools a filler class may come from, in no particular order. */
 type FillerCategory = 'humanities' | 'arts' | 'misc'
 
+/** Whether a class is one of the four the reader's own course brought to the catalog. */
+function isReaderCourse(entry: ClassEntry, playerCourse: string | undefined): boolean {
+  return Boolean(playerCourse) && entry.category === 'major' && entry.major === playerCourse
+}
+
 /** Which pool a class counts as when picking a filler, or null if it is not filler material. */
-function fillerPoolOf(entry: ClassEntry): FillerCategory | null {
+function fillerPoolOf(entry: ClassEntry, playerCourse: string | undefined): FillerCategory | null {
+  if (isReaderCourse(entry, playerCourse)) return 'misc'
   if (entry.category === 'humanities' || entry.category === 'arts') return entry.category
   if (entry.category === 'misc' || entry.category === 'interest') return 'misc'
   return null
@@ -54,10 +60,15 @@ function seatRank(count: number): number {
   return count === 1 ? -1 : count
 }
 
-/** Slots the decorated catalog and seats every character; pure and randomised. */
+/**
+ * Slots the decorated catalog and seats every character; pure and randomised. The classes of
+ * the reader's own course are kept whether or not anybody takes them, and any character may be
+ * seated in one as in a filler.
+ */
 export function buildSchedules(
   draft: DecoratedClassGenDraft,
-  roster: readonly Character[]
+  roster: readonly Character[],
+  playerCourse?: string
 ): ScheduleResult {
   // Deal every class into the slot holding the fewest so far, ties at random.
   const load = CLASS_SLOTS.map(() => 0)
@@ -77,7 +88,7 @@ export function buildSchedules(
     if (entry.category === 'interest' && entry.owner) owners.set(entry.owner, entry.code)
   }
 
-  const fillerPool = slotted.filter((entry) => fillerPoolOf(entry) !== null)
+  const fillerPool = slotted.filter((entry) => fillerPoolOf(entry, playerCourse) !== null)
 
   const perChar: Record<string, CharSchedule> = {}
 
@@ -134,10 +145,10 @@ export function buildSchedules(
     let lastPool: FillerCategory | null = null
     while (Object.keys(schedule).length < profile.classesTaken) {
       const pick =
-        choose(fillerPool.filter((entry) => fillerPoolOf(entry) !== lastPool)) ??
+        choose(fillerPool.filter((entry) => fillerPoolOf(entry, playerCourse) !== lastPool)) ??
         choose(fillerPool)
       if (!pick || !seat(pick)) break
-      lastPool = fillerPoolOf(pick)
+      lastPool = fillerPoolOf(pick, playerCourse)
     }
 
     perChar[character.charId] = {
@@ -148,10 +159,13 @@ export function buildSchedules(
     }
   }
 
-  // A class nobody enrolled in is invisible to the game, so it is not saved.
+  // A class nobody enrolled in is invisible to the game, so it is not saved — unless it is the
+  // reader's own course's, which he may enroll in himself.
   const classes: Record<string, ClassEntry> = {}
   for (const entry of slotted) {
-    if ((enrollment.get(entry.code) ?? 0) > 0) classes[entry.code] = entry
+    if ((enrollment.get(entry.code) ?? 0) > 0 || isReaderCourse(entry, playerCourse)) {
+      classes[entry.code] = entry
+    }
   }
 
   swapInSwimClass(classes, perChar)

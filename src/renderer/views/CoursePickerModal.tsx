@@ -41,6 +41,8 @@ export interface CoursePickerModalProps {
   dropped?: ReadonlySet<string>
   /** Which classmates ride a row, if any. */
   facesOf?: (entry: ClassEntry) => readonly string[]
+  /** The reader's course: the classes of it wear a tag, with no say in what he may take. */
+  playerCourse?: string
 }
 
 /** The deal runs with the panel: nothing here resizes, so there is no landing to wait on. */
@@ -120,11 +122,13 @@ function metaOf(entry: ClassEntry): string {
 function RowBody({
   entry,
   faces,
-  dropped
+  dropped,
+  mine
 }: {
   entry: ClassEntry
   faces: readonly string[] | null
   dropped: boolean
+  mine: boolean
 }): JSX.Element {
   return (
     <>
@@ -134,6 +138,7 @@ function RowBody({
         {/* The one word for the state, on the row it is about: a course he has dropped is
             listed so the hour reads whole, and the dim says the rest. */}
         {dropped && <span className="vu-pickcourse-tag">Dropped</span>}
+        {mine && !dropped && <span className="vu-pickcourse-tag">Your course</span>}
         <span className="vu-pickcourse-teacher">{teacherOf(entry)}</span>
       </span>
       {/* Under the chip rather than beside the title, which leaves the title the width. It is
@@ -155,7 +160,8 @@ export function CoursePickerModal({
   onClose,
   theme,
   dropped,
-  facesOf
+  facesOf,
+  playerCourse
 }: CoursePickerModalProps): JSX.Element | null {
   // On the registrar the host is the one part of the shell this modal has no use for: it
   // renders in place. From the editor it is what it portals into.
@@ -193,7 +199,7 @@ export function CoursePickerModal({
                     // A `div` rather than a dead button: it is not a control at all, and it
                     // stays in the list so the hour's options do not renumber under the hand.
                     <div className="vu-row vu-pickcourse-row vu-pickcourse-row--dropped">
-                      <RowBody entry={entry} faces={faces} dropped />
+                      <RowBody entry={entry} faces={faces} dropped mine={false} />
                     </div>
                   ) : (
                     /* One tap enrolls: the tile's own ✕ is the undo, so there is nothing here
@@ -205,7 +211,16 @@ export function CoursePickerModal({
                       {...gestures(false, rowLift, rowPress)}
                       onClick={() => onPick(entry.code)}
                     >
-                      <RowBody entry={entry} faces={faces} dropped={false} />
+                      <RowBody
+                        entry={entry}
+                        faces={faces}
+                        dropped={false}
+                        mine={
+                          Boolean(playerCourse) &&
+                          entry.category === 'major' &&
+                          entry.major === playerCourse
+                        }
+                      />
                     </motion.button>
                   )}
                 </motion.li>

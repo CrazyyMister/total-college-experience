@@ -13,6 +13,7 @@ export interface SelectFieldProps {
   options: readonly SelectFieldOption[]
   /** The body-text line under the label saying what the choice means. */
   hint?: string
+  disabled?: boolean
 }
 
 /**
@@ -25,7 +26,8 @@ export function SelectField({
   value,
   onChange,
   options,
-  hint
+  hint,
+  disabled
 }: SelectFieldProps): JSX.Element {
   return (
     <label className="vu-field" htmlFor={id}>
@@ -35,6 +37,7 @@ export function SelectField({
         id={id}
         className="vu-input vu-select"
         value={value}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
       >
         {options.map((option) => (

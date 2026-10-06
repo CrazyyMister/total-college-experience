@@ -7,6 +7,7 @@ import { STARTING_MONEY } from '@shared/money'
 import { emptyTallies } from '@shared/tallies'
 import { placeNpcShifts, rollFreshmanJobStart, rollJobClosures } from '@shared/jobs'
 import { rollSemesterWeather } from '@shared/weather'
+import { COURSES, courseOf } from '@shared/courses'
 import { canBeEx, exSeedOf } from '@shared/exGirlfriend'
 import { initialFlags } from '@shared/relationship'
 import { npcFriendsOf, rollInitialNpcRelationships } from '@shared/npcRelationships'
@@ -37,6 +38,7 @@ import { CardCaption } from '../components/CardCaption'
 import { ConfirmModal } from '../components/ConfirmModal'
 import { ExPickerModal } from './ExPickerModal'
 import { LlmFailureModal } from '../components/LlmFailureModal'
+import { SelectField } from '../components/SelectField'
 import { slotHalf } from '../prompts/gameDate'
 import { MOOD_CYCLE_LENGTH } from '../prompts/moods'
 import { dryOccasionDates } from '../prompts/weather'
@@ -174,6 +176,11 @@ export function NewGameView(): JSX.Element {
   // The girl he starts the game with as an ex, picked on this screen and carried by the enrollment.
   const [exChoice, setExChoice] = useState<ExChoice | null>(resumed?.enrollment.ex ?? null)
   const [choosingEx, setChoosingEx] = useState(false)
+  // The course he majors in, by its name on the shared list; empty where he picks none, as on
+  // Quickstart, and then the game goes on without one.
+  const [courseChoice, setCourseChoice] = useState<string>(
+    courseOf(resumed?.enrollment.playerCourse) ?? ''
+  )
   // The generated catalog, held between Start Game and Finalize and seeded from the enrollment
   // where the registrar is being reopened; why `classSelect` routes back to this component.
   const [schedules, setSchedules] = useState<ScheduleResult | null>(
@@ -459,7 +466,7 @@ export function NewGameView(): JSX.Element {
     // The two questions are asked over the generation's wait, heights first; the calls
     // themselves are `stores/newGame.ts`'s.
     setNamed(false)
-    setStarting(startNewGame(roster, activeEx))
+    setStarting(startNewGame(roster, activeEx, courseChoice || undefined))
     setSizing(true)
   }
 
@@ -491,7 +498,8 @@ export function NewGameView(): JSX.Element {
       stats,
       ...(bio ? { bio } : {}),
       ...(tokensGenerated > 0 ? { tokensGenerated } : {}),
-      ...(activeEx ? { ex: activeEx } : {})
+      ...(activeEx ? { ex: activeEx } : {}),
+      ...(courseChoice ? { playerCourse: courseChoice } : {})
     })
     if (!written.ok) {
       showError(written.error)
@@ -544,7 +552,7 @@ export function NewGameView(): JSX.Element {
    */
   function retryStart(): void {
     setStartFailure(null)
-    setStarting(retryNewGameStart(roster, activeEx))
+    setStarting(retryNewGameStart(roster, activeEx, courseChoice || undefined))
   }
 
   /** The failure modal's way out. */
@@ -716,7 +724,8 @@ export function NewGameView(): JSX.Element {
         jobClosures,
         weather,
         profiles,
-        ...(exSeed && activeEx ? { ex: activeEx } : {})
+        ...(exSeed && activeEx ? { ex: activeEx } : {}),
+        ...(courseChoice ? { playerCourse: courseChoice } : {})
       },
       {
         schemaVersion: 12,
@@ -828,6 +837,7 @@ export function NewGameView(): JSX.Element {
       <ClassSelectView
         schedules={schedules}
         playerName={playerName}
+        playerCourse={courseChoice || undefined}
         saved={playthroughId !== null}
         onFinalize={(playerSchedule) => void onFinalize(playerSchedule)}
         onCancel={() => setView('mainMenu')}
@@ -976,18 +986,34 @@ export function NewGameView(): JSX.Element {
         initial="hidden"
         animate="shown"
       >
-        {/* Absent while nobody on the roster can be his ex and none is chosen. */}
-        {(activeEx || roster.some(canBeEx)) && (
-          <motion.button
-            id="new-game-ex-open"
-            className="vu-btn vu-btn--outline vu-btn--panel vu-paper vu-newgame-ex"
-            {...gestures(exDead, lift, press)}
+        {/* The two things he may bring to the game besides the roster, at the end of the foot
+            Start is not at. */}
+        <div className="vu-newgame-extras">
+          {/* Absent while nobody on the roster can be his ex and none is chosen. */}
+          {(activeEx || roster.some(canBeEx)) && (
+            <motion.button
+              id="new-game-ex-open"
+              className="vu-btn vu-btn--outline vu-btn--panel vu-paper vu-newgame-ex"
+              {...gestures(exDead, lift, press)}
+              disabled={exDead}
+              onClick={() => setChoosingEx(true)}
+            >
+              {exCharacter ? `Ex: ${exCharacter.firstName}` : 'Add an ex'}
+            </motion.button>
+          )}
+
+          <SelectField
+            id="new-game-course"
+            label="Course"
+            value={courseChoice}
+            onChange={setCourseChoice}
             disabled={exDead}
-            onClick={() => setChoosingEx(true)}
-          >
-            {exCharacter ? `Ex: ${exCharacter.firstName}` : 'Add an ex'}
-          </motion.button>
-        )}
+            options={[
+              { value: '', label: 'No course' },
+              ...COURSES.map((course) => ({ value: course, label: course }))
+            ]}
+          />
+        </div>
 
         {/* The wrapper wears the state; the button inside keeps its own lift and press.
             `initial={false}` so a return from the timetable lands already doubled. */}

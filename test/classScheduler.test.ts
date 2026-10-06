@@ -27,8 +27,8 @@ function course(
 }
 
 /** The scheduler takes a decorated draft; the roll is pinned so only the deal is random. */
-function schedule(generated: ClassGenDraft, cast: readonly Character[]) {
-  return buildSchedules(decorateClasses(generated, ['Okafor'], () => 0), cast)
+function schedule(generated: ClassGenDraft, cast: readonly Character[], playerCourse?: string) {
+  return buildSchedules(decorateClasses(generated, ['Okafor'], () => 0), cast, playerCourse)
 }
 
 const NAMES: Array<[string, string]> = [
@@ -171,6 +171,62 @@ describe('buildSchedules invariants', () => {
       const key = charKeyOf(entry.firstName, entry.lastName)
       const own = generated.classes.find((c) => c.category === 'interest' && c.owner === key)!
       expect(Object.values(perChar[entry.charId].schedule)).toContain(own.code)
+    }
+  })
+})
+
+describe('the reader’s course', () => {
+  const cast = roster()
+  const COURSE = 'Nursing'
+  const READER_CODES = [0, 1, 2, 3].map((i) => `NUR ${100 + i}`)
+
+  /** The ordinary catalog plus four classes of the course that nobody studies. */
+  function withCourse(): ClassGenDraft {
+    const generated = draft(cast)
+    for (const code of READER_CODES) generated.classes.push(course(code, 'major', { major: COURSE }))
+    return generated
+  }
+
+  it('keeps all four classes whether or not anybody takes them, under codes that stay distinct', () => {
+    for (let run = 0; run < RUNS; run++) {
+      const { classes } = schedule(withCourse(), cast, COURSE)
+      for (const code of READER_CODES) expect(classes[code]).toBeDefined()
+      const distinct = new Set(Object.values(classes).map((entry) => entry.code))
+      expect(distinct.size).toBe(Object.keys(classes).length)
+    }
+  })
+
+  it('seats a character who studies the same course in it', () => {
+    for (let run = 0; run < RUNS; run++) {
+      const generated = withCourse()
+      const key = charKeyOf(cast[0].firstName, cast[0].lastName)
+      generated.characters[key].major = COURSE
+      const { perChar } = schedule(generated, cast, COURSE)
+      const taken = Object.values(perChar[cast[0].charId].schedule)
+      expect(taken.some((code) => READER_CODES.includes(code))).toBe(true)
+    }
+  })
+
+  it('offers them to everyone else as fillers', () => {
+    const key = charKeyOf(cast[0].firstName, cast[0].lastName)
+    for (let run = 0; run < RUNS; run++) {
+      // Nothing else to fill with: a PE class, and the course's four.
+      const generated: ClassGenDraft = {
+        characters: {
+          [key]: {
+            year: 1,
+            dorm: 'lowrise_1',
+            major: 'Biology',
+            classesTaken: 2,
+            majorClassesTaken: 1,
+            interestClass: { code: 'INT 400', name: 'Interest', description: 'Hers.' }
+          }
+        },
+        classes: [course('PE 101', 'pe'), ...READER_CODES.map((c) => course(c, 'major', { major: COURSE }))]
+      }
+      const { perChar } = schedule(generated, [cast[0]], COURSE)
+      const taken = Object.values(perChar[cast[0].charId].schedule)
+      expect(taken.some((code) => READER_CODES.includes(code))).toBe(true)
     }
   })
 })

@@ -49,6 +49,8 @@ export interface ClassSelectViewProps {
   onFinalize: (playerSchedule: Record<number, string>) => void
   /** Whose page this is, shown signed in at the top right. */
   playerName: { first: string; last: string }
+  /** The course he picked on the roster screen; its classes wear a tag in the picker. */
+  playerCourse?: string
   /** Whether this semester is already on disk, so backing out of it loses nothing. */
   saved: boolean
   /**
@@ -62,6 +64,7 @@ export function ClassSelectView({
   schedules,
   onFinalize,
   playerName,
+  playerCourse,
   saved,
   onCancel
 }: ClassSelectViewProps): JSX.Element {
@@ -293,6 +296,7 @@ export function ClassSelectView({
             key={picking}
             slot={picking}
             options={catalog.filter((entry) => entry.slot === picking)}
+            playerCourse={playerCourse}
             onPick={(code) => {
               setSchedule((prev) => ({ ...prev, [picking]: code }))
               setPicking(null)

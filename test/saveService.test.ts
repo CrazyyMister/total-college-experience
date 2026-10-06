@@ -219,6 +219,27 @@ describe('a playthrough that starts with an ex', () => {
   })
 })
 
+describe('a playthrough with a course', () => {
+  it('reads back the record’s course, and an older record reads as none', async () => {
+    const { save } = await saveService.createPlaythrough(record({ playerCourse: 'Nursing' }), draft())
+    const read = await saveService.readSave(save.playthroughId, save.saveId)
+    expect(read.record.playerCourse).toBe('Nursing')
+
+    const { save: older } = await saveService.createPlaythrough(record(), draft())
+    const readOlder = await saveService.readSave(older.playthroughId, older.saveId)
+    expect(readOlder.record.playerCourse).toBeUndefined()
+  })
+
+  it('reads an enrollment with its course, and one without', async () => {
+    const withCourse = await saveService.writeEnrollment(enrollment({ playerCourse: 'Music' }))
+    const without = await saveService.writeEnrollment(enrollment())
+    await expect(saveService.readEnrollment(withCourse.playthroughId)).resolves.toMatchObject({
+      playerCourse: 'Music'
+    })
+    expect((await saveService.readEnrollment(without.playthroughId)).playerCourse).toBeUndefined()
+  })
+})
+
 describe('writeManualSave', () => {
   it('writes one file per slot and rewrites it in place', async () => {
     const first = await saveService.writeManualSave('1', 7, draft({ date: 1 }))

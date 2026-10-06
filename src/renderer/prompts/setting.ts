@@ -85,11 +85,14 @@ export function readerText(
     exes?: ReaderStanding['exes']
     // How he and the ex he started with dated and parted, as the game tells it.
     exOrigin?: string
+    // The course he picked at New Game, by the list's name.
+    course?: string
   } = {}
 ): string {
   const bio = bioLine(reputation.bio ?? '')
   return [
     `The reader is a freshman named ${firstName} ${lastName}, a male who has a single dorm in Lowrise 4.`,
+    ...(reputation.course ? [`He majors in ${reputation.course}.`] : []),
     describePlayer(stats),
     ...(bio ? [bio] : []),
     ...(reputation.aced && reputation.aced > 0 ? [acedExamsLine(reputation.aced)] : []),
@@ -117,6 +120,8 @@ export interface ReaderView {
   charInfo: Readonly<Record<string, CharInfo>>
   characters: Readonly<Record<string, Character>>
   ex: ExChoice | null
+  /** The course he picked at New Game, or null where he picked none. */
+  playerCourse: string | null
 }
 
 /** Every girl the reader's standing might name, by the first name she is known by. */
@@ -148,6 +153,7 @@ export function readerBlockOf(
     ),
     standing: view.gradesStanding,
     ...(ex && exCharacter ? { exOrigin: exOriginForReader(exCharacter, ex) } : {}),
+    ...(view.playerCourse ? { course: view.playerCourse } : {}),
     ...readerStandingOf(view.chars, override?.charInfo ?? view.charInfo, firstNamesOf(view))
   })
 }

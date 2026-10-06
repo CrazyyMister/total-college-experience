@@ -9,6 +9,7 @@ import {
 } from '@shared/types'
 import { rollDifficulty, rollProfessor, type ClassKind } from '@shared/academics'
 import { freeClassCode } from '@shared/classes'
+import { sameCourseName } from '@shared/courses'
 import type { DormId } from '@shared/dorms'
 import { appError } from '@shared/errors'
 import { LAST_NAMES } from './characterSuggestions'
@@ -117,8 +118,14 @@ export function rosterCastLines(roster: readonly Character[]): {
   return { keys, cast }
 }
 
-/** Builds the class-catalog request. */
-export function buildClassPrompt(roster: readonly Character[]): StructuredRequest {
+/**
+ * Builds the class-catalog request. `playerCourse` is the reader's course where he picked one;
+ * it is said below the divider, so the cached prefix is the same with or without it.
+ */
+export function buildClassPrompt(
+  roster: readonly Character[],
+  playerCourse?: string
+): StructuredRequest {
   const { keys, cast } = rosterCastLines(roster)
 
   const system = [
@@ -157,8 +164,16 @@ export function buildClassPrompt(roster: readonly Character[]): StructuredReques
     ''
   ].join('\n')
 
-  // Below the '---' divider: the roster is all that varies, and the console log starts here.
-  const rest = ['STUDENTS', ...cast].join('\n')
+  // Below the '---' divider: the roster and the reader's course are all that vary, and the
+  // console log starts here.
+  const readerCourse = playerCourse
+    ? [
+        "THE READER'S COURSE",
+        `The reader majors in ${playerCourse}. Include ${playerCourse} in the catalog with its ${CLASSES_PER_MAJOR} classes, all introductory courses a first-year student can take, and use exactly this name in their "major" field. Any student above who studies this field must use exactly this name as their major.`,
+        ''
+      ]
+    : []
+  const rest = [...readerCourse, 'STUDENTS', ...cast].join('\n')
 
   const charSchema = {
     type: 'object',
@@ -223,10 +238,15 @@ export function clamp(value: number, min: number, max: number, what: string): nu
   return held
 }
 
-/** Validates a reply, renumbers a colliding course code and folds interest classes into the catalog. */
+/**
+ * Validates a reply, renumbers a colliding course code and folds interest classes into the
+ * catalog. With the reader's course, the reply must offer it with its classes, and a major that
+ * differs from it only in case or spacing is written as the list's own name.
+ */
 export function validateClassDraft(
   draft: ClassGenReply,
-  roster: readonly Character[]
+  roster: readonly Character[],
+  playerCourse?: string
 ): ClassGenReply {
   const classes = draft.classes ?? []
   const seen = new Map<string, string>()
@@ -257,6 +277,30 @@ export function validateClassDraft(
     add(entry, `catalog entry "${entry?.name ?? '?'}"`)
   )
 
+  /** The reader's course as the list spells it, where `major` is that course and nothing else. */
+  const snapped = (major: string, what: string): string => {
+    if (!playerCourse || major === playerCourse || !sameCourseName(major, playerCourse)) {
+      return major
+    }
+    console.warn(`[classes] ${what} has the major "${major}"; written as "${playerCourse}".`)
+    return playerCourse
+  }
+  if (playerCourse) {
+    for (const entry of catalog) {
+      if (entry.category === 'major' && entry.major) {
+        entry.major = snapped(entry.major, `catalog entry "${entry.name}"`)
+      }
+    }
+    const offered = catalog.filter(
+      (c) => c.category === 'major' && c.major === playerCourse
+    ).length
+    if (offered < CLASSES_PER_MAJOR) {
+      invalid(
+        `The reader's course, "${playerCourse}", was offered ${offered} classes of the ${CLASSES_PER_MAJOR} asked for.`
+      )
+    }
+  }
+
   const majorsOffered = new Set(
     catalog.filter((c) => c.category === 'major' && c.major).map((c) => c.major as string)
   )
@@ -267,7 +311,7 @@ export function validateClassDraft(
     const profile = draft.characters?.[key]
     if (!profile) invalid(`${fullNameOf(character)} was left unenrolled.`)
 
-    const major = (profile.major ?? '').trim()
+    const major = snapped((profile.major ?? '').trim(), fullNameOf(character))
     if (!majorsOffered.has(major)) {
       invalid(`No classes were created for ${character.firstName}'s major, "${major}".`)
     }

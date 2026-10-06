@@ -72,6 +72,8 @@ export type StartOutcome =
 interface StartAttempt {
   roster: readonly Character[]
   ex: ExChoice | null
+  /** The reader's course, or undefined where he picked none. */
+  playerCourse?: string
   classRequest: ReturnType<typeof buildClassPrompt>
   profileRequest: ReturnType<typeof buildProfilePrompt>
   occasionRequests: OccasionRequest[]
@@ -156,7 +158,7 @@ async function fetchClassDraft(current: StartAttempt): Promise<Result<ClassGenRe
   )
   if (!generated.ok) return { ok: false, error: generated.error }
   try {
-    return { ok: true, data: validateClassDraft(generated.data, current.roster) }
+    return { ok: true, data: validateClassDraft(generated.data, current.roster, current.playerCourse) }
   } catch (err) {
     return { ok: false, error: toAppError(err) }
   }
@@ -242,7 +244,8 @@ async function runAttempt(current: StartAttempt, mine: object): Promise<StartOut
   const profiles = profileResult.data
   const schedules = buildSchedules(
     decorateClasses(mergeProfiles(classResult.data, profiles)),
-    roster
+    roster,
+    current.playerCourse
   )
   /** One profile assignment map re-keyed from charKey to charId, absences dropped. */
   const byCharId = <T,>(byKey: Record<string, T>): Record<string, T> =>
@@ -272,7 +275,8 @@ async function runAttempt(current: StartAttempt, mine: object): Promise<StartOut
  */
 export async function startNewGame(
   roster: readonly Character[],
-  ex: ExChoice | null = null
+  ex: ExChoice | null = null,
+  playerCourse?: string
 ): Promise<StartOutcome> {
   const mine = {}
   run = mine
@@ -285,7 +289,8 @@ export async function startNewGame(
   const current: StartAttempt = {
     roster,
     ex,
-    classRequest: buildClassPrompt(roster),
+    ...(playerCourse ? { playerCourse } : {}),
+    classRequest: buildClassPrompt(roster, playerCourse),
     profileRequest: buildProfilePrompt(roster, ex),
     occasionRequests,
     occasionRequest: buildOccasionPrompt(occasionRequests)
@@ -301,10 +306,11 @@ export async function startNewGame(
  */
 export async function retryNewGameStart(
   roster: readonly Character[],
-  ex: ExChoice | null = null
+  ex: ExChoice | null = null,
+  playerCourse?: string
 ): Promise<StartOutcome> {
   const current = attempt
-  if (!current) return startNewGame(roster, ex)
+  if (!current) return startNewGame(roster, ex, playerCourse)
   const mine = {}
   run = mine
   sleepers = []

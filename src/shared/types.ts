@@ -1862,6 +1862,8 @@ export interface PlaythroughRecord {
   profiles: Record<string, CharProfile>
   /** The girl he starts the game with as an ex, where New Game picked one. */
   ex?: ExChoice
+  /** The course he majors in, by its exact name on the shared list, where New Game picked one. */
+  playerCourse?: string
 }
 
 /** The record as New Game hands it over; `saveService` stamps the version. */
@@ -1950,6 +1952,8 @@ export type EnrollmentDraft = QuickstartBundle & {
   tokensGenerated?: number
   /** The ex New Game picked, carried onto the record at Finalize. */
   ex?: ExChoice
+  /** The course New Game picked, carried onto the record at Finalize. */
+  playerCourse?: string
 }
 
 /**

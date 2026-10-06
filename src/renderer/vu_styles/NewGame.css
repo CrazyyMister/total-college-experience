@@ -168,11 +168,24 @@
   transform-origin: 100% 100%;
 }
 
-/* The ex's control sits at the far end of the foot from Start, on the panel-button shape the
-   header's fill button wears; what it says is the choice made, or the offer to make one. */
-.vu-newgame-ex {
+/* The ex's control and the course field sit at the far end of the foot from Start, side by
+   side on their bottoms; the foot's height is Start's, so a row this short never grows it. */
+.vu-newgame-extras {
+  display: flex;
+  align-items: flex-end;
+  gap: 24px;
   margin-right: auto;
+}
+
+/* The ex's control is on the panel-button shape the header's fill button wears; what it says is
+   the choice made, or the offer to make one. */
+.vu-newgame-ex {
   align-self: flex-end;
+}
+
+/* The course field is as wide as the longest course on the list wants. */
+.vu-newgame-extras .vu-field {
+  min-width: 280px;
 }
 
 /* The ex's panel is capped like every tall modal: the title and the foot stay where they are
