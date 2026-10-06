@@ -146,6 +146,9 @@ You will need externally kept data for testing:
 - [ ] Reload the boundary save before answering the memory screen and verify the facts are asked again and none is saved twice.
 - [ ] Have a contact tell a secret with nobody else there, then play a scene with her and someone who does not know it. Verify in data/app.log that her facts block marks the secret and names that person.
 - [ ] Load a save from before facts and play a scene. Verify it plays on without an error.
+- [ ] On a contact page edit a fact, add a fact about her and one about the reader, delete a fact, make her not know a fact another contact also knows, remove her from an encounter and edit an encounter's text. Verify the next scene's cast block in data/app.log reflects all of it, that the contact who shared the encounter keeps it and its text, and that the calendar shows the edited text.
+- [ ] Edit an encounter's text and verify the opening already shown does not change, while the opening asked for at the end of the next scene carries the new text in its RECENTLY block.
+- [ ] Load a save from before facts and encounters and open a contact page. Verify both lists read "Nothing yet." and the calendar still shows the old days.
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 
