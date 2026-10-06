@@ -1,7 +1,7 @@
 import { Fragment, useState, type JSX, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { romancesReader } from '@shared/characterRules'
-import { breakthroughMeterOf, METER_MAX } from '@shared/breakthrough'
+import { breakthroughMeterOf, lastBreakthroughUse, METER_MAX } from '@shared/breakthrough'
 import { slotPartsOf, yearLabel } from '@shared/classes'
 import { dormLabel } from '@shared/dorms'
 import { jobDefOf, WEEK_DAY_HEADERS } from '@shared/jobs'
@@ -112,7 +112,10 @@ export function ContactPage({
   const isContact = Boolean(flags.gaveContactInfo)
   // Her Breakthrough meter, for somebody whose list of memories is open to him and whose name
   // he knows.
-  const meter = isContact && info?.nameKnown ? breakthroughMeterOf(info) : null
+  const meter =
+    isContact && info?.nameKnown
+      ? breakthroughMeterOf(info, lastBreakthroughUse(info.breakthroughUses))
+      : null
   const handle = info?.handle
   const feed = [...(info?.feed ?? [])].sort(newestFirst)
   // The days she made a friend, among what she posted. The other girl has to be one the

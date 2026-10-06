@@ -1,6 +1,13 @@
 import { globalSlotOf } from './jobs'
 import { dedupedMemoriesFor } from './relationship'
-import type { CharInfo, CharMemory, MemoryMoment, MemoryType } from './types'
+import type {
+  BreakthroughUse,
+  CharInfo,
+  CharMemory,
+  MemoryMoment,
+  MemoryType,
+  SceneBreakthrough
+} from './types'
 
 /** The Breakthrough meter: what a character's memories since the reader's last push add up to. */
 
@@ -45,4 +52,93 @@ export function breakthroughMeterOf(
   lastUse?: MemoryMoment
 ): number {
   return breakthroughMeter(dedupedMemoriesFor(info), lastUse)
+}
+
+/** The latest of the uses filed on a character, or undefined where she has none. */
+export function lastBreakthroughUse(
+  uses: readonly BreakthroughUse[] | undefined
+): MemoryMoment | undefined {
+  let last: BreakthroughUse | undefined
+  for (const use of uses ?? []) {
+    if (!last || globalSlotOf(use.date, use.time) > globalSlotOf(last.date, last.time)) last = use
+  }
+  return last && { date: last.date, time: last.time }
+}
+
+/**
+ * Her meter as it stands in the scene under way: a use made in it counts as the latest, so
+ * nothing filed up to this half of the day is left to count even before the boundary files it.
+ */
+export function breakthroughMeterNow(
+  info: Pick<CharInfo, 'memories' | 'textMemory' | 'jealousyMemories' | 'giftMemories' | 'breakthroughUses'> | undefined,
+  charId: string,
+  sceneUses: readonly SceneBreakthrough[],
+  now: MemoryMoment
+): number {
+  const filed = lastBreakthroughUse(info?.breakthroughUses)
+  const inScene = sceneUses.some((use) => use.charId === charId)
+  const last =
+    inScene && (!filed || globalSlotOf(now.date, now.time) > globalSlotOf(filed.date, filed.time))
+      ? now
+      : filed
+  return breakthroughMeterOf(info, last)
+}
+
+/** Whether the reader may use her Breakthrough: his to know, full, and not yet used in this scene. */
+export function breakthroughReady(
+  info:
+    | Pick<
+        CharInfo,
+        'memories' | 'textMemory' | 'jealousyMemories' | 'giftMemories' | 'breakthroughUses' | 'nameKnown'
+      >
+    | undefined,
+  charId: string,
+  sceneUses: readonly SceneBreakthrough[],
+  now: MemoryMoment
+): boolean {
+  if (info?.nameKnown !== true) return false
+  if (sceneUses.some((use) => use.charId === charId)) return false
+  return breakthroughMeterNow(info, charId, sceneUses, now) >= METER_MAX
+}
+
+/** The scene's uses with one more, or null where she already has one in this scene. */
+export function withSceneBreakthrough(
+  uses: readonly SceneBreakthrough[],
+  entry: SceneBreakthrough
+): SceneBreakthrough[] | null {
+  if (uses.some((use) => use.charId === entry.charId)) return null
+  return [...uses, entry]
+}
+
+/**
+ * The uses left once the transcript is cut to `length`, or null when every use survives: a use
+ * stands only while the action that made it does.
+ */
+export function breakthroughsWithin(
+  uses: readonly SceneBreakthrough[],
+  length: number
+): SceneBreakthrough[] | null {
+  const kept = uses.filter((use) => use.at < length)
+  return kept.length === uses.length ? null : kept
+}
+
+/** The uses made by the action that is the transcript's last line: the ones this turn's prompt carries. */
+export function breakthroughsOfTurn(
+  uses: readonly SceneBreakthrough[],
+  transcriptLength: number
+): SceneBreakthrough[] {
+  return uses.filter((use) => use.at === transcriptLength - 1)
+}
+
+/**
+ * The uses filed on her with the scene's use added, or null when one at that half of the day is
+ * already there, so a boundary run twice files it once.
+ */
+export function withBreakthroughUse(
+  uses: readonly BreakthroughUse[] | undefined,
+  use: BreakthroughUse
+): BreakthroughUse[] | null {
+  const filed = uses ?? []
+  if (filed.some((entry) => entry.date === use.date && entry.time === use.time)) return null
+  return [...filed, use]
 }

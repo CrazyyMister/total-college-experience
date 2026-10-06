@@ -1,3 +1,4 @@
+import { breakthroughReady, breakthroughsOfTurn } from '@shared/breakthrough'
 import { GAME_OVER_SCENES, gameOverReasonOf } from '@shared/gameOver'
 import { earnLine, spendLine, spentOf } from '@shared/money'
 import {
@@ -325,6 +326,7 @@ async function beginSlot(): Promise<void> {
     state.clearSceneTranscript()
     state.setCast([])
     state.clearSceneGifts()
+    state.clearSceneBreakthroughs()
     state.setSceneQuiz(null)
     // The spinner the ending parked on comes down: nothing else is coming.
     state.setWaitingForLine(false)
@@ -359,6 +361,7 @@ async function beginSlot(): Promise<void> {
   state.clearSceneTranscript()
   state.setCast([])
   state.clearSceneGifts()
+  state.clearSceneBreakthroughs()
   state.setSceneQuiz(null)
 
   // The authored first slot: the arrival scroll, then freshman orientation.
@@ -595,6 +598,7 @@ function finishFarewell(charId: string | null): void {
   game.clearSceneTranscript()
   game.setCast([])
   game.clearSceneGifts()
+  game.clearSceneBreakthroughs()
   // Absent only for a scene whose `farewell` went missing, which spends no button.
   if (charId) game.recordFarewell(charId)
   game.setBusy(false)
@@ -1091,7 +1095,7 @@ function dispatchTurn(snapshot: TurnSnapshot): void {
   else if (snapshot.farewell) void startFarewellScene(snapshot.farewell)
   else if (snapshot.charId)
     void startHangoutScene(snapshot.charId, snapshot.action, snapshot.preset)
-  else void submitAction(snapshot.action, snapshot.gift, snapshot.preset)
+  else void submitAction(snapshot.action, snapshot.gift, snapshot.preset, snapshot.breakthrough)
 }
 
 /** Re-sends the turn that failed — the retry modal's confirm. */
@@ -1150,6 +1154,8 @@ export function abandonTurn(): void {
   game.setTurnError(null)
   // The gift never happened: the item goes back in the bag, undoing the rewind's `SceneGift`.
   if (loopState.lastTurn?.gift) game.ungiftItem()
+  // The Breakthrough was never used: she is full again, and the words go back to the box.
+  if (loopState.lastTurn?.breakthrough) game.unfileBreakthrough()
   // A gift's sentence is the app's wording, so nothing goes back to the box.
   game.setInputDraft(loopState.lastTurn?.gift ? '' : (loopState.lastTurn?.action ?? ''))
   game.setAwaitingInput(true)
@@ -1177,13 +1183,32 @@ export function submitGift(charId: string, itemId: string, message: string): voi
 }
 
 /**
+ * Uses a character's Breakthrough on this turn: files it ahead of the turn's snapshot, so a
+ * retry and the ending's autosave both carry it, then sends the box's words as the action.
+ */
+export function submitBreakthrough(charId: string, direction: string, action: string): boolean {
+  const game = useGameStore.getState()
+  if (game.busy || !game.awaitingInput) return false
+  // Only a scene already running has a cast to use it on.
+  if (game.currentSceneTranscript.length === 0 && game.sceneSummary === null) return false
+  const said = direction.trim()
+  if (!said) return false
+  if (!breakthroughReady(game.charInfo[charId], charId, game.sceneBreakthroughs, game)) return false
+  if (!game.fileBreakthrough(charId, said)) return false
+  console.log(`[breakthrough] used on ${nameOf(charId)}: ${said}`)
+  void submitAction(action, false, undefined, true)
+  return true
+}
+
+/**
  * Handles one player submission: classify/cast, stream scene, and snapshot first.
  * Continuations reuse the slot cast; streamed lines remain preview until resolved.
  */
 export async function submitAction(
   action: string,
   gift = false,
-  preset?: Verdict
+  preset?: Verdict,
+  breakthrough = false
 ): Promise<void> {
   const run = currentRun()
   const raw = action.trim()
@@ -1198,6 +1223,7 @@ export async function submitAction(
     scene: game.captureScene(),
     action: raw,
     ...(gift ? { gift } : {}),
+    ...(breakthrough ? { breakthrough } : {}),
     ...(preset ? { preset } : {})
   }
   const snapshot = loopState.lastTurn
@@ -1564,6 +1590,14 @@ function buildTurnRequest(
   }
 
   const game = useGameStore.getState()
+  // The uses this action made: `logPlayerAction` ran above, so it is the transcript's last line.
+  const breakthroughs = breakthroughsOfTurn(
+    game.sceneBreakthroughs,
+    game.currentSceneTranscript.length
+  ).flatMap((use) => {
+    const character = game.characters[use.charId]
+    return character ? [{ character, direction: use.direction }] : []
+  })
   return buildContinuationPrompt(
     castCharacters,
     sceneAction,
@@ -1574,7 +1608,8 @@ function buildTurnRequest(
     game.sceneSummary,
     // `logPlayerAction` ran above, so the count off the log is this action's ordinal — the
     // authored first day opens with none.
-    game.sceneLog.filter((line) => line.speaker === READER_SPEAKER).length
+    game.sceneLog.filter((line) => line.speaker === READER_SPEAKER).length,
+    breakthroughs
   )
 }
 
@@ -2642,6 +2677,7 @@ async function crossSlotBoundary(): Promise<void> {
   }
   // Independent of the ledger too, and here so it lands once, on the boundary's write.
   useGameStore.getState().recordGifts()
+  useGameStore.getState().recordBreakthroughs()
   // The finished slot's three settles, banked by the ending; null only on
   // the game-over path, which banks nothing.
   const banked = loopState.bankedOpening
@@ -2733,6 +2769,7 @@ async function crossSlotBoundary(): Promise<void> {
   useGameStore.getState().clearSceneTranscript()
   // Not via `setCast`, which would also wipe them on a mid-scene cast change.
   useGameStore.getState().clearSceneGifts()
+  useGameStore.getState().clearSceneBreakthroughs()
   useGameStore.getState().setSceneQuiz(null)
   useGameStore.getState().setStatusShown(false)
   resetTurnSlice()

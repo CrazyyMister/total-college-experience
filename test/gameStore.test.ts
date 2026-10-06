@@ -576,6 +576,82 @@ describe('truncateUnread', () => {
   })
 })
 
+describe('a Breakthrough used in a scene', () => {
+  const playTurn = (action: string, lines: SceneLine[]) => {
+    useGameStore.getState().logPlayerAction(action, true)
+    useGameStore.getState().appendSceneLines(lines)
+    useGameStore.getState().appendPendingLines(lines)
+    while (useGameStore.getState().advanceLine()) continue
+  }
+
+  /** A scene of two turns, the second of which used her Breakthrough. */
+  function sceneWithUse(): void {
+    const store = useGameStore.getState()
+    playTurn('I wave.', sceneLines('a1', 'a2'))
+    store.setSceneSummary('first', 1)
+    store.fileBreakthrough('a', 'closer')
+    playTurn('I lean in.', sceneLines('b1', 'b2'))
+    store.setSceneSummary('second', 4)
+  }
+
+  it('is cut with its action by an interjection from a rewound line before it', () => {
+    sceneWithUse()
+    const store = useGameStore.getState()
+    store.rewindLine()
+    store.rewindLine()
+    store.truncateUnread()
+    expect(useGameStore.getState().sceneBreakthroughs).toEqual([])
+  })
+
+  it('is kept when the cut leaves its action standing', () => {
+    sceneWithUse()
+    // An interjection over the use turn's own unread reply: the action it was made on survives.
+    useGameStore.setState({ pendingLines: sceneLines('b2') })
+    useGameStore.getState().truncateUnread()
+    expect(useGameStore.getState().sceneBreakthroughs).toEqual([
+      { charId: 'a', direction: 'closer', at: 3 }
+    ])
+  })
+
+  it('is cut by nothing a rewind alone does', () => {
+    sceneWithUse()
+    const store = useGameStore.getState()
+    store.rewindLine()
+    store.rewindLine()
+    store.rewindLine()
+    expect(useGameStore.getState().sceneBreakthroughs).toHaveLength(1)
+  })
+
+  it('refuses a second use on the same character in the scene', () => {
+    sceneWithUse()
+    expect(useGameStore.getState().fileBreakthrough('a', 'again')).toBe(false)
+    expect(useGameStore.getState().sceneBreakthroughs).toHaveLength(1)
+  })
+
+  it('is filed on her once at the boundary, however many times it runs', () => {
+    useGameStore.setState({
+      date: 7,
+      time: 1,
+      sceneBreakthroughs: [{ charId: 'a', direction: 'closer', at: 3 }]
+    })
+    useGameStore.getState().recordBreakthroughs()
+    useGameStore.getState().recordBreakthroughs()
+    expect(useGameStore.getState().charInfo.a.breakthroughUses).toEqual([
+      { date: 7, time: 1, direction: 'closer' }
+    ])
+  })
+
+  it('round-trips through capture and restore', () => {
+    sceneWithUse()
+    useGameStore.setState({ cast: ['a'] })
+    const captured = useGameStore.getState().captureScene()
+    expect(captured?.breakthroughs).toEqual([{ charId: 'a', direction: 'closer', at: 3 }])
+    useGameStore.getState().clearSceneBreakthroughs()
+    useGameStore.getState().restoreScene(captured)
+    expect(useGameStore.getState().sceneBreakthroughs).toHaveLength(1)
+  })
+})
+
 /**
  * Stepping back a line within the reply rebuilds the stage from the log. The stage is captured
  * into every mid-scene save, so a fold that disagrees with forward play writes a scene that

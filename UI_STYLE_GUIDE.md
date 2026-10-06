@@ -213,6 +213,7 @@
 - A face in a list is quiet; a face that opens something is a control, and anything riding a face is its sibling rather than its child.
 - A sprite a click re-renders is a control on the picture inside the crop, never on the archway around it; so is the plus that fills an empty set, standing in a dashed crop where the gap's word would.
 - What rides the crop's square bottom corner — Hide, or Delete in the danger ink — is a sibling after the picture, and a title a click renames is the title itself, swapped for a box at its own size.
+- A character whose Breakthrough is full is outlined on the stage: hard copies of her silhouette in the accent a few pixels off her in each direction, never a blur or a glow, drawn on the layer that breathes so both halves of a pose change share one outline and the dim stays the image's own.
 - A character with an unknown name is drawn without a face, the mask being the point (`DESIGN_GUIDE.md` "Coding conventions").
 - Gestures go by size: a card takes the card's lift, a small cluster's face takes none at all, and a portrait-sized control takes the portrait's gentler swell and the chip's press.
 - A card that is waiting carries no paper layer and takes a flat recessed face.
@@ -237,7 +238,7 @@
 - The note is the app's hover-revealed label: a quiet mono pill raised over a control through React state. Over a dead control it names the missing prerequisite and nothing else — the scene's Gift once a gift has been given, the Edit Character modal's install-gated controls and the Game menu's Save Game while a reply, an ending's bookkeeping, a slot opening or a text is still out. Over an icon-only control it names the action — the Edit Character modal's portrait, its pencil and the file squares under them. The phone's photo is the one picture whose hover raises a control its click is not: the regenerate pill, approved by name and said at rest by the thread's hint. The two hover-revealed cards, the scene's tips and the map's Go, are §20's, as is the scene's mid-reply action box. A hover label is added only where the owner has approved it by name, and every site is listed here.
 - No `title` attribute anywhere; an icon-only control carries `aria-label`, the scene's back mark included.
 - Text is selectable only where it is meant to be pasted: a field, the error detail well, and the exceptions in §20.
-- Where there is nothing to offer, a control is absent rather than dead — except the ending modal's Download ending CG, which stays dead with no picture to give, since the panel's own copy has just mentioned the picture.
+- Where there is nothing to offer, a control is absent rather than dead — the scene's Breakthrough is absent unless somebody standing is full, and while a reply is coming — except the ending modal's Download ending CG, which stays dead with no picture to give, since the panel's own copy has just mentioned the picture.
 - A screen's own key listener goes through `useWindowKeydown`, on the bubble phase so the modal in front answers first.
 
 ## 15. The cursor

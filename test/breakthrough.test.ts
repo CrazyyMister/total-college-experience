@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { breakthroughMeter, breakthroughMeterOf, METER_MAX } from '@shared/breakthrough'
-import type { CharMemory, MemoryType, TimeSlot } from '@shared/types'
+import {
+  breakthroughMeter,
+  breakthroughMeterNow,
+  breakthroughMeterOf,
+  breakthroughReady,
+  breakthroughsWithin,
+  lastBreakthroughUse,
+  METER_MAX,
+  withBreakthroughUse,
+  withSceneBreakthrough
+} from '@shared/breakthrough'
+import type { BreakthroughUse, CharMemory, MemoryType, SceneBreakthrough, TimeSlot } from '@shared/types'
 
 /**
  * The Breakthrough meter is worked out afresh from the memories every time it is read, so a wrong
@@ -82,5 +92,74 @@ describe('breakthroughMeterOf', () => {
 
   it('is empty for somebody with no entry', () => {
     expect(breakthroughMeterOf(undefined)).toBe(0)
+  })
+})
+
+/**
+ * What a use is tied to and what it takes with it: a use that outlives its line, or is filed
+ * twice, or leaves the meter standing, is a save that is wrong without a way to see it.
+ */
+describe('the Breakthrough uses of a scene', () => {
+  const use = (charId: string, at: number): SceneBreakthrough => ({ charId, direction: 'closer', at })
+  /** Five halves of a day of loved memories: a full meter, from day 1 to day 3. */
+  const fullMemories = [
+    memory('loved', 1, 0, 'one'),
+    memory('loved', 1, 1, 'two'),
+    memory('loved', 2, 0, 'three'),
+    memory('loved', 2, 1, 'four'),
+    memory('loved', 3, 0, 'five')
+  ]
+  const info = (extra: { breakthroughUses?: BreakthroughUse[] } = {}) => ({
+    memories: fullMemories,
+    nameKnown: true,
+    ...extra
+  })
+
+  it('allows one use per character in a scene', () => {
+    const first = withSceneBreakthrough([], use('a', 1))
+    expect(first).toEqual([use('a', 1)])
+    expect(withSceneBreakthrough(first ?? [], use('a', 4))).toBeNull()
+    expect(withSceneBreakthrough(first ?? [], use('b', 4))).toEqual([use('a', 1), use('b', 4)])
+  })
+
+  it('goes with the action it was made on and with no other', () => {
+    const uses = [use('a', 1), use('b', 5)]
+    // The transcript cut to five lines keeps the action at 1 and takes the one at 5.
+    expect(breakthroughsWithin(uses, 5)).toEqual([use('a', 1)])
+    expect(breakthroughsWithin(uses, 6)).toBeNull()
+    expect(breakthroughsWithin(uses, 1)).toEqual([])
+  })
+
+  it('is filed on her once however many times the boundary runs', () => {
+    const entry: BreakthroughUse = { date: 4, time: 1, direction: 'closer' }
+    const filed = withBreakthroughUse(undefined, entry)
+    expect(filed).toEqual([entry])
+    expect(withBreakthroughUse(filed ?? [], { ...entry })).toBeNull()
+    expect(withBreakthroughUse(filed ?? [], { ...entry, time: 0 })).toHaveLength(2)
+    expect(lastBreakthroughUse([...(filed ?? []), { ...entry, time: 0 }])).toEqual({ date: 4, time: 1 })
+  })
+
+  it('reads zero in the scene that used it, before the boundary has filed it', () => {
+    const now = { date: 4, time: 0 } as const
+    expect(breakthroughReady(info(), 'a', [], now)).toBe(true)
+    expect(breakthroughMeterNow(info(), 'a', [], now)).toBe(METER_MAX)
+    expect(breakthroughMeterNow(info(), 'a', [use('a', 1)], now)).toBe(0)
+    expect(breakthroughReady(info(), 'a', [use('a', 1)], now)).toBe(false)
+    // Somebody else's use is not hers.
+    expect(breakthroughReady(info(), 'a', [use('b', 1)], now)).toBe(true)
+  })
+
+  it('counts only the memories of later halves once the use is filed', () => {
+    const filed = info({ breakthroughUses: [{ date: 4, time: 0, direction: 'closer' }] })
+    // The scene's own memories land in the half the use was made in.
+    const same = { ...filed, memories: [...fullMemories, memory('loved', 4, 0, 'from the scene')] }
+    expect(breakthroughMeterNow(same, 'a', [], { date: 4, time: 1 })).toBe(0)
+    const later = { ...filed, memories: [...fullMemories, memory('loved', 4, 1, 'the next half')] }
+    expect(breakthroughMeterNow(later, 'a', [], { date: 5, time: 0 })).toBe(20)
+    expect(breakthroughReady(later, 'a', [], { date: 5, time: 0 })).toBe(false)
+  })
+
+  it('is not hers to use until the reader knows her name', () => {
+    expect(breakthroughReady({ ...info(), nameKnown: false }, 'a', [], { date: 4, time: 0 })).toBe(false)
   })
 })

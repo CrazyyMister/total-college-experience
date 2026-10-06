@@ -114,6 +114,9 @@ export interface SceneChromeProps {
   /** A gift has already gone out this scene — the one dead reason a hover names. */
   giftSpent: boolean
   onGift: () => void
+  /** Somebody in the scene is full and the turn is the reader's: the Breakthrough is offered. */
+  breakthroughShown: boolean
+  onBreakthrough: () => void
   calendarBadge: number
   bunnyboardBadge: number
   railDead: boolean
@@ -463,6 +466,20 @@ export function SceneChrome(props: SceneChromeProps): JSX.Element {
               onBlur={() => setPinned(false)}
             />
             {/* Mid-reply the row offers the well alone: a present is handed over on a turn. */}
+            {props.breakthroughShown && interject === null && !props.sending && (
+              <div className="vu-scene-gift">
+                <span className="vu-scene-rule" />
+                <motion.button
+                  id="game-breakthrough"
+                  className="vu-scene-giftbtn"
+                  aria-label="Breakthrough"
+                  {...gestures(false, quietLift, quietPress)}
+                  onClick={props.onBreakthrough}
+                >
+                  <BreakthroughIcon />
+                </motion.button>
+              </div>
+            )}
             {props.giftShown && interject === null && (
               <motion.div
                 className="vu-scene-gift"
@@ -694,6 +711,24 @@ function CastIcon(): JSX.Element {
       <circle cx="9" cy="7" r="4" />
       <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
       <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  )
+}
+
+function BreakthroughIcon(): JSX.Element {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
     </svg>
   )
 }

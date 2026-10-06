@@ -30,6 +30,8 @@ export interface TurnSnapshot {
   charId?: string
   /** This turn handed over a gift; abandoning it hands the item back. */
   gift?: boolean
+  /** This turn used a Breakthrough; abandoning it takes the use back. */
+  breakthrough?: boolean
   /** This turn is the authored orientation scene, so a retry re-enters it. */
   intro?: boolean
   /** The epilogue goodbye this turn is, and who it is with. */

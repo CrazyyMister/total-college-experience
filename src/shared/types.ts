@@ -710,6 +710,8 @@ export interface CharState {
   ignoredInvitation?: boolean
   /** Every gift she has been given, by `ItemDef.id`, oldest first. */
   gifts?: string[]
+  /** Every Breakthrough the reader has used on her, oldest first; absent when none. */
+  breakthroughUses?: BreakthroughUse[]
   /**
    * What she took away from texting the reader, from the ledger's `textMemories`. At
    * most one, and the newest wins.
@@ -1104,6 +1106,20 @@ export interface SceneGift {
   at?: number
 }
 
+/** One Breakthrough used during a scene, held until the boundary files it on her. */
+export interface SceneBreakthrough {
+  charId: string
+  /** What the reader asked the scene to do for her. */
+  direction: string
+  /** The transcript index of the action that used it. */
+  at: number
+}
+
+/** A Breakthrough filed on a character: the half of the day it was used in, and what was asked. */
+export interface BreakthroughUse extends MemoryMoment {
+  direction: string
+}
+
 /** A running summary a scene reply came with, and the transcript length it covers up to. */
 export interface SceneSummaryMark {
   at: number
@@ -1213,6 +1229,8 @@ export interface SceneState {
   inPublic?: boolean
   /** The gifts handed over in this scene, in order, or absent when none were. */
   gifts?: SceneGift[]
+  /** The Breakthroughs used in this scene, in order, or absent when none were. */
+  breakthroughs?: SceneBreakthrough[]
   /** The exam being sat, or absent when the slot is an ordinary scene. */
   quiz?: QuizState
   /** The line last shown, so resuming doesn't land on an empty dialogue box. */

@@ -156,6 +156,15 @@
   will-change: transform;
 }
 
+/* A full Breakthrough outlines her: four hard copies of her silhouette, a few pixels off her in
+   each direction and in the accent, so the edge is solid and nothing glows. It rides this layer
+   because motion writes the image's own `filter` (the dim) and writes only a transform here, and
+   because both halves of a pose change are inside it and share one outline. */
+.vu-stage-breath--ready {
+  filter: drop-shadow(4px 0 0 var(--vu-accent)) drop-shadow(-4px 0 0 var(--vu-accent))
+    drop-shadow(0 4px 0 var(--vu-accent)) drop-shadow(0 -4px 0 var(--vu-accent));
+}
+
 /* One half of a sprite change. */
 .vu-stage-sprite {
   grid-area: 1 / 1;

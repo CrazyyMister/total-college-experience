@@ -11,6 +11,11 @@ import {
   withoutReaderRomance,
   withTextMemory
 } from '@shared/relationship'
+import {
+  breakthroughsWithin,
+  withBreakthroughUse,
+  withSceneBreakthrough
+} from '@shared/breakthrough'
 import { escapeRegExp } from '@shared/sentences'
 import { pronounsOf } from '@shared/pronouns'
 import { swappedPhoto, type MessagePhoto } from '@shared/photos'
@@ -115,6 +120,7 @@ import {
   type QuizState,
   READER_SPEAKER,
   type RelationshipEvent,
+  type SceneBreakthrough,
   type SceneGift,
   type SceneLine,
   type SceneState,
@@ -373,6 +379,8 @@ interface GameStoreState {
   sceneInPublic: boolean
   /** The gifts given so far in this scene, oldest first. */
   sceneGifts: SceneGift[]
+  /** The Breakthroughs used so far in this scene, oldest first. */
+  sceneBreakthroughs: SceneBreakthrough[]
   /** The exam being sat this slot, or null when the slot is an ordinary scene. */
   sceneQuiz: QuizState | null
   /** The scene as delivered: the reader's action lines and every reply line, in order. */
@@ -707,6 +715,19 @@ interface GameStoreState {
   recordGifts: () => void
   /** Empties the scene's gift list at a scene boundary or a slot opening. */
   clearSceneGifts: () => void
+  /**
+   * Files a Breakthrough used on a character in this scene, with the direction asked and `at`
+   * where its action will land on the transcript. False where she already has one in this scene.
+   */
+  fileBreakthrough: (charId: string, direction: string) => boolean
+  /** Undoes the newest Breakthrough of the scene: its turn was abandoned. */
+  unfileBreakthrough: () => void
+  /** Files this scene's Breakthroughs on the characters, once each — run at the boundary. */
+  recordBreakthroughs: () => void
+  /** Empties the scene's Breakthrough list at a scene boundary or a slot opening. */
+  clearSceneBreakthroughs: () => void
+  /** Takes every Breakthrough use off her record; the development build's test button. */
+  forgetBreakthroughUses: (charId: string) => void
   recordMemory: (charId: string, entry: CharMemory) => void
   /**
    * Rewrites every copy of one memory she holds to `next`, or forgets it where `next` is null;
@@ -1166,6 +1187,15 @@ function giftsWithin(
   }
 }
 
+/** The Breakthroughs left once the transcript is cut to `length`; nothing at all when every one survives. */
+function breakthroughsCut(
+  state: GameStoreState,
+  length: number
+): Partial<Pick<GameStoreState, 'sceneBreakthroughs'>> {
+  const kept = breakthroughsWithin(state.sceneBreakthroughs, length)
+  return kept ? { sceneBreakthroughs: kept } : {}
+}
+
 /**
  * The stage `sceneLog` folds up to. A CG stands only for a lone girl on the stage as displayed,
  * so one the hand ended stays ended.
@@ -1352,6 +1382,7 @@ const initialState = {
   sceneLocation: null as string | null,
   sceneInPublic: true,
   sceneGifts: [] as SceneGift[],
+  sceneBreakthroughs: [] as SceneBreakthrough[],
   sceneQuiz: null as QuizState | null,
   currentSceneTranscript: [] as SceneLine[],
   sceneSummary: null as string | null,
@@ -1539,6 +1570,9 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       // Written only when *false*: absent is the classifier's own default.
       ...(state.sceneInPublic ? {} : { inPublic: false }),
       ...(state.sceneGifts.length > 0 ? { gifts: state.sceneGifts.map((g) => ({ ...g })) } : {}),
+      ...(state.sceneBreakthroughs.length > 0
+        ? { breakthroughs: state.sceneBreakthroughs.map((b) => ({ ...b })) }
+        : {}),
       ...(state.sceneQuiz
         ? { quiz: { ...state.sceneQuiz, questions: state.sceneQuiz.questions.map((q) => ({ ...q })) } }
         : {}),
@@ -1572,6 +1606,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       ...sceneKindFields(scene),
       sceneTextLedger: scene?.textLedger ? { ...scene.textLedger } : null,
       sceneGifts: (scene?.gifts ?? []).map((g) => ({ ...g })),
+      sceneBreakthroughs: (scene?.breakthroughs ?? []).map((b) => ({ ...b })),
       sceneQuiz: scene?.quiz
         ? { ...scene.quiz, questions: scene.quiz.questions.map((q) => ({ ...q })) }
         : null,
@@ -1690,7 +1725,8 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
         pendingLines: [],
         reread: 0,
         ...summariesWithin(state.sceneSummaries, kept),
-        ...giftsWithin(state, kept)
+        ...giftsWithin(state, kept),
+        ...breakthroughsCut(state, kept)
       }
     }),
 
@@ -2001,6 +2037,53 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
     }),
 
   clearSceneGifts: () => set({ sceneGifts: [] }),
+
+  fileBreakthrough: (charId, direction) => {
+    const state = get()
+    const filed = withSceneBreakthrough(state.sceneBreakthroughs, {
+      charId,
+      direction,
+      // The action that uses it is the next line the transcript takes.
+      at: state.currentSceneTranscript.length
+    })
+    if (!filed) return false
+    set({ sceneBreakthroughs: filed })
+    return true
+  },
+
+  unfileBreakthrough: () =>
+    set((state) => ({ sceneBreakthroughs: state.sceneBreakthroughs.slice(0, -1) })),
+
+  recordBreakthroughs: () =>
+    set((state) => {
+      if (state.sceneBreakthroughs.length === 0) return {}
+      const charInfo = { ...state.charInfo }
+      let changed = false
+      for (const use of state.sceneBreakthroughs) {
+        const existing = charInfo[use.charId] ?? blankCharInfo()
+        const uses = withBreakthroughUse(existing.breakthroughUses, {
+          date: state.date,
+          time: state.time,
+          direction: use.direction
+        })
+        if (!uses) continue
+        charInfo[use.charId] = { ...existing, breakthroughUses: uses }
+        changed = true
+      }
+      return changed ? { charInfo } : {}
+    }),
+
+  clearSceneBreakthroughs: () => set({ sceneBreakthroughs: [] }),
+
+  forgetBreakthroughUses: (charId) =>
+    set((state) =>
+      patchCharInfo(state, charId, (info) => {
+        if (!info?.breakthroughUses) return null
+        const rest = { ...info }
+        delete rest.breakthroughUses
+        return rest
+      })
+    ),
 
   recordMemory: (charId, entry) =>
     set((state) =>

@@ -10,6 +10,7 @@ import {
   type WheelEvent as ReactWheelEvent
 } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
+import { breakthroughReady } from '@shared/breakthrough'
 import { AUDIO_FILES, pitchSemitonesOf, VOICE_PITCH_DEFAULT } from '@shared/audio'
 import { isPermanent } from '@shared/errors'
 import { GAME_OVER_SCENES } from '@shared/gameOver'
@@ -100,7 +101,8 @@ import {
   startFarewellScene,
   submitAction,
   submitQuizAnswer,
-  submitGift
+  submitGift,
+  submitBreakthrough
 } from '../stores/gameLoop'
 import {
   abandonHangoutClassify,
@@ -145,6 +147,7 @@ import { SceneMemoriesModal } from './SceneMemoriesModal'
 import { JobsModal } from './JobsModal'
 import { GiftMessageModal } from './GiftMessageModal'
 import { GiftTargetModal } from './GiftTargetModal'
+import { BreakthroughModal } from './BreakthroughModal'
 import { InventoryModal } from './InventoryModal'
 import { AppSettingsModal } from './AppSettingsModal'
 import { ShopModal } from './ShopModal'
@@ -210,6 +213,7 @@ type OpenPanel =
   | { kind: 'chatLog' }
   | { kind: 'shop' }
   | { kind: 'gift' }
+  | { kind: 'breakthrough' }
   | { kind: 'giftTarget'; itemId: string }
   | { kind: 'giftMessage'; itemId: string; charId: string }
   | { kind: 'editPrompt'; source: 'turn' | 'closing' | 'ledger' | 'textLedger' | 'intro' }
@@ -259,6 +263,7 @@ function PortraitSlot({
   cut,
   breaths,
   leaving,
+  ready,
   onLeft
 }: {
   charId: string
@@ -275,6 +280,8 @@ function PortraitSlot({
   cut: boolean
   breaths: Map<string, BreathRecord>
   leaving?: boolean
+  /** Her Breakthrough is full: she is outlined in the accent. */
+  ready: boolean
   onLeft?: () => void
 }): JSX.Element {
   // Crossfade pair, the pose it is showing, and the side the sprite stands on, which flips on
@@ -373,7 +380,10 @@ function PortraitSlot({
       }
     >
       {/* Both halves of a change breathe as one, so a crossfade never comes apart. */}
-      <motion.div className="vu-stage-breath" animate={breathing}>
+      <motion.div
+        className={ready ? 'vu-stage-breath vu-stage-breath--ready' : 'vu-stage-breath'}
+        animate={breathing}
+      >
         {pair.from && pair.from !== pair.to && (
           <div
             className={[
@@ -547,6 +557,7 @@ export function GameView(): JSX.Element {
   const farewellsDone = useGameStore((s) => s.farewellsDone)
   const inventory = useGameStore((s) => s.inventory)
   const sceneGifts = useGameStore((s) => s.sceneGifts)
+  const sceneBreakthroughs = useGameStore((s) => s.sceneBreakthroughs)
   /** The sparkle the store last raised off a girl written happy, or null while none stands. */
   const sparkle = useGameStore((s) => s.sparkle)
   // The two the landing reads out.
@@ -1162,6 +1173,17 @@ export function GameView(): JSX.Element {
   const epilogue = isGraduationSlot(date, time) && !gameOver
   /** A screen the game wrote end to end; each leaves at most `BASE_REVEAL` standing. */
   const authored = cinematic || epilogue || Boolean(gameOver)
+
+  /**
+   * Who is standing in the scene with a full Breakthrough: only a scene on screen that is
+   * neither the orientation, the epilogue nor an exam has anyone to use it on.
+   */
+  const breakthroughIds =
+    sceneMode && !cinematic && !epilogue && !quiz
+      ? stageNow.filter((charId) =>
+          breakthroughReady(charInfo[charId], charId, sceneBreakthroughs, { date, time })
+        )
+      : []
   /**
    * Which chrome controls are revealed: `ALL_REVEALED` normally, `BASE_REVEAL` on an authored
    * screen, and `EPILOGUE_REVEAL` — `BASE_REVEAL` minus two more — on the epilogue's own menu.
@@ -1659,6 +1681,7 @@ export function GameView(): JSX.Element {
                 cut={cutting}
                 breaths={breaths}
                 leaving={leaving}
+                ready={!leaving && breakthroughIds.includes(charId)}
                 onLeft={leaving ? () => dropLeaving(charId) : undefined}
               />
             )
@@ -1777,6 +1800,8 @@ export function GameView(): JSX.Element {
           giftDead={inventory.length === 0 || !bunnyshopUnlocked || giftSpent}
           giftSpent={giftSpent}
           onGift={() => setPanel({ kind: 'gift' })}
+          breakthroughShown={breakthroughIds.length > 0 && awaitingInput && !busy}
+          onBreakthrough={() => setPanel({ kind: 'breakthrough' })}
           calendarBadge={calendarBadge}
           bunnyboardBadge={bunnyboardBadge}
           railDead={false}
@@ -1949,6 +1974,25 @@ export function GameView(): JSX.Element {
 
           **The three share one presence**, so each opens on the frame the last one closes and
           the veils cross-fade rather than cutting — the milestone screens' own arrangement. */}
+      <AnimatePresence>
+        {panel?.kind === 'breakthrough' && (
+          <BreakthroughModal
+            key="breakthrough"
+            theme={half}
+            charIds={breakthroughIds}
+            onClose={closePanel}
+            onSend={(charId, direction) => {
+              closePanel()
+              // The box is the turn's own action, sent as it would be by Go.
+              const typed = sentenceOf(action)
+              setSending(true)
+              if (submitBreakthrough(charId, direction, typed)) setAction('')
+              else setSending(false)
+            }}
+          />
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {panel?.kind === 'gift' && (
           <InventoryModal

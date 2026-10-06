@@ -1,0 +1,12 @@
+/* The Breakthrough panel is the gift message's frame with one more row in it: the faces it
+   offers are `Gift.css`'s, imported beside this, and the one picked wears a border on its crop —
+   the crop fills the paper's padding box and paints over the face, which a state's border needs. */
+
+.vu-bt-face .vu-crop {
+  box-sizing: border-box;
+  border: 6px solid transparent;
+}
+
+.vu-bt-face [aria-pressed='true'] .vu-crop {
+  border-color: var(--vu-accent);
+}

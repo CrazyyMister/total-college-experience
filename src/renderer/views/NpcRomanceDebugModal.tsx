@@ -1,7 +1,7 @@
 import { lazy, Suspense, useState, type JSX } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'motion/react'
-import { breakthroughMeterOf, METER_MAX } from '@shared/breakthrough'
+import { breakthroughMeterNow, lastBreakthroughUse, METER_MAX } from '@shared/breakthrough'
 import { pairKeyOf } from '@shared/npcRelationships'
 import {
   ENCOURAGED_DAYS,
@@ -79,12 +79,15 @@ function sectionsOf(): DebugSection[] {
         const info = game.charInfo[charId]
         const memories = dedupedMemoriesFor(info)
         const undated = memories.filter((memory) => memory.time === undefined).length
+        const lastUse = lastBreakthroughUse(info?.breakthroughUses)
         return {
           key: charId,
           who: name(charId),
-          facts: `meter ${breakthroughMeterOf(info)} of ${METER_MAX} · ${undated} of ${memories.length} memories without a half of the day${
-            info?.nameKnown ? '' : ' · name not known'
-          }`
+          facts: `meter ${breakthroughMeterNow(info, charId, game.sceneBreakthroughs, game)} of ${METER_MAX} · ${undated} of ${memories.length} memories without a half of the day${
+            lastUse
+              ? ` · ${info?.breakthroughUses?.length ?? 0} uses, last on ${dated(lastUse.date)}, ${lastUse.time === 0 ? 'day' : 'night'}`
+              : ''
+          }${info?.nameKnown ? '' : ' · name not known'}`
         }
       })
     },

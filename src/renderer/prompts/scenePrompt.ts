@@ -1,4 +1,4 @@
-import { SUBJECT_TAGS } from '@shared/characterRules'
+import { romancesReader, SUBJECT_TAGS } from '@shared/characterRules'
 import { slotFullLabel, yearLabel } from '@shared/classes'
 import { dormClause } from '@shared/dorms'
 import { EMOTIONS } from '@shared/emotions'
@@ -1447,6 +1447,40 @@ export function buildSoloPrompt(
   }
 }
 
+/** A Breakthrough this turn uses: who it is on and what the reader asked the scene to do for her. */
+export interface BreakthroughRequest {
+  character: Character
+  direction: string
+}
+
+/**
+ * The strong instruction of a turn that uses a Breakthrough: the direction each character is
+ * to be written towards, and where the game says she cannot be the reader's romance, that the
+ * step forward is not one.
+ */
+function breakthroughBlock(requests: readonly BreakthroughRequest[]): string[] {
+  if (requests.length === 0) return []
+  const lines = [
+    'BREAKTHROUGH',
+    'The reader is using a breakthrough in this action: a moment where this scene goes somewhere it has not been before.',
+    'Favor the direction below in what you write, if it makes sense for the scene and for who the character is. If the exact request does not fit, give them a real step forward in that direction instead of a token nod.'
+  ]
+  for (const { character, direction } of requests) {
+    const key = charKeyOf(character.firstName, character.lastName)
+    lines.push('', `${key} — direction the reader wants: ${direction}`)
+    if (!romancesReader(character)) {
+      lines.push(
+        `${character.firstName} cannot be the reader's romance, so the step forward is one of friendship, trust or respect.`
+      )
+    }
+    lines.push(
+      `Everything else this prompt says about ${character.firstName} still holds, including what ${pronounsOf(character.gender).subject} would never do.`
+    )
+  }
+  lines.push('')
+  return lines
+}
+
 /** Builds the continuation request: summary and recent transcript after the cached prefix. */
 export function buildContinuationPrompt(
   cast: readonly Character[],
@@ -1456,7 +1490,8 @@ export function buildContinuationPrompt(
   setting: string,
   reader: string,
   summary: string | null,
-  actionNumber: number
+  actionNumber: number,
+  breakthroughs: readonly BreakthroughRequest[] = []
 ): StructuredRequest {
   const stubs = transcriptStubs(transcript, cast, false)
   const scan = [action, summary ?? '', ...stubs].join('\n')
@@ -1491,6 +1526,8 @@ export function buildContinuationPrompt(
     '',
     ...seedWordBlock(state.seedWord),
     '',
+    // Only on the turn that used it, and outside SCENE SO FAR, so a shortened resend keeps it.
+    ...breakthroughBlock(breakthroughs),
     // Last: the action is not in SCENE SO FAR and varies most; the turn
     // count rides with it as the scene's only length signal.
     `Reader's action: ${action}`,

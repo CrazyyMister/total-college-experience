@@ -13,6 +13,8 @@ import {
   wingmanRefusalOf,
   type WingmanKind
 } from '@shared/npcRomance'
+import { breakthroughMeterOf, lastBreakthroughUse, METER_MAX } from '@shared/breakthrough'
+import { globalSlotOf, slotFromId } from '@shared/jobs'
 import { pronounsOf } from '@shared/pronouns'
 import { affectionFor } from '@shared/relationship'
 import { charKeyOf, memoryAt, type MemoryType } from '@shared/types'
@@ -209,6 +211,64 @@ export function debugAffection(charId: string, target: number): DebugResult {
   return done(
     `${character.firstName}'s affection is now ${now()} (was ${current}, asked ${target}; steps of four, and the oldest memories drop at the cap).`
   )
+}
+
+/** How many halves of a day, the current one included, a full meter's memories are spread over. */
+const FULL_METER_HALVES = 5
+
+/**
+ * Fills her Breakthrough meter with ordinary memories: one `loved` for each of the last five
+ * halves of a day, since a half adds at most one such memory's worth. Refused where her last use
+ * leaves fewer than five halves after it.
+ */
+export function debugBreakthroughFull(charId: string): DebugResult {
+  if (!import.meta.env.DEV) return NOT_DEV
+  const game = useGameStore.getState()
+  const character = game.characters[charId]
+  if (!character) return refused('Pick a character.')
+  const info = game.charInfo[charId]
+  const last = lastBreakthroughUse(info?.breakthroughUses)
+  const now = globalSlotOf(game.date, game.time)
+  const firstHalf = now - (FULL_METER_HALVES - 1)
+  if (last && globalSlotOf(last.date, last.time) >= firstHalf) {
+    const gone = now - globalSlotOf(last.date, last.time)
+    return refused(
+      `The last use was ${gone} halves of a day ago and the meter counts only what comes after it: ${FULL_METER_HALVES} halves are needed. Forget ${character.firstName}'s uses first.`
+    )
+  }
+  const before = breakthroughMeterOf(info, last)
+  if (before >= METER_MAX) return done(`${character.firstName}'s Breakthrough is already full.`)
+
+  const object = pronounsOf(character.gender).object
+  for (let step = 0; step < FULL_METER_HALVES; step++) {
+    game.recordMemory(
+      charId,
+      memoryAt(
+        slotFromId(firstHalf + step),
+        'loved',
+        `[F9] the reader left a lasting impression on ${object} (${step + 1} of ${FULL_METER_HALVES})`
+      )
+    )
+  }
+  const after = breakthroughMeterOf(useGameStore.getState().charInfo[charId], last)
+  if (after < METER_MAX) return refused(`The meter stands at ${after}: the memory cap pushed some out.`)
+  const named = info?.nameKnown ? '' : ` The reader does not know ${object} name yet, so nothing will offer it.`
+  return done(
+    `${character.firstName}'s Breakthrough is full: 5 memories, one for each of the last 5 halves of a day, and her 5 oldest memories dropped at the cap.${named}`
+  )
+}
+
+/** Takes every Breakthrough use off her record, so the meter counts her memories from the start again. */
+export function debugForgetBreakthrough(charId: string): DebugResult {
+  if (!import.meta.env.DEV) return NOT_DEV
+  const game = useGameStore.getState()
+  const character = game.characters[charId]
+  if (!character) return refused('Pick a character.')
+  if (!game.charInfo[charId]?.breakthroughUses?.length) {
+    return refused(`${character.firstName} has no use on record.`)
+  }
+  game.forgetBreakthroughUses(charId)
+  return done(`${character.firstName}'s Breakthrough uses are forgotten.`)
 }
 
 /** Makes her the reader's lover, or ends it, through the scene ledger's own path. */
