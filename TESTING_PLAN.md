@@ -149,6 +149,13 @@ You will need externally kept data for testing:
 - [ ] On a contact page edit a fact, add a fact about her and one about the reader, delete a fact, make her not know a fact another contact also knows, remove her from an encounter and edit an encounter's text. Verify the next scene's cast block in data/app.log reflects all of it, that the contact who shared the encounter keeps it and its text, and that the calendar shows the edited text.
 - [ ] Edit an encounter's text and verify the opening already shown does not change, while the opening asked for at the end of the next scene carries the new text in its RECENTLY block.
 - [ ] Load a save from before facts and encounters and open a contact page. Verify both lists read "Nothing yet." and the calendar still shows the old days.
+- [ ] Start a New Game with an ex chosen and verify the orientation scene's first person is never her and its text says the two have never met, her contact page shows her old memories dated with their year and the prompt in data/app.log has the exes line with her dates, her origin paragraph and the [ex] line.
+- [ ] Start with a good ex and a bad ex and verify the good one is written with withFriends and told as on good terms, and the bad one with withEnemy and told as resenting the reader.
+- [ ] Make a girl the reader's ex and raise her affection above zero with F9. Verify she is written with withFriends.
+- [ ] After starting with an ex, get another contact and verify BunnyBot does not say it is the reader's first contact.
+- [ ] Back up a game that has an ex, restore it and verify her page is the same.
+- [ ] Load a save from before exes and play a scene. Verify it plays on without an error.
+- [ ] Open "Add an ex" in a small window and verify the picker scrolls, its buttons stay visible and the choice saves.
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 
