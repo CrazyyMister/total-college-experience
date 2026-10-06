@@ -1,3 +1,4 @@
+import { BREAKTHROUGH_MEMORY_TYPE } from '@shared/breakthrough'
 import { romancesReader, SUBJECT_TAGS } from '@shared/characterRules'
 import { slotFullLabel, yearLabel } from '@shared/classes'
 import { dormClause } from '@shared/dorms'
@@ -29,6 +30,8 @@ import {
   type ActKind,
   allBackgrounds,
   type BackgroundSets,
+  BREAKTHROUGH_OUTCOMES,
+  type BreakthroughOutcome,
   type Character,
   type CharFlags,
   type CharInfo,
@@ -1605,7 +1608,9 @@ function ledgerSchema(
   // Null when the scene was not a class; `factoid` is for a lecture class only.
   classScene: { factoid: boolean } | null,
   castStats: boolean,
-  romance: boolean
+  romance: boolean,
+  // The characters whose Breakthrough this scene used; none drops the field whole.
+  breakthroughKeys: readonly string[]
 ): { name: string; schema: Record<string, unknown> } {
   const charKey = { type: 'string', enum: [...charKeys] }
   // Dropped whole when no plans are asked for: an uninstructed field invites filling.
@@ -1657,7 +1662,8 @@ function ledgerSchema(
       ...planRequired,
       ...(castStats ? ['stats'] : []),
       ...classRequired,
-      ...(romance ? ['romance'] : [])
+      ...(romance ? ['romance'] : []),
+      ...(breakthroughKeys.length > 0 ? ['breakthroughs'] : [])
     ],
     {
       spent,
@@ -1720,9 +1726,77 @@ function ledgerSchema(
               }
             }
           }
+        : {}),
+      // Dropped whole when the scene used no Breakthrough: an uninstructed field invites filling.
+      ...(breakthroughKeys.length > 0
+        ? {
+            breakthroughs: {
+              type: 'array',
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                required: ['charKey', 'outcome', 'desc'],
+                properties: {
+                  charKey: { type: 'string', enum: [...breakthroughKeys] },
+                  outcome: { type: 'string', enum: [...BREAKTHROUGH_OUTCOMES] },
+                  desc: { type: 'string' }
+                }
+              }
+            }
+          }
         : {})
     }
   )
+}
+
+/** What each result of a Breakthrough means, for the section that asks the ledger to judge it. */
+const BREAKTHROUGH_GLOSS: Record<BreakthroughOutcome, string> = {
+  worked: 'the scene went where he asked, and the character welcomed it',
+  partly: 'the scene took a real step in that direction, but only part of the way, or with reservations',
+  failed: 'the scene did not go there: the character turned it aside, resisted it or was put off by it'
+}
+
+/** A Breakthrough the scene used, as the ledger is told of it. */
+export interface LedgerBreakthrough {
+  character: Character
+  /** What the reader asked the scene to do for her. */
+  direction: string
+  /** The reader's words on the action it was made on; empty where there are none to quote. */
+  quote: string
+}
+
+/** The `BREAKTHROUGH` section: who, what was asked, and where in the scene it was asked. */
+function breakthroughSection(uses: readonly LedgerBreakthrough[]): string[] {
+  if (uses.length === 0) return []
+  const lines = [
+    'BREAKTHROUGH',
+    'In this scene the reader used a breakthrough: for each character below he asked the scene to go in a direction, and the scene was then written to favor it.',
+    'Report how it actually went, one row per character, in "breakthroughs".'
+  ]
+  for (const { character, direction, quote } of uses) {
+    const key = charKeyOf(character.firstName, character.lastName)
+    lines.push('', `${key} — the reader asked for: ${direction}`)
+    if (quote) lines.push(`He asked it on the action where he said: "${quote}"`)
+    if (!romancesReader(character)) {
+      lines.push(
+        `${character.firstName} cannot be the reader's romance, so judge the result as a step of friendship, trust or respect.`
+      )
+    }
+  }
+  lines.push(
+    '',
+    'For "outcome", choose exactly one:',
+    ...BREAKTHROUGH_OUTCOMES.map(
+      (outcome) => `- ${outcome}: ${BREAKTHROUGH_GLOSS[outcome]}.`
+    ),
+    'Judge what actually happened between the character and the reader, not what he asked for and not what was meant to happen. A direction the scene only talked around did not work.',
+    'In "desc", write one sentence of what actually happened between them, in the past tense, calling him "the reader" every time. It completes the sentence "<Name> <verb> that ...", where the verb follows the outcome:',
+    ...BREAKTHROUGH_OUTCOMES.map(
+      (outcome) => `- ${outcome}: "<Name> ${BREAKTHROUGH_MEMORY_TYPE[outcome]} that ..."`
+    ),
+    ''
+  )
+  return lines
 }
 
 /** The kinds a ledger's `romance` row may carry, with what each means. */
@@ -1775,10 +1849,15 @@ export function buildLedgerPrompt(
   scene: readonly SceneLine[],
   state: PromptState,
   reader: string,
-  schedule: SchedulePromptInput
+  schedule: SchedulePromptInput,
+  breakthroughs: readonly LedgerBreakthrough[] = []
 ): StructuredRequest {
   const charKeys = cast.map((c) => charKeyOf(c.firstName, c.lastName))
   const rosterKeys = scheduleCharKeys(schedule.characters)
+  // Only a use by somebody the ledger is asked about, and none in a scene with nobody cast.
+  const keyOf = (c: Character): string => charKeyOf(c.firstName, c.lastName)
+  const used = breakthroughs.filter((use) => charKeys.includes(keyOf(use.character)))
+  const breakthroughKeys = used.map((use) => keyOf(use.character))
   // The reader's own lines are kept: a typed plan is half of what PLANS looks for.
   const stubs = transcriptStubs(
     ledgerTranscriptOf(scene),
@@ -1897,6 +1976,8 @@ export function buildLedgerPrompt(
     ...ledgerCastBlock(cast, state),
     ...(romance ? castRomanceSection(cast, state) : []),
     '',
+    // What this scene's uses asked is its own, so it sits below the rules every ledger call shares.
+    ...breakthroughSection(used),
     ...scheduleBlocks(schedule, wantPlans),
     '',
     // Last: the block that varies most.
@@ -1910,7 +1991,7 @@ export function buildLedgerPrompt(
   return {
     system: ledgerPersonaFor(state.lessNsfwText),
     user: `${preamble}\n${rest}`,
-    schema: ledgerSchema(charKeys, rosterKeys, classScene, castStats, romance),
+    schema: ledgerSchema(charKeys, rosterKeys, classScene, castStats, romance, breakthroughKeys),
     // Constant, not the playthrough: nothing above the seam varies by save.
     cacheKey: 'ledger',
     logFrom: preamble.length + 1,

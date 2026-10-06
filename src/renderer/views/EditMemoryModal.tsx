@@ -85,6 +85,7 @@ export function EditMemoryModal({
           desc={desc}
           onType={setType}
           onDesc={setDesc}
+          mark={memory.mark}
           autoFocus
         />
 

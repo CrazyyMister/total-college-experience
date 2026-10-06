@@ -204,6 +204,10 @@ export function queuedScene(
   else delete scene.turnedDownInvites
   if (game.sceneFarewell) scene.farewell = game.sceneFarewell
   else delete scene.farewell
+  // The uses are the store's too: the ledger's results are held to them at the boundary.
+  if (game.sceneBreakthroughs.length > 0) {
+    scene.breakthroughs = game.sceneBreakthroughs.map((use) => ({ ...use }))
+  } else delete scene.breakthroughs
   // `base` predates the casting turn, so these are only in the store.
   if (game.sceneMentions.length > 0) scene.mentions = [...game.sceneMentions]
   else delete scene.mentions

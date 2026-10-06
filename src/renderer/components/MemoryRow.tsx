@@ -1,5 +1,6 @@
 import type { JSX } from 'react'
-import { MEMORY_TYPES, type MemoryType } from '@shared/types'
+import { MARK_LABELS } from '@shared/breakthrough'
+import { MEMORY_TYPES, type MemoryMark, type MemoryType } from '@shared/types'
 import { profileUrl, useSpriteVersion } from '../stores/characterStore'
 import '../vu_styles/MemoryEdit.css'
 
@@ -17,6 +18,8 @@ export interface MemoryRowProps {
   desc: string
   onType: (type: MemoryType) => void
   onDesc: (desc: string) => void
+  /** What set the memory apart, worn as a sticker on the row's edge. */
+  mark?: MemoryMark
   /** The field a form opens its focus on. */
   autoFocus?: boolean
 }
@@ -34,12 +37,14 @@ export function MemoryRow({
   desc,
   onType,
   onDesc,
+  mark,
   autoFocus
 }: MemoryRowProps): JSX.Element {
   const version = useSpriteVersion(faceOf)
 
   return (
     <div className="vu-row vu-memrow">
+      {mark ? <span className="vu-sticker vu-memrow-sticker">{MARK_LABELS[mark]}</span> : null}
       {faceOf ? (
         <span className="vu-arch vu-memrow-face">
           <span className="vu-crop">

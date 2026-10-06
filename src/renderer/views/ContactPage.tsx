@@ -1,7 +1,12 @@
 import { Fragment, useState, type JSX, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { romancesReader } from '@shared/characterRules'
-import { breakthroughMeterOf, lastBreakthroughUse, METER_MAX } from '@shared/breakthrough'
+import {
+  breakthroughMeterOf,
+  lastBreakthroughUse,
+  MARK_LABELS,
+  METER_MAX
+} from '@shared/breakthrough'
 import { slotPartsOf, yearLabel } from '@shared/classes'
 import { dormLabel } from '@shared/dorms'
 import { jobDefOf, WEEK_DAY_HEADERS } from '@shared/jobs'
@@ -453,7 +458,14 @@ export function ContactPage({
                 {recent.map((memory, index) => (
                   <Fragment key={`${memory.date}-${index}`}>
                     <span className="vu-contact-when">{formatShortGameDate(memory.date)}</span>
-                    <span>“{memorySentence(character.firstName, memory)}”</span>
+                    <span>
+                      “{memorySentence(character.firstName, memory)}”
+                      {memory.mark ? (
+                        <span className="vu-sticker vu-contact-memory-sticker">
+                          {MARK_LABELS[memory.mark]}
+                        </span>
+                      ) : null}
+                    </span>
                     <motion.button
                       className="vu-square vu-contact-memory-edit"
                       type="button"

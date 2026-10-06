@@ -79,13 +79,14 @@ function sectionsOf(): DebugSection[] {
         const info = game.charInfo[charId]
         const memories = dedupedMemoriesFor(info)
         const undated = memories.filter((memory) => memory.time === undefined).length
-        const lastUse = lastBreakthroughUse(info?.breakthroughUses)
+        const uses = info?.breakthroughUses ?? []
+        const lastUse = lastBreakthroughUse(uses)
         return {
           key: charId,
           who: name(charId),
           facts: `meter ${breakthroughMeterNow(info, charId, game.sceneBreakthroughs, game)} of ${METER_MAX} · ${undated} of ${memories.length} memories without a half of the day${
             lastUse
-              ? ` · ${info?.breakthroughUses?.length ?? 0} uses, last on ${dated(lastUse.date)}, ${lastUse.time === 0 ? 'day' : 'night'}`
+              ? ` · ${uses.length} uses, last on ${dated(lastUse.date)}, ${lastUse.time === 0 ? 'day' : 'night'}, ${uses[uses.length - 1]?.outcome ?? 'no result'}`
               : ''
           }${info?.nameKnown ? '' : ' · name not known'}`
         }

@@ -1,3 +1,8 @@
+import {
+  BREAKTHROUGH_MEMORY_TYPE,
+  breakthroughResults,
+  type BreakthroughResult
+} from '@shared/breakthrough'
 import { romancesReader } from '@shared/characterRules'
 import { settleDating, type DatingPassInput, type DatingPassOutcome } from '@shared/dating'
 import { isCustomOutfitSlot, parseSpriteRef } from '@shared/outfits'
@@ -23,6 +28,7 @@ import { splitSentences } from '@shared/sentences'
 import { giftStatusMarkedLine } from '@shared/shop'
 import {
   allBackgrounds,
+  type BreakthroughOutcome,
   type CharInfo,
   charKeyOf,
   type CharMemory,
@@ -32,6 +38,7 @@ import {
   type LedgerResponse,
   MEMORY_TYPES,
   memoryAt,
+  type MemoryMark,
   type MemoryMoment,
   type MemoryType,
   type TextMemorySource,
@@ -322,9 +329,41 @@ export interface ValidMemory {
   charId: string
   type: MemoryType
   desc: string
+  /** Set on the memory a Breakthrough's result files. */
+  mark?: MemoryMark
 }
 
-/** The ledger's memories, minus the rows that cannot be filed, each in the reader's voice. */
+/**
+ * The Breakthrough results the ledger gave for the scene's uses, held to the uses the store
+ * carries. A use the reply says nothing about has no entry.
+ */
+function ledgerBreakthroughs(
+  ledger: LedgerResponse | null,
+  log = true
+): BreakthroughResult[] {
+  const { charKeyToId, sceneBreakthroughs } = useGameStore.getState()
+  if (sceneBreakthroughs.length === 0) return []
+  return breakthroughResults(
+    ledger?.breakthroughs,
+    new Set(sceneBreakthroughs.map((use) => use.charId)),
+    (charKey) => charKeyToId[charKey],
+    log ? (message) => console.warn(message) : undefined
+  )
+}
+
+/** How each used Breakthrough went, by charId — what the boundary files on the use itself. */
+export function breakthroughOutcomesOf(
+  ledger: LedgerResponse | null
+): Record<string, BreakthroughOutcome> {
+  return Object.fromEntries(
+    ledgerBreakthroughs(ledger, false).map((result) => [result.charId, result.outcome])
+  )
+}
+
+/**
+ * The ledger's memories, minus the rows that cannot be filed, each in the reader's voice. The
+ * scene's Breakthrough results follow, each a memory of the verb its result decides and marked.
+ */
 export function ledgerMemories(ledger: LedgerResponse, log = true): ValidMemory[] {
   const { charKeyToId } = useGameStore.getState()
   const kept: ValidMemory[] = []
@@ -344,6 +383,16 @@ export function ledgerMemories(ledger: LedgerResponse, log = true): ValidMemory[
       continue
     }
     kept.push({ charId, type: entry.type, desc: storedMemoryDesc(entry.desc) })
+  }
+
+  for (const result of ledgerBreakthroughs(ledger, log)) {
+    if (!result.desc) continue
+    kept.push({
+      charId: result.charId,
+      type: BREAKTHROUGH_MEMORY_TYPE[result.outcome],
+      desc: result.desc,
+      mark: 'breakthrough'
+    })
   }
 
   return kept
@@ -655,6 +704,8 @@ export function bondedCharIds(ledger: LedgerResponse | null): string[] {
   if (!ledger) return []
   const byChar = new Map<string, CharMemory[]>()
   for (const entry of ledgerMemories(ledger, false)) {
+    // The Breakthrough's result counts for her affection but moves nothing else the scene decides.
+    if (entry.mark) continue
     const memory: CharMemory = { date: 0, type: entry.type, desc: entry.desc }
     const kept = byChar.get(entry.charId)
     if (kept) kept.push(memory)
@@ -673,6 +724,7 @@ export function likedCharIds(ledger: LedgerResponse | null): string[] {
   if (!ledger) return []
   const kept: string[] = []
   for (const entry of ledgerMemories(ledger, false)) {
+    if (entry.mark) continue
     if (entry.type !== 'liked' && entry.type !== 'loved') continue
     if (!kept.includes(entry.charId)) kept.push(entry.charId)
   }
@@ -771,7 +823,7 @@ export function applyLedger(ledger: LedgerResponse): DatingPassOutcome {
 
   const when = { date: game.date, time: game.time }
   for (const entry of ledgerMemories(ledger)) {
-    game.recordMemory(entry.charId, memoryAt(when, entry.type, entry.desc))
+    game.recordMemory(entry.charId, memoryAt(when, entry.type, entry.desc, entry.mark))
   }
 
   // Still the finished slot's date: `advanceSlot` runs later in the boundary.
@@ -827,7 +879,9 @@ export function projectLedger(
     const info = entryFor(entry.charId)
     projected[entry.charId] = {
       ...info,
-      memories: [...info.memories, memoryAt(when, entry.type, entry.desc)].slice(-MEMORY_CAP)
+      memories: [...info.memories, memoryAt(when, entry.type, entry.desc, entry.mark)].slice(
+        -MEMORY_CAP
+      )
     }
   }
 

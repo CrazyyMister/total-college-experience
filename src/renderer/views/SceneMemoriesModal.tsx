@@ -99,6 +99,7 @@ export function SceneMemoriesModal({
                   desc={draft.desc}
                   onType={(type) => edit(index, { type })}
                   onDesc={(desc) => edit(index, { desc })}
+                  mark={row.applied?.mark}
                   autoFocus={index === 0}
                 />
               )

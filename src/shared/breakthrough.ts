@@ -1,12 +1,17 @@
 import { globalSlotOf } from './jobs'
+import { storedMemoryDesc } from './readerVoice'
 import { dedupedMemoriesFor } from './relationship'
-import type {
-  BreakthroughUse,
-  CharInfo,
-  CharMemory,
-  MemoryMoment,
-  MemoryType,
-  SceneBreakthrough
+import {
+  BREAKTHROUGH_OUTCOMES,
+  type BreakthroughOutcome,
+  type BreakthroughUse,
+  type CharInfo,
+  type CharMemory,
+  type LedgerResponse,
+  type MemoryMark,
+  type MemoryMoment,
+  type MemoryType,
+  type SceneBreakthrough
 } from './types'
 
 /** The Breakthrough meter: what a character's memories since the reader's last push add up to. */
@@ -128,6 +133,73 @@ export function breakthroughsOfTurn(
   transcriptLength: number
 ): SceneBreakthrough[] {
   return uses.filter((use) => use.at === transcriptLength - 1)
+}
+
+/** The verb of the memory each result files — the code's call, never the ledger's. */
+export const BREAKTHROUGH_MEMORY_TYPE: Record<BreakthroughOutcome, MemoryType> = {
+  worked: 'loved',
+  partly: 'liked',
+  failed: 'disliked'
+}
+
+/** The word a marked memory's sticker says. */
+export const MARK_LABELS: Record<MemoryMark, string> = { breakthrough: 'Breakthrough' }
+
+/** One Breakthrough result that survived the check, resolved to a roster charId. */
+export interface BreakthroughResult {
+  charId: string
+  outcome: BreakthroughOutcome
+  /** The sentence in the reader's voice; empty where the ledger gave none, and then no memory is filed. */
+  desc: string
+}
+
+/**
+ * The ledger's Breakthrough results held to the scene: a row for somebody who made no use here,
+ * a result off the list, a second row for the same character and a character the save does not
+ * hold are dropped, a row with no sentence keeps its result and files no memory, and a use left
+ * with no row at all is told of and left without a result. Every drop is a warning, never an error.
+ */
+export function breakthroughResults(
+  rows: LedgerResponse['breakthroughs'],
+  usedCharIds: ReadonlySet<string>,
+  charIdOf: (charKey: string) => string | undefined,
+  warn?: (message: string) => void
+): BreakthroughResult[] {
+  const kept: BreakthroughResult[] = []
+  const seen = new Set<string>()
+  for (const row of rows ?? []) {
+    const charId = charIdOf(row?.charKey ?? '')
+    if (!charId) {
+      warn?.(`[ledger] breakthrough result for unknown character "${row?.charKey}" — dropping it.`)
+      continue
+    }
+    if (!usedCharIds.has(charId)) {
+      warn?.(
+        `[ledger] breakthrough result for "${row.charKey}", who had no use in this scene — dropping it.`
+      )
+      continue
+    }
+    if (!BREAKTHROUGH_OUTCOMES.includes(row.outcome)) {
+      warn?.(`[ledger] breakthrough result "${row.outcome}" is not valid — dropping the entry.`)
+      continue
+    }
+    if (seen.has(charId)) {
+      warn?.(`[ledger] a second breakthrough result for "${row.charKey}" — dropping it.`)
+      continue
+    }
+    seen.add(charId)
+    const desc = typeof row.desc === 'string' ? storedMemoryDesc(row.desc) : ''
+    if (!desc) {
+      warn?.(`[ledger] breakthrough result for "${row.charKey}" has no description — keeping the result alone.`)
+    }
+    kept.push({ charId, outcome: row.outcome, desc })
+  }
+  for (const charId of usedCharIds) {
+    if (!seen.has(charId)) {
+      warn?.(`[ledger] no breakthrough result for ${charId} — leaving the use without one.`)
+    }
+  }
+  return kept
 }
 
 /**

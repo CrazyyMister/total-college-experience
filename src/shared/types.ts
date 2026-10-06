@@ -219,6 +219,15 @@ export type MemoryType = 'liked' | 'disliked' | 'loved' | 'hated'
 /** Every {@link MemoryType}, in schema and prompt order. */
 export const MEMORY_TYPES: readonly MemoryType[] = ['liked', 'disliked', 'loved', 'hated']
 
+/** What sets a memory apart from the ones the scene ledger writes: the Breakthrough's result. */
+export type MemoryMark = 'breakthrough'
+
+/** How a Breakthrough went, as the scene ledger judges it. */
+export type BreakthroughOutcome = 'worked' | 'partly' | 'failed'
+
+/** Every {@link BreakthroughOutcome}, in schema and prompt order; the one list both read. */
+export const BREAKTHROUGH_OUTCOMES: readonly BreakthroughOutcome[] = ['worked', 'partly', 'failed']
+
 /**
  * Where the phone's one impression of the reader came from: his texts with her, or an exchange
  * with her on the feed.
@@ -425,6 +434,8 @@ export interface CharMemory {
   time?: TimeSlot
   type: MemoryType
   desc: string
+  /** Set on the memory a Breakthrough's result filed; the contact page stamps it. */
+  mark?: MemoryMark
 }
 
 /** The day and half of the day a memory is filed on. */
@@ -434,8 +445,13 @@ export interface MemoryMoment {
 }
 
 /** A memory stamped with the day and half of the day it was filed on; every writer builds through it. */
-export function memoryAt(when: MemoryMoment, type: MemoryType, desc: string): CharMemory {
-  return { date: when.date, time: when.time, type, desc }
+export function memoryAt(
+  when: MemoryMoment,
+  type: MemoryType,
+  desc: string,
+  mark?: MemoryMark
+): CharMemory {
+  return { date: when.date, time: when.time, type, desc, ...(mark ? { mark } : {}) }
 }
 
 /** What an intimate act was. */
@@ -1118,6 +1134,8 @@ export interface SceneBreakthrough {
 /** A Breakthrough filed on a character: the half of the day it was used in, and what was asked. */
 export interface BreakthroughUse extends MemoryMoment {
   direction: string
+  /** How the scene ledger judged it; absent where it gave no result for her. */
+  outcome?: BreakthroughOutcome
 }
 
 /** A running summary a scene reply came with, and the transcript length it covers up to. */
@@ -2106,6 +2124,11 @@ export interface LedgerResponse {
    * did not ask.
    */
   romance?: Array<{ kind: NpcRomanceKind; from: string; to: string }>
+  /**
+   * How each Breakthrough the scene used went, by charKey, with one sentence of what happened;
+   * absent whenever the scene used none, and the schema omits it then.
+   */
+  breakthroughs?: Array<{ charKey: string; outcome: BreakthroughOutcome; desc: string }>
   /**
    * What this slot's texting left each girl with — one per character, at most. The texting
    * ledger's field, scoped to whoever actually texted this slot.

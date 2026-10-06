@@ -34,14 +34,15 @@
   width: min(820px, 100% - 60px);
 }
 
-/* The scroller the rows stand in. It pads for the scroll box's own margin and for the fade at
-   its foot, so the last row can scroll clear of it. */
+/* The scroller the rows stand in. It pads for the scroll box's own margin, for a sticker's
+   overhang at the first row's top and for the fade at its foot, so the last row can scroll
+   clear of it. */
 .vu-memedit-rows {
   display: flex;
   flex: 1;
   flex-direction: column;
   gap: 10px;
-  padding: 4px 6px 34px;
+  padding: 12px 6px 34px;
   overflow: hidden auto;
 }
 
@@ -52,9 +53,16 @@
    between rows; the row keeps the base row's padding and states only the space between its
    words. */
 .vu-memrow {
+  position: relative;
   display: flex;
   align-items: flex-start;
   gap: 14px;
+}
+
+/* What set a memory apart, hung over the row's top edge at its square end. */
+.vu-memrow-sticker {
+  right: 22px;
+  pointer-events: none;
 }
 
 /* Every other word in the sentence is centred on the field's first line rather than the row's

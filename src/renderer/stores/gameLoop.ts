@@ -94,6 +94,7 @@ import {
   buildClosingPrompt,
   buildContinuationPrompt,
   buildLedgerPrompt,
+  type LedgerBreakthrough,
   buildScenePrompt,
   buildSoloPrompt,
   addsAnnouncedBy,
@@ -114,6 +115,7 @@ import { castOf, useSaveStore } from './saveStore'
 import {
   applyLedger,
   bondedCharIds,
+  breakthroughOutcomesOf,
   ledgerMemories,
   ledgerNpcRomance,
   memoryStatusLines,
@@ -1949,6 +1951,21 @@ function withoutLogFrom(request: StructuredRequest): StructuredRequest {
   return next
 }
 
+/** The most of the reader's own words the ledger is shown to place a Breakthrough in the scene. */
+const BREAKTHROUGH_QUOTE_MAX = 160
+
+/** The scene's Breakthrough uses as the ledger is told of them, each with the words it was made on. */
+function ledgerBreakthroughsOf(game: ReturnType<typeof useGameStore.getState>): LedgerBreakthrough[] {
+  return game.sceneBreakthroughs.flatMap((use) => {
+    const character = game.characters[use.charId]
+    if (!character) return []
+    const words = (game.currentSceneTranscript[use.at]?.text ?? '').replace(/\s+/g, ' ').trim()
+    const quote =
+      words.length > BREAKTHROUGH_QUOTE_MAX ? `${words.slice(0, BREAKTHROUGH_QUOTE_MAX).trim()}…` : words
+    return [{ character, direction: use.direction, quote }]
+  })
+}
+
 /**
  * Fires the end-of-scene bookkeeping call, in parallel with the closing call; null is an
  * abandoned or dropped ending.
@@ -1965,7 +1982,8 @@ function startLedger(
     [...game.sceneLog, ...game.pendingLines],
     promptState(),
     reader(),
-    schedule
+    schedule,
+    ledgerBreakthroughsOf(game)
   )
   // Read with the request: by the time a retry runs, the closing call has folded the goodbye in.
   const summary = game.sceneSummary
@@ -2677,7 +2695,8 @@ async function crossSlotBoundary(): Promise<void> {
   }
   // Independent of the ledger too, and here so it lands once, on the boundary's write.
   useGameStore.getState().recordGifts()
-  useGameStore.getState().recordBreakthroughs()
+  // After `applyLedger`, which already told of every use the ledger left without a result.
+  useGameStore.getState().recordBreakthroughs(breakthroughOutcomesOf(ledger))
   // The finished slot's three settles, banked by the ending; null only on
   // the game-over path, which banks nothing.
   const banked = loopState.bankedOpening

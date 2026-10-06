@@ -1,5 +1,11 @@
 import { storedMemoryDesc } from '@shared/readerVoice'
-import { memoryAt, type CharMemory, type MemoryMoment, type MemoryType } from '@shared/types'
+import {
+  memoryAt,
+  type CharMemory,
+  type MemoryMark,
+  type MemoryMoment,
+  type MemoryType
+} from '@shared/types'
 
 /** The boundary's memory question as data — its rows off the ledger, and what the answers change. */
 
@@ -28,7 +34,7 @@ export interface MemoryEdit {
  */
 export function memoryEditRows(
   cast: readonly string[],
-  filed: readonly { charId: string; type: MemoryType; desc: string }[],
+  filed: readonly { charId: string; type: MemoryType; desc: string; mark?: MemoryMark }[],
   when: MemoryMoment
 ): MemoryEditRow[] {
   const rows: MemoryEditRow[] = []
@@ -39,10 +45,10 @@ export function memoryEditRows(
     for (const entry of filed) {
       if (entry.charId !== charId) continue
       any = true
-      const key = JSON.stringify([charId, entry.type, entry.desc])
+      const key = JSON.stringify([charId, entry.type, entry.desc, entry.mark ?? null])
       if (seen.has(key)) continue
       seen.add(key)
-      rows.push({ charId, applied: memoryAt(when, entry.type, entry.desc) })
+      rows.push({ charId, applied: memoryAt(when, entry.type, entry.desc, entry.mark) })
     }
     if (!any) rows.push({ charId, applied: null })
   }

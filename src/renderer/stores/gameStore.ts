@@ -120,6 +120,7 @@ import {
   type QuizState,
   READER_SPEAKER,
   type RelationshipEvent,
+  type BreakthroughOutcome,
   type SceneBreakthrough,
   type SceneGift,
   type SceneLine,
@@ -722,8 +723,11 @@ interface GameStoreState {
   fileBreakthrough: (charId: string, direction: string) => boolean
   /** Undoes the newest Breakthrough of the scene: its turn was abandoned. */
   unfileBreakthrough: () => void
-  /** Files this scene's Breakthroughs on the characters, once each — run at the boundary. */
-  recordBreakthroughs: () => void
+  /**
+   * Files this scene's Breakthroughs on the characters, once each — run at the boundary — with
+   * the result the ledger gave each, where it gave one.
+   */
+  recordBreakthroughs: (outcomes?: Readonly<Record<string, BreakthroughOutcome>>) => void
   /** Empties the scene's Breakthrough list at a scene boundary or a slot opening. */
   clearSceneBreakthroughs: () => void
   /** Takes every Breakthrough use off her record; the development build's test button. */
@@ -2054,17 +2058,19 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
   unfileBreakthrough: () =>
     set((state) => ({ sceneBreakthroughs: state.sceneBreakthroughs.slice(0, -1) })),
 
-  recordBreakthroughs: () =>
+  recordBreakthroughs: (outcomes = {}) =>
     set((state) => {
       if (state.sceneBreakthroughs.length === 0) return {}
       const charInfo = { ...state.charInfo }
       let changed = false
       for (const use of state.sceneBreakthroughs) {
         const existing = charInfo[use.charId] ?? blankCharInfo()
+        const outcome = outcomes[use.charId]
         const uses = withBreakthroughUse(existing.breakthroughUses, {
           date: state.date,
           time: state.time,
-          direction: use.direction
+          direction: use.direction,
+          ...(outcome ? { outcome } : {})
         })
         if (!uses) continue
         charInfo[use.charId] = { ...existing, breakthroughUses: uses }
