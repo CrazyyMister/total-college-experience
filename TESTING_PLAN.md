@@ -163,6 +163,8 @@ You will need externally kept data for testing:
 - [ ] Load a save from before courses and play a scene. Verify it plays on with no course and no error.
 - [ ] On the custom endpoint (OpenRouter), start a New Game with no course and finish the heights and name screens. Verify the registrar opens with its classes and data/app.log has no [classes] warning.
 - [ ] On the custom endpoint (OpenRouter), start a New Game with a course picked and finish the heights and name screens. Verify the registrar opens with its four course classes tagged "Your course" and data/app.log has no [classes] warning.
+- [ ] Start a New Game and open F9. Verify the "Left out of the week" section reads "Nothing left out" or lists, per character, what her week could not place, and that data/app.log has a [haunts] summary line for the game and a [haunts] line for each character with something left out.
+- [ ] Load a save from before the week kept what it left out and open F9. Verify "Left out of the week" reads "No record".
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 
