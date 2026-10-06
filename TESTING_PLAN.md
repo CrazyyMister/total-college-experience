@@ -161,6 +161,8 @@ You will need externally kept data for testing:
 - [ ] Make the class generation call fail with a course picked. Verify the failure names it and Retry sends it again with the course.
 - [ ] Resume the registrar from the saved enrollment and verify the course and its classes are still there.
 - [ ] Load a save from before courses and play a scene. Verify it plays on with no course and no error.
+- [ ] On the custom endpoint (OpenRouter), start a New Game with no course and finish the heights and name screens. Verify the registrar opens with its classes and data/app.log has no [classes] warning.
+- [ ] On the custom endpoint (OpenRouter), start a New Game with a course picked and finish the heights and name screens. Verify the registrar opens with its four course classes tagged "Your course" and data/app.log has no [classes] warning.
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 
