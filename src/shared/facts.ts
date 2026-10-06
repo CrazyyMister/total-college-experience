@@ -243,3 +243,122 @@ export function withFactsFiled(
   }
   return changed ? next : null
 }
+
+/**
+ * The id of a fact the player adds on `date` and `time`: the slot's own prefix with an `a` and
+ * the next number free in that slot, so it never meets one a scene's boundary files (`n`).
+ */
+export function addedFactId(facts: readonly Fact[] | undefined, date: number, time: TimeSlot): string {
+  const prefix = `d${date}t${time}a`
+  let next = 0
+  for (const fact of facts ?? []) {
+    if (!fact.id.startsWith(prefix)) continue
+    const taken = Number(fact.id.slice(prefix.length))
+    if (Number.isInteger(taken) && taken >= next) next = taken + 1
+  }
+  return `${prefix}${next}`
+}
+
+/** What the player gives for a fact of his own. */
+export interface AddedFact {
+  about: string
+  category: FactCategory
+  text: string
+  kind: Fact['kind']
+  /** Who knows it besides the reader; the person it is about is added when missing. */
+  knownBy: readonly string[]
+  date: number
+  time: TimeSlot
+}
+
+/**
+ * The facts with one the player wrote filed, its words as a scene's are filed, or null where it
+ * has none. `subjectName` is the first name of the person it is about.
+ */
+export function withFactAdded(
+  facts: readonly Fact[] | undefined,
+  added: AddedFact,
+  subjectName?: string
+): Fact[] | null {
+  const text = factText(added.text, subjectName ? [subjectName] : [])
+  if (!text) return null
+  const knownBy = [...added.knownBy]
+  if (added.about !== FACT_ABOUT_READER && !knownBy.includes(added.about)) knownBy.unshift(added.about)
+  const fact: Fact = {
+    id: addedFactId(facts, added.date, added.time),
+    about: added.about,
+    category: added.category,
+    text,
+    kind: added.kind,
+    knownBy,
+    date: added.date,
+    time: added.time
+  }
+  return [...(facts ?? []), fact]
+}
+
+/** What the player may change on a fact already kept. */
+export interface FactChange {
+  text?: string
+  category?: FactCategory
+  kind?: Fact['kind']
+}
+
+/**
+ * The facts with one corrected, its words filed as a scene's are, or null where that changes
+ * nothing, the fact is not there or the new words are empty. The id stays.
+ */
+export function withFactEdited(
+  facts: readonly Fact[] | undefined,
+  id: string,
+  change: FactChange,
+  subjectName?: string
+): Fact[] | null {
+  const at = (facts ?? []).findIndex((fact) => fact.id === id)
+  if (!facts || at === -1) return null
+  const was = facts[at]
+  const text = change.text === undefined ? was.text : factText(change.text, subjectName ? [subjectName] : [])
+  if (!text) return null
+  const edited: Fact = {
+    ...was,
+    text,
+    category: change.category ?? was.category,
+    kind: change.kind ?? was.kind
+  }
+  if (JSON.stringify(edited) === JSON.stringify(was)) return null
+  const next = [...facts]
+  next[at] = edited
+  return next
+}
+
+/** The facts without the one under `id` — for everybody — or null where it is not there. */
+export function withFactDeleted(facts: readonly Fact[] | undefined, id: string): Fact[] | null {
+  if (!facts?.some((fact) => fact.id === id)) return null
+  return facts.filter((fact) => fact.id !== id)
+}
+
+/**
+ * Whether taking `charId` out of a fact leaves it with nobody who knows it, and so deletes it.
+ * The reader always knows and is never in the list.
+ */
+export function isLastKnower(fact: Fact, charId: string): boolean {
+  return fact.knownBy.length === 1 && fact.knownBy[0] === charId
+}
+
+/**
+ * The facts with `charId` no longer knowing the one under `id`; the fact goes altogether when
+ * she was the last who knew it. Null where it is not there, she did not know it, or it is about
+ * her: nobody can be made not to know a fact about herself.
+ */
+export function withKnowerRemoved(
+  facts: readonly Fact[] | undefined,
+  id: string,
+  charId: string
+): Fact[] | null {
+  const fact = facts?.find((one) => one.id === id)
+  if (!facts || !fact || fact.about === charId || !fact.knownBy.includes(charId)) return null
+  if (isLastKnower(fact, charId)) return facts.filter((one) => one.id !== id)
+  return facts.map((one) =>
+    one.id === id ? { ...one, knownBy: one.knownBy.filter((knower) => knower !== charId) } : one
+  )
+}

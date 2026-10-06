@@ -512,6 +512,41 @@
   white-space: nowrap;
 }
 
+/* A section under her memories — her facts, her encounters: its name, and on the facts' the
+   button that adds one at the row's end. */
+.vu-contact-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* The add button at the size of the card's own type, not the pill's settings-row size. */
+.vu-contact-section-add {
+  padding: 6px 14px;
+  font-size: 12px;
+}
+
+/* A fact's category after its sentence, in the meta's mono voice. */
+.vu-contact-memory-cat {
+  margin-left: 10px;
+  color: var(--vu-text-muted);
+  font: 700 11px var(--font-mono);
+  font-style: normal;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Where an encounter was and who was there, on a line above its recap. */
+.vu-contact-memory-meta {
+  display: block;
+  color: var(--vu-text-muted);
+  font: 700 11px var(--font-mono);
+  font-style: normal;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 /* Her Breakthrough meter above her memories: its one word and a thin recessed bar, no number. */
 .vu-contact-meter {
   display: flex;

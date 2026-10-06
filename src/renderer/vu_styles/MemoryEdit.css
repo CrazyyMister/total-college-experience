@@ -225,3 +225,48 @@
   color: var(--vu-text-body);
   font: 500 15px/1.4 var(--font-body);
 }
+
+/* ---- the fact and encounter edits ----------------------------------------- */
+
+/* The body of the two single edits: its pickers, its field and the hints under it. */
+.vu-factedit {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Who it is about, its category and its kind, side by side. */
+.vu-factedit-pick {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  align-items: center;
+}
+
+/* The person a fact already kept is about, level with the pickers beside it. */
+.vu-factedit-about {
+  overflow: hidden;
+  color: var(--vu-text);
+  font: 700 17px var(--font-body);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A fact's words, two lines deep and no more, as the row on the boundary's list holds them. */
+.vu-factedit-text {
+  height: calc(2lh + 33px);
+  overflow: hidden auto;
+  resize: none;
+}
+
+/* A recap runs to a paragraph, so its field is taller and scrolls past that. */
+.vu-factedit-text--recap {
+  height: calc(7lh + 33px);
+}
+
+/* The two single edits' foot carries up to four answers, so it wraps onto a second line rather
+   than running past the panel, and keeps a tighter gap between lines. */
+.vu-memedit--one > .vu-foot {
+  flex-wrap: wrap;
+  gap: 14px 30px;
+}

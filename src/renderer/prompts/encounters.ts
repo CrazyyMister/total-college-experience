@@ -7,7 +7,7 @@ import { formatChatDivider } from './gameDate'
 import { loreEntryById } from './lorebook'
 
 /** How a place the classifier named reads: its catalog label, its lorebook name, or the words as given. */
-function placeOf(where: string): string {
+export function placeOf(where: string): string {
   return locationDefOf(where)?.label ?? loreEntryById(where)?.keys[0] ?? where
 }
 

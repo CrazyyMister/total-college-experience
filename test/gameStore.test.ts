@@ -1082,6 +1082,40 @@ describe('commitSceneToHistory and encounters', () => {
   })
 })
 
+describe('the encounter edits', () => {
+  const absent = "The reader didn't show up for Dinner with Sarah."
+
+  beforeEach(() => {
+    useGameStore.getState().reset()
+    useGameStore.setState({
+      history: { 3: { 1: `They talked. ${absent}` } },
+      encounters: { 3: { 1: { who: ['a', 'b'], saw: ['a', 'b'], summary: 'They talked.', absent } } }
+    })
+  })
+
+  it('writes the new text to the encounter and the history line, with the stood-up lines kept', () => {
+    useGameStore.getState().editEncounterText(3, 1, 'They argued.')
+    expect(useGameStore.getState().encounters[3]?.[1]?.summary).toBe('They argued.')
+    // The calendar reads this line, and so does the next opening's walk.
+    expect(useGameStore.getState().history[3]?.[1]).toBe(`They argued. ${absent}`)
+  })
+
+  it('takes her out of the encounter and leaves the text, the others and the history alone', () => {
+    useGameStore.getState().leaveEncounter('a', 3, 1)
+    expect(useGameStore.getState().encounters[3]?.[1]).toEqual({
+      who: ['b'],
+      saw: ['b'],
+      summary: 'They talked.',
+      absent
+    })
+    expect(useGameStore.getState().history[3]?.[1]).toBe(`They talked. ${absent}`)
+    // A save that no longer holds any encounter omits the field.
+    useGameStore.getState().leaveEncounter('b', 3, 1)
+    expect('encounters' in useGameStore.getState().toGameSave()).toBe(false)
+    expect(useGameStore.getState().history[3]?.[1]).toBe(`They talked. ${absent}`)
+  })
+})
+
 describe('markEventNoShow', () => {
   it('records the stood-up on the one event named', () => {
     useGameStore.setState({ events: [calendarEvent({ id: 'e1' }), calendarEvent({ id: 'e2' })] })

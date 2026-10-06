@@ -43,6 +43,7 @@ import { useGameStore } from '../stores/gameStore'
 import { noNsfwImagesOf, useSettingsStore } from '../stores/settingsStore'
 import { sendFriendRequest } from '../stores/textingLoop'
 import type { ScreenTheme } from './clockTheme'
+import { EncountersSection, FactsSection } from './ContactRecord'
 import { EditMemoryModal } from './EditMemoryModal'
 import {
   breatheDecor,
@@ -478,6 +479,13 @@ export function ContactPage({
                   </Fragment>
                 ))}
               </div>
+            )}
+            {/* What the scenes left her besides memories, for somebody whose name he knows. */}
+            {isContact && info?.nameKnown && (
+              <>
+                <FactsSection charId={charId} theme={theme} />
+                <EncountersSection charId={charId} name={character.firstName} theme={theme} />
+              </>
             )}
           </Card>
         </motion.div>

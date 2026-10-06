@@ -27,6 +27,18 @@ function seed(history: Record<number, Record<number, string>>): void {
   useGameStore.setState({ history })
 }
 
+describe('recentSummaries after an encounter is edited', () => {
+  it('reads the edited text, with the stood-up lines still on it', () => {
+    const absent = "The reader didn't show up for Dinner with Sarah."
+    seed({ 6: { 1: `They talked. ${absent}` } })
+    useGameStore.setState({
+      encounters: { 6: { 1: { who: ['a'], saw: ['a'], summary: 'They talked.', absent } } }
+    })
+    useGameStore.getState().editEncounterText(6, 1, 'They argued.')
+    expect(recentSummaries(7, 0)).toEqual([stamped(6, 1, `They argued. ${absent}`)])
+  })
+})
+
 describe('recentSummaries', () => {
   it('reads the three slots before this one, oldest first and each stamped', () => {
     seed({

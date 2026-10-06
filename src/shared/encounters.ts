@@ -1,4 +1,4 @@
-import type { Encounter, Encounters, IntimateAct, TimeSlot } from './types'
+import type { Encounter, Encounters, GameHistory, IntimateAct, TimeSlot } from './types'
 
 /** The most encounters one character's block carries when she is alone with the reader. */
 export const ENCOUNTER_CAP = 12
@@ -92,4 +92,71 @@ export function encounterOf(
     summary,
     ...(absent ? { absent } : {})
   }
+}
+
+/** One of a character's encounters as her page lists it, with the whole entry. */
+export interface EncounterEntry {
+  date: number
+  time: TimeSlot
+  encounter: Encounter
+}
+
+/** Every scene `charId` was in, newest first, whole; the page's list and the editor read it. */
+export function encounterEntriesOf(
+  charId: string,
+  encounters: Encounters | undefined
+): EncounterEntry[] {
+  const found: EncounterEntry[] = []
+  const days = Object.keys(encounters ?? {})
+    .map(Number)
+    .sort((a, b) => b - a)
+  for (const date of days) {
+    for (const time of [1, 0] as const) {
+      const encounter = encounters?.[date]?.[time]
+      if (encounter?.who.includes(charId)) found.push({ date, time, encounter })
+    }
+  }
+  return found
+}
+
+/**
+ * The encounter with its summary rewritten, and the history line of the same day and half
+ * recomposed from it and the stood-up lines the encounter keeps, so the calendar and the slot
+ * opening read the new words. Null where there is no such encounter or the words are the same.
+ */
+export function withEncounterSummary(
+  encounters: Encounters | undefined,
+  history: GameHistory,
+  date: number,
+  time: TimeSlot,
+  summary: string
+): { encounters: Encounters; history: GameHistory } | null {
+  const encounter = encounters?.[date]?.[time]
+  const words = summary.trim()
+  // Opened and saved as it stood, nothing is rewritten, whatever its length or edges.
+  if (!encounters || !encounter || !words || summary === encounter.summary) return null
+  return {
+    encounters: { ...encounters, [date]: { ...encounters[date], [time]: { ...encounter, summary: words } } },
+    history: { ...history, [date]: { ...history[date], [time]: historyLineOf(words, encounter.absent) } }
+  }
+}
+
+/**
+ * The encounters with `charId` taken out of one — out of who was there and of who took in its
+ * summary — the text kept for the rest. The entry goes when nobody is left in it; the history
+ * line is never touched. Null where she was not in it.
+ */
+export function withoutFromEncounter(
+  encounters: Encounters | undefined,
+  date: number,
+  time: TimeSlot,
+  charId: string
+): Encounters | null {
+  const encounter = encounters?.[date]?.[time]
+  if (!encounters || !encounter?.who.includes(charId)) return null
+  const who = encounter.who.filter((one) => one !== charId)
+  const { [time]: _gone, ...rest } = encounters[date] ?? {}
+  const day = who.length === 0 ? rest : { ...rest, [time]: { ...encounter, who, saw: encounter.saw.filter((one) => one !== charId) } }
+  const { [date]: _day, ...others } = encounters
+  return Object.keys(day).length === 0 ? others : { ...others, [date]: day }
 }

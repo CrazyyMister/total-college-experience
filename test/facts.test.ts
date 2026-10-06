@@ -1,10 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  addedFactId,
   checkFacts,
   FACT_CAP,
   factIdOf,
   factsKnownBy,
+  withFactAdded,
+  withFactDeleted,
+  withFactEdited,
   withFactsFiled,
+  withKnowerRemoved,
   type FactsCheckInput
 } from '@shared/facts'
 import type { Fact, FactsReply, GameSave } from '@shared/types'
@@ -332,5 +337,117 @@ describe('facts on the save', () => {
     useGameStore.getState().reset()
     useGameStore.getState().loadSave(save, playthroughRecord(), {})
     expect(useGameStore.getState().facts).toEqual([])
+  })
+})
+
+describe('the facts the player adds and edits', () => {
+  const added = {
+    about: 'a',
+    category: 'past' as const,
+    text: 'Used to swim',
+    kind: 'happened' as const,
+    knownBy: ['a'],
+    date: 3,
+    time: 1 as const
+  }
+
+  it('mints an id of its own, which never meets one a scene files, however many are there', () => {
+    const fromScene = checkFacts(
+      { facts: [row(), row({ text: 'is shy' }), row({ text: 'likes tea' })] },
+      input()
+    ).facts
+    expect(fromScene.map((one) => one.id)).toEqual(['d3t1n0', 'd3t1n1', 'd3t1n2'])
+    let facts: Fact[] = fromScene
+    for (let count = 0; count < 3; count++) {
+      const id = addedFactId(facts, 3, 1)
+      expect(facts.some((one) => one.id === id)).toBe(false)
+      facts = withFactAdded(facts, { ...added, text: `Fact ${count}` }) ?? facts
+    }
+    expect(facts.slice(3).map((one) => one.id)).toEqual(['d3t1a0', 'd3t1a1', 'd3t1a2'])
+    // The same slot's boundary replayed files its own again and leaves the player's.
+    const replayed = withFactsFiled(facts, fromScene, []) ?? facts
+    expect(replayed.filter((one) => one.id.includes('a'))).toHaveLength(3)
+    expect(replayed).toHaveLength(6)
+  })
+
+  it("files it in a scene fact's format, known by the one it is about and the reader", () => {
+    const [filed] = withFactAdded([], { ...added, text: 'Ann used to swim.' }, 'Ann') ?? []
+    expect(filed).toEqual({
+      id: 'd3t1a0',
+      about: 'a',
+      category: 'past',
+      text: 'used to swim',
+      kind: 'happened',
+      knownBy: ['a'],
+      date: 3,
+      time: 1
+    })
+    // A fact about the reader is known to who it is given to; the reader never is in the list.
+    const [reader] = withFactAdded([], { ...added, about: 'reader', knownBy: ['b'] }) ?? []
+    expect(reader.knownBy).toEqual(['b'])
+    expect(withFactAdded([], { ...added, text: '  ' })).toBeNull()
+  })
+
+  it('corrects the words, category and kind and keeps the id and who knows it', () => {
+    const facts = [fact({ knownBy: ['a', 'b'] })]
+    const next = withFactEdited(
+      facts,
+      'd1t0n0',
+      { text: 'Ann has a brother.', category: 'past', kind: 'said' },
+      'Ann'
+    )
+    expect(next).toEqual([
+      fact({ text: 'has a brother', category: 'past', kind: 'said', knownBy: ['a', 'b'] })
+    ])
+    expect(withFactEdited(facts, 'd1t0n0', { text: 'has a sister, Joy' })).toBeNull()
+    expect(withFactEdited(facts, 'gone', { text: 'x' })).toBeNull()
+    expect(withFactEdited(facts, 'd1t0n0', { text: ' ' })).toBeNull()
+  })
+
+  it('deletes a fact for everybody', () => {
+    const facts = [fact(), fact({ id: 'd1t0n1', text: 'is shy' })]
+    expect(withFactDeleted(facts, 'd1t0n0')?.map((one) => one.id)).toEqual(['d1t0n1'])
+    expect(withFactDeleted(facts, 'gone')).toBeNull()
+  })
+
+  describe('she does not know it', () => {
+    const facts = [
+      fact({ about: 'b', knownBy: ['b', 'a'] }),
+      fact({ id: 'd1t0n1', about: 'reader', knownBy: ['a'] })
+    ]
+
+    it('takes only her out of who knows it, so the rest still do', () => {
+      const next = withKnowerRemoved(facts, 'd1t0n0', 'a')
+      expect(next?.[0].knownBy).toEqual(['b'])
+      expect(factsKnownBy('b', next ?? [])).toHaveLength(1)
+      expect(factsKnownBy('a', next ?? []).map((one) => one.id)).toEqual(['d1t0n1'])
+    })
+
+    it('deletes the fact when she was the last who knew it', () => {
+      expect(withKnowerRemoved(facts, 'd1t0n1', 'a')?.map((one) => one.id)).toEqual(['d1t0n0'])
+    })
+
+    it('does nothing for a fact about her, one she did not know or one that is not there', () => {
+      expect(withKnowerRemoved([fact()], 'd1t0n0', 'a')).toBeNull()
+      expect(withKnowerRemoved(facts, 'd1t0n0', 'c')).toBeNull()
+      expect(withKnowerRemoved(facts, 'gone', 'a')).toBeNull()
+    })
+  })
+
+  it('works through the store', () => {
+    useGameStore.getState().reset()
+    const store = useGameStore.getState()
+    store.addFact(added)
+    store.addFact({ ...added, text: 'Likes tea' })
+    expect(useGameStore.getState().facts.map((one) => one.id)).toEqual(['d3t1a0', 'd3t1a1'])
+    store.editFact('d3t1a0', { text: 'swam for years' })
+    store.forgetFact('d3t1a1', 'b')
+    store.deleteFact('gone')
+    expect(useGameStore.getState().facts.map((one) => [one.id, one.text])).toEqual([
+      ['d3t1a0', 'swam for years'],
+      ['d3t1a1', 'likes tea']
+    ])
+    store.deleteFact('d3t1a1')
+    expect(useGameStore.getState().facts.map((one) => one.id)).toEqual(['d3t1a0'])
   })
 })

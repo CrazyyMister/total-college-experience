@@ -67,8 +67,22 @@ import type { Weather } from '@shared/weather'
 import { MAX_RAISES, newJobState, RAISE_EVERY } from '@shared/jobs'
 import type { ExamPeriod } from '@shared/academics'
 import type { DatingPassOutcome } from '@shared/dating'
-import { encounterOf, historyLineOf } from '@shared/encounters'
-import { withFactsFiled, type FactLearned } from '@shared/facts'
+import {
+  encounterOf,
+  historyLineOf,
+  withEncounterSummary,
+  withoutFromEncounter
+} from '@shared/encounters'
+import {
+  withFactAdded,
+  withFactDeleted,
+  withFactEdited,
+  withFactsFiled,
+  withKnowerRemoved,
+  type AddedFact,
+  type FactChange,
+  type FactLearned
+} from '@shared/facts'
 import type {
   NpcFriendship,
   NpcRelationshipMap,
@@ -755,6 +769,21 @@ interface GameStoreState {
    * fact under an id already held replaces it, so a boundary run twice files each once.
    */
   fileFacts: (added: readonly Fact[], learned: readonly FactLearned[]) => void
+  /** Files a fact the player wrote on a contact's page, under an id no scene's boundary uses. */
+  addFact: (added: AddedFact) => void
+  /** Corrects the words, category or kind of one kept fact; its id stays. */
+  editFact: (id: string, change: FactChange) => void
+  /** Takes one fact away for everybody. */
+  deleteFact: (id: string) => void
+  /** Makes `charId` not know a fact; the fact goes when she was the last who knew it. */
+  forgetFact: (id: string, charId: string) => void
+  /**
+   * Rewrites a finished scene's summary for everybody who was in it and recomposes the history
+   * line of the same slot from it, so the calendar and the slot opening read the new words.
+   */
+  editEncounterText: (date: number, time: TimeSlot, summary: string) => void
+  /** Takes `charId` out of one encounter, the text kept for the others and the history. */
+  leaveEncounter: (charId: string, date: number, time: TimeSlot) => void
   /** Files what this slot's texting left her with, **replacing** the last slot's. */
   /** Replaces the phone's one impression of the reader, with where it came from. */
   setTextMemory: (charId: string, entry: CharMemory, source: TextMemorySource) => void
@@ -2140,6 +2169,41 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
     set((state) => {
       const next = withFactsFiled(state.facts, added, learned)
       return next ? { facts: next } : {}
+    }),
+
+  addFact: (added) =>
+    set((state) => {
+      const subject = state.characters[added.about]?.firstName
+      const next = withFactAdded(state.facts, added, subject)
+      return next ? { facts: next } : {}
+    }),
+
+  editFact: (id, change) =>
+    set((state) => {
+      const about = state.facts.find((fact) => fact.id === id)?.about
+      const next = withFactEdited(state.facts, id, change, about ? state.characters[about]?.firstName : undefined)
+      return next ? { facts: next } : {}
+    }),
+
+  deleteFact: (id) =>
+    set((state) => {
+      const next = withFactDeleted(state.facts, id)
+      return next ? { facts: next } : {}
+    }),
+
+  forgetFact: (id, charId) =>
+    set((state) => {
+      const next = withKnowerRemoved(state.facts, id, charId)
+      return next ? { facts: next } : {}
+    }),
+
+  editEncounterText: (date, time, summary) =>
+    set((state) => withEncounterSummary(state.encounters, state.history, date, time, summary) ?? {}),
+
+  leaveEncounter: (charId, date, time) =>
+    set((state) => {
+      const next = withoutFromEncounter(state.encounters, date, time, charId)
+      return next ? { encounters: next } : {}
     }),
 
   setCrush: (charId) =>
