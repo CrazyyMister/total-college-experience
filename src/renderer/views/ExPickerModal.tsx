@@ -93,7 +93,7 @@ export function ExPickerModal({
     >
       <motion.form
         id="new-game-ex"
-        className="vu-giftsay vu-paper"
+        className="vu-giftsay vu-newgame-ex-panel vu-paper"
         role="dialog"
         aria-modal="true"
         aria-label="Ex-girlfriend"
@@ -108,40 +108,48 @@ export function ExPickerModal({
       >
         <TitleTab>Ex-girlfriend</TitleTab>
 
-        <motion.div className="vu-giftto-row" variants={FACE_DEAL}>
-          {candidates.map((candidate) => (
-            <PickFace
-              key={candidate.charId}
-              charId={candidate.charId}
-              name={candidate.firstName}
-              on={picked === candidate.charId}
-              onPick={() => setPicked(candidate.charId)}
-            />
-          ))}
-        </motion.div>
+        <div className="vu-scroll-box">
+          <div className="vu-newgame-ex-body">
+            <motion.div className="vu-giftto-row" variants={FACE_DEAL}>
+              {candidates.map((candidate) => (
+                <PickFace
+                  key={candidate.charId}
+                  charId={candidate.charId}
+                  name={candidate.firstName}
+                  on={picked === candidate.charId}
+                  onPick={() => setPicked(candidate.charId)}
+                />
+              ))}
+            </motion.div>
 
-        {character && (
-          <>
-            <div className="vu-newgame-ex-read">
-              <Reading label="Dating history (not used in this game)" value={character.datingHistory} />
-              <Reading label="Backstory" value={character.backstory} />
-            </div>
-            <SelectField
-              id="new-game-ex-tone"
-              label="How it ended"
-              value={tone}
-              onChange={(value) => setTone(value as ExTone)}
-              options={EX_TONES.map((value) => ({ value, label: TONE_LABELS[value] }))}
-            />
-            <SelectField
-              id="new-game-ex-ender"
-              label="Who ended it"
-              value={endedBy}
-              onChange={(value) => setEndedBy(value as ExEnder)}
-              options={EX_ENDERS.map((value) => ({ value, label: ENDER_LABELS[value] }))}
-            />
-          </>
-        )}
+            {character && (
+              <>
+                <div className="vu-newgame-ex-read">
+                  <Reading
+                    label="Dating history (not used in this game)"
+                    value={character.datingHistory}
+                  />
+                  <Reading label="Backstory" value={character.backstory} />
+                </div>
+                <SelectField
+                  id="new-game-ex-tone"
+                  label="How it ended"
+                  value={tone}
+                  onChange={(value) => setTone(value as ExTone)}
+                  options={EX_TONES.map((value) => ({ value, label: TONE_LABELS[value] }))}
+                />
+                <SelectField
+                  id="new-game-ex-ender"
+                  label="Who ended it"
+                  value={endedBy}
+                  onChange={(value) => setEndedBy(value as ExEnder)}
+                  options={EX_ENDERS.map((value) => ({ value, label: ENDER_LABELS[value] }))}
+                />
+              </>
+            )}
+          </div>
+          <div className="vu-scroll-fade" />
+        </div>
 
         <div className="vu-foot">
           <motion.button

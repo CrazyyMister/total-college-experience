@@ -175,12 +175,41 @@
   align-self: flex-end;
 }
 
-/* What her sheet says of her past, read-only under the faces: it scrolls past its cap rather
-   than growing the panel. */
+/* The ex's panel is capped like every tall modal: the title and the foot stay where they are
+   and the body between them is the one scroller. The box holds the scroller and takes its
+   padding back, so the fields sit where the panel's own padding puts them. */
+.vu-newgame-ex-panel {
+  max-height: calc(100% - 100px);
+}
+
+.vu-newgame-ex-panel .vu-scroll-box {
+  flex: 1 1 auto;
+  flex-direction: column;
+  margin: -14px;
+}
+
+/* The faces, her sheet's own words and the two selects, taking the room the foot leaves. The
+   padding is for what a face's shadow and lift reach, which the scroller clips; the contained
+   overscroll keeps the roster behind it still at either end. */
+.vu-newgame-ex-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 0;
+  padding: 14px 14px 34px;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+}
+
+/* Nothing in the body shrinks to fit: the body scrolls instead. */
+.vu-newgame-ex-body > * {
+  flex: none;
+}
+
+/* What her sheet says of her past, read-only under the faces. */
 .vu-newgame-ex-read {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  max-height: 220px;
-  overflow: hidden auto;
 }
