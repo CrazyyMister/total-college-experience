@@ -190,4 +190,5 @@ You will need externally kept data for testing:
 
 ### Graduation and Goodbyes
 - [ ] Attend graduation, click through a goodbye, then go home.
+- [ ] Reach graduation with more than six friends, one of them your girlfriend. Verify the graduation picture holds at most six people, your girlfriend among them, and data/app.log has a [ending] graduation picture line naming who went in.
 - [ ] Back up game data. Close the game, run `npm run exe:remove -- --to "D:\Venus Teste"` and then `npm run exe:update -- --to "D:\Venus Teste"`, open the exe, enter an API key, restore the backup and verify that everything is there.
