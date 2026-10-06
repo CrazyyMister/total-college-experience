@@ -121,6 +121,10 @@ You will need externally kept data for testing:
 - [ ] In a dev build, force a contact to tag you and another to comment on that post. Verify F9 says the post tags the reader and no comment arrives.
 - [ ] Comment on a post that already has a character's comment. Verify her reply arrives under your comment and the character's comment stays above it.
 - [ ] Load a save from before characters commented on each other's posts, play a scene and verify it plays on without an error.
+- [ ] Play two scenes with a contact you can name, leaving her with good memories. Open her page and verify the Breakthrough bar has risen, and that a contact whose name you do not know shows no bar.
+- [ ] Load a save written before the Breakthrough bar and verify the bar is empty on every contact page.
+- [ ] Edit a memory from a half of the day that holds only that one memory, changing it to a worse verb, and verify the bar goes down; delete it and verify it goes down again.
+- [ ] In a dev build, open F9 and verify the Breakthrough meter section lists every character with her meter and how many of her memories carry no half of the day, a man as well as a woman.
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 
