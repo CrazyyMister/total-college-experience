@@ -156,6 +156,11 @@ You will need externally kept data for testing:
 - [ ] Back up a game that has an ex, restore it and verify her page is the same.
 - [ ] Load a save from before exes and play a scene. Verify it plays on without an error.
 - [ ] Open "Add an ex" in a small window and verify the picker scrolls, its buttons stay visible and the choice saves.
+- [ ] Create a New Game, pick a course and an ex on the cast screen and finish the heights and name screens. Verify the registrar offers four classes of that course, each tagged "Your course", and that your bio line in data/app.log names it.
+- [ ] Open the Bunnyboard Profile tab with a course picked. Verify a "Course:" line sits under your handle and the description under it does not repeat it, and that it is absent with no course.
+- [ ] Make the class generation call fail with a course picked. Verify the failure names it and Retry sends it again with the course.
+- [ ] Resume the registrar from the saved enrollment and verify the course and its classes are still there.
+- [ ] Load a save from before courses and play a scene. Verify it plays on with no course and no error.
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 
