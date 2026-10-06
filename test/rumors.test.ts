@@ -49,6 +49,7 @@ function passInput(over: Partial<RumorPassInput> = {}): RumorPassInput {
   return {
     slot: SLOT,
     date: DATE,
+    time: 0,
     acts: [],
     cast: [],
     departed: [],
@@ -90,11 +91,12 @@ describe('rumorPass sightings', () => {
       g: [{ subject: 's', slot: SLOT }]
     })
     expect(outcome.memories).toEqual([
-      { charId: 'w', memory: { date: DATE, type: 'hated', desc: 'she saw the reader with Sara' } },
+      { charId: 'w', memory: { date: DATE, time: 0, type: 'hated', desc: 'she saw the reader with Sara' } },
       {
         charId: 'f',
         memory: {
           date: DATE,
+          time: 0,
           type: 'disliked',
           desc: 'she heard from Wren that the reader was with Sara'
         }
@@ -159,11 +161,12 @@ describe('rumorPass sightings', () => {
     )
 
     expect(outcome.memories).toEqual([
-      { charId: 'c', memory: { date: DATE, type: 'hated', desc: 'she saw the reader with Sara' } },
+      { charId: 'c', memory: { date: DATE, time: 0, type: 'hated', desc: 'she saw the reader with Sara' } },
       {
         charId: 'f',
         memory: {
           date: DATE,
+          time: 0,
           type: 'disliked',
           desc: 'she saw the reader cheating on Lia with Sara'
         }
@@ -172,6 +175,7 @@ describe('rumorPass sightings', () => {
         charId: 'l',
         memory: {
           date: DATE,
+          time: 0,
           type: 'disliked',
           desc: 'she heard from Fay that the reader cheated on her with Sara'
         }
@@ -197,8 +201,8 @@ describe('rumorPass sightings', () => {
 
     // They told each other, and neither of them learned anything she had not watched happen.
     expect(outcome.memories).toEqual([
-      { charId: 'w', memory: { date: DATE, type: 'hated', desc: 'she saw the reader with Sara' } },
-      { charId: 'f', memory: { date: DATE, type: 'hated', desc: 'she saw the reader with Sara' } }
+      { charId: 'w', memory: { date: DATE, time: 0, type: 'hated', desc: 'she saw the reader with Sara' } },
+      { charId: 'f', memory: { date: DATE, time: 0, type: 'hated', desc: 'she saw the reader with Sara' } }
     ])
   })
 
@@ -244,7 +248,7 @@ describe('rumorPass the passerby', () => {
     expect(outcome.memories).toEqual([
       {
         charId: 'p2',
-        memory: { date: DATE, type: 'hated', desc: 'she saw the reader with Ana and Bea' }
+        memory: { date: DATE, time: 0, type: 'hated', desc: 'she saw the reader with Ana and Bea' }
       }
     ])
   })
@@ -311,6 +315,7 @@ describe('rumorPass suspicion', () => {
         charId: 'f',
         memory: {
           date: DATE,
+          time: 0,
           type: 'disliked',
           desc: 'she heard from Wren that the reader was with Sara'
         }
@@ -363,6 +368,7 @@ describe('rumorPass suspicion', () => {
         charId: 'g',
         memory: {
           date: DATE,
+          time: 0,
           type: 'disliked',
           desc: 'she heard from Fay that the reader was with Sara'
         }
@@ -432,6 +438,16 @@ describe('upsertJealousyMemory', () => {
   it('moves an identical desc to the new date rather than duplicating it', () => {
     const list = upsertJealousyMemory([entry], { ...entry, date: 20 })
     expect(list).toEqual([{ ...entry, date: 20 }])
+  })
+
+  it('moves an identical desc to the new half of the day too, and forgets a half the new one lacks', () => {
+    const night: CharMemory = { ...entry, time: 1 }
+    expect(upsertJealousyMemory([{ ...entry, time: 0 }], { ...night, date: 20 })).toEqual([
+      { ...night, date: 20 }
+    ])
+    expect(upsertJealousyMemory([{ ...entry, time: 0 }], { ...entry, date: 20 })).toEqual([
+      { ...entry, date: 20 }
+    ])
   })
 
   it('leaves a differently worded entry alone', () => {

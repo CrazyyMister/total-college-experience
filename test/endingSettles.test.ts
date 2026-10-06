@@ -74,9 +74,12 @@ describe('rollRumorPass', () => {
     expect(rollRumorPass(ledger).memories).toEqual([])
 
     // Off the projection, which is what the ending actually passes.
-    const projected = projectLedger(useGameStore.getState().charInfo, ledger, 7)
+    const projected = projectLedger(useGameStore.getState().charInfo, ledger, { date: 7, time: 0 })
     expect(rollRumorPass(ledger, projected.charInfo).memories).toEqual([
-      { charId: 'b', memory: { date: 7, type: 'hated', desc: 'she saw the reader cheating on her with Sarah' } }
+      {
+        charId: 'b',
+        memory: { date: 7, time: 0, type: 'hated', desc: 'she saw the reader cheating on her with Sarah' }
+      }
     ])
   })
 
@@ -100,7 +103,7 @@ describe('applyRumorPass', () => {
       events: [{ charKey: 'mina_kwon', event: 'became_lovers' }],
       acts: [{ kind: 'kiss', inPublic: true, chars: ['sarah_rose'] }]
     }
-    const projected = projectLedger(useGameStore.getState().charInfo, ledger, 7)
+    const projected = projectLedger(useGameStore.getState().charInfo, ledger, { date: 7, time: 0 })
     const outcome = rollRumorPass(ledger, projected.charInfo)
     applyRumorPass(outcome)
     const once = useGameStore.getState().charInfo
@@ -186,6 +189,7 @@ describe('the reader’s losses', () => {
       settleNpcRomance(
         {
           date,
+          time: 0,
           endsWeek: false,
           relationships: { [pairKeyOf('c', listener)]: { affinity: 4 } },
           romance: emptyNpcRomance(),
@@ -205,7 +209,7 @@ describe('the reader’s losses', () => {
       applyReaderLosses([], [], later)
       applyReaderLosses([], [], later)
       expect(useGameStore.getState().charInfo.c.jealousyMemories).toEqual([
-        { date: 9, type: 'hated', desc: 'the reader badmouthed her behind her back' }
+        { date: 9, time: 0, type: 'hated', desc: 'the reader badmouthed her behind her back' }
       ])
     })
 
@@ -218,7 +222,7 @@ describe('the reader’s losses', () => {
       applyReaderLosses([], [], foundOut(9, 'b'))
       expect(useGameStore.getState().charInfo.c.jealousyMemories).toEqual([
         oldFormat,
-        { date: 9, type: 'hated', desc: 'the reader badmouthed her behind her back' }
+        { date: 9, time: 0, type: 'hated', desc: 'the reader badmouthed her behind her back' }
       ])
     })
   })

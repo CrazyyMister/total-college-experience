@@ -54,6 +54,7 @@ import {
 import { buildTextingPrompt } from '../prompts/textingPrompt'
 import {
   charKeyOf,
+  memoryAt,
   READER_SPEAKER,
   type Character,
   type ChatMessage,
@@ -1258,11 +1259,14 @@ export function expireHangoutInvitations(
         live.setIgnoredInvitation(charId, true)
       }
       // In the reader's voice, completing "{Name} hated that ...".
-      live.recordMemory(charId, {
-        date: live.date,
-        type: 'hated',
-        desc: `the reader ghosted ${pronounsOf(live.characters[charId]?.gender ?? 'woman').object} and didn't show up for ${event.title}`
-      })
+      live.recordMemory(
+        charId,
+        memoryAt(
+          { date: live.date, time: live.time },
+          'hated',
+          `the reader ghosted ${pronounsOf(live.characters[charId]?.gender ?? 'woman').object} and didn't show up for ${event.title}`
+        )
+      )
     }
 
     // Written even when empty: its presence is what stops a second pass re-filing the lot.
@@ -1280,11 +1284,14 @@ export function expireHangoutInvitations(
 
     live.setIgnoredInvitation(conversation.charId, true)
     // The permanent record beside the flag, so a second expiry is a second memory.
-    live.recordMemory(conversation.charId, {
-      date: live.date,
-      type: 'disliked',
-      desc: ignoredTextDesc(live.characters[conversation.charId]?.gender ?? 'woman')
-    })
+    live.recordMemory(
+      conversation.charId,
+      memoryAt(
+        { date: live.date, time: live.time },
+        'disliked',
+        ignoredTextDesc(live.characters[conversation.charId]?.gender ?? 'woman')
+      )
+    )
     // Silence counts against her next ask exactly as a spoken no does.
     live.bumpDeclined(conversation.charId)
     // And an invitation to an occasion left standing is that occasion turned down.
@@ -1299,11 +1306,14 @@ export function expireHangoutInvitations(
     const live = useGameStore.getState()
     // Spent as it is filed, so a replayed scene start cannot file it twice.
     live.clearTurnedDown(conversation.charId)
-    live.recordMemory(conversation.charId, {
-      date: live.date,
-      type: 'disliked',
-      desc: turnedDownDesc(live.characters[conversation.charId]?.gender ?? 'woman')
-    })
+    live.recordMemory(
+      conversation.charId,
+      memoryAt(
+        { date: live.date, time: live.time },
+        'disliked',
+        turnedDownDesc(live.characters[conversation.charId]?.gender ?? 'woman')
+      )
+    )
     turnedDown.push(conversation.charId)
   }
   return { ignored, turnedDown }

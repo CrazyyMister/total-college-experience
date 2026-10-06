@@ -15,7 +15,7 @@ import {
 } from '@shared/npcRomance'
 import { pronounsOf } from '@shared/pronouns'
 import { affectionFor } from '@shared/relationship'
-import { charKeyOf, type MemoryType } from '@shared/types'
+import { charKeyOf, memoryAt, type MemoryType } from '@shared/types'
 import { readerLoversOf } from '../prompts/npcRelationship'
 import { useGameStore } from './gameStore'
 import { loopState } from './loop/state'
@@ -201,7 +201,10 @@ export function debugAffection(charId: string, target: number): DebugResult {
     const at = used[type] ?? 0
     if (at >= pools[type].length) break
     used[type] = at + 1
-    game.recordMemory(charId, { date: game.date, type, desc: pools[type][at] })
+    game.recordMemory(
+      charId,
+      memoryAt({ date: game.date, time: game.time }, type, pools[type][at])
+    )
   }
   return done(
     `${character.firstName}'s affection is now ${now()} (was ${current}, asked ${target}; steps of four, and the oldest memories drop at the cap).`

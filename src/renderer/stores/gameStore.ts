@@ -104,6 +104,8 @@ import {
   type Gender,
   type IntimateAct,
   type JobState,
+  memoryAt,
+  type MemoryMoment,
   type Occasion,
   type OutfitLock,
   type OutfitSet,
@@ -1985,7 +1987,11 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
             item && (reaction === 'loved' || reaction === 'liked')
               ? withGiftMemory(
                   existing.giftMemories ?? [],
-                  { date: state.date, type: reaction, desc: giftMemoryDesc(item, character?.gender ?? 'woman') },
+                  memoryAt(
+                    { date: state.date, time: state.time },
+                    reaction,
+                    giftMemoryDesc(item, character?.gender ?? 'woman')
+                  ),
                   giftMemoryCapFor(character)
                 )
               : existing.giftMemories
@@ -2067,7 +2073,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
         if (!info?.flags?.isLover) continue
         charInfo[charId] = leftTheReader(
           info,
-          state.date,
+          { date: state.date, time: state.time },
           state.characters[charId]?.gender ?? 'woman',
           state.characters[forCharId]?.firstName,
           reason
@@ -2091,7 +2097,12 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
   applyRelationshipEvents: (charId, events) =>
     set((state) =>
       patchCharInfo(state, charId, (info = blankCharInfo()) =>
-        foldRelationshipEvents(info, events, state.date, state.characters[charId]?.gender ?? 'woman')
+        foldRelationshipEvents(
+          info,
+          events,
+          { date: state.date, time: state.time },
+          state.characters[charId]?.gender ?? 'woman'
+        )
       )
     ),
 
@@ -2117,7 +2128,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
           memories: [
             firstImpression(
               existing.memories,
-              state.date,
+              { date: state.date, time: state.time },
               state.characters[charId]?.gender ?? 'woman'
             ),
             ...existing.memories
@@ -2904,14 +2915,14 @@ function conversationWith(bunnyboard: BunnyboardState, charId: string): Conversa
 /** The memory written the first time a character meets the reader; it dates the meeting. */
 function firstImpression(
   memories: readonly CharMemory[],
-  date: number,
+  when: MemoryMoment,
   gender: Gender
 ): CharMemory {
   const bad = memories[0]?.type === 'disliked' || memories[0]?.type === 'hated'
   const them = pronounsOf(gender).object
   return bad
-    ? { date, type: 'disliked', desc: `the reader made a bad first impression on ${them}` }
-    : { date, type: 'liked', desc: `the reader made a good first impression on ${them}` }
+    ? memoryAt(when, 'disliked', `the reader made a bad first impression on ${them}`)
+    : memoryAt(when, 'liked', `the reader made a good first impression on ${them}`)
 }
 
 /**

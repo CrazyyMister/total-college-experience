@@ -82,7 +82,7 @@ export function withReaderLosses(
     if (!info) continue
     projected[charId] = leftTheReader(
       info,
-      game.date,
+      { date: game.date, time: game.time },
       game.characters[charId]?.gender ?? 'woman',
       game.characters[forCharId]?.firstName,
       reason
@@ -94,7 +94,7 @@ export function withReaderLosses(
       ...info,
       jealousyMemories: upsertJealousyMemory(
         info.jealousyMemories,
-        rivalMemoryOf(game.characters[charId], game.date)
+        rivalMemoryOf(game.characters[charId], { date: game.date, time: game.time })
       )
     }
   }

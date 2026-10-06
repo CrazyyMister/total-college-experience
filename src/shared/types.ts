@@ -421,8 +421,21 @@ export const READER_SPEAKER = 'reader'
 export interface CharMemory {
   /** Game date (days elapsed) it happened. */
   date: number
+  /** The half of the day it happened in; absent on a memory filed before the halves were kept. */
+  time?: TimeSlot
   type: MemoryType
   desc: string
+}
+
+/** The day and half of the day a memory is filed on. */
+export interface MemoryMoment {
+  date: number
+  time: TimeSlot
+}
+
+/** A memory stamped with the day and half of the day it was filed on; every writer builds through it. */
+export function memoryAt(when: MemoryMoment, type: MemoryType, desc: string): CharMemory {
+  return { date: when.date, time: when.time, type, desc }
 }
 
 /** What an intimate act was. */

@@ -841,6 +841,7 @@ function askFrequency(identities: readonly Identity[]): number[][] {
         const settled = settleNpcPairs({ date, relationships: state.npcRelationships, cast: [], groups, characters: state.characters })
         const out = settleNpcRomance({
           date,
+          time,
           endsWeek: weekdayOf(date) === 0 && time === 1,
           relationships: settled,
           romance: state.npcRomance,
@@ -901,7 +902,7 @@ function memoryCheck(): string[] {
   ]
   if (lover) {
     const info = game.charInfo[lover]
-    const after = leftTheReader(info, game.date, byId(lover).gender, 'Someone', 'coldness')
+    const after = leftTheReader(info, { date: game.date, time: game.time }, byId(lover).gender, 'Someone', 'coldness')
     const dropped = info.memories.filter((memory) => !after.memories.includes(memory))
     const added = after.memories.filter((memory) => !info.memories.includes(memory))
     lines.push(

@@ -40,6 +40,7 @@ function run(
     genders: {},
     npcRelationships: {},
     date: DATE,
+    time: 0,
     ...over
   })
 }
@@ -98,6 +99,7 @@ describe('settleDating', () => {
     expect(entryOf(outcome, 'a').jealousyMemories).toEqual([
       {
         date: DATE,
+        time: 0,
         type: 'hated',
         desc: 'the reader broke her heart by starting to date Nia instead'
       }
@@ -105,12 +107,13 @@ describe('settleDating', () => {
     expect(entryOf(outcome, 'c').jealousyMemories).toEqual([
       {
         date: DATE,
+        time: 0,
         type: 'hated',
         desc: 'the reader started dating Nia when she had a crush on the reader'
       }
     ])
     expect(entryOf(outcome, 'f').jealousyMemories).toEqual([
-      { date: DATE, type: 'disliked', desc: "the reader broke Ana's heart" }
+      { date: DATE, time: 0, type: 'disliked', desc: "the reader broke Ana's heart" }
     ])
     expect(outcome.charInfo.d).toBeUndefined()
   })
@@ -128,7 +131,7 @@ describe('settleDating', () => {
       { charId: 'b', forCharId: 'n' }
     ])
     expect(entryOf(outcome, 'f').jealousyMemories).toEqual([
-      { date: DATE, type: 'disliked', desc: 'the reader broke the hearts of Ana and Bea' }
+      { date: DATE, time: 0, type: 'disliked', desc: 'the reader broke the hearts of Ana and Bea' }
     ])
   })
 

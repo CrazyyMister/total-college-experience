@@ -55,6 +55,7 @@ export function rollRumorPass(
   return rumorPass({
     slot: globalSlotOf(game.date, game.time),
     date: game.date,
+    time: game.time,
     acts: ledgerActs(ledger, false),
     cast: game.cast,
     // The scene's departures as written, read and queued alike, so a rewind that stepped back

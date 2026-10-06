@@ -1704,7 +1704,7 @@ async function fetchEndingOpening(
 
   // The finished scene, folded by value: the boundary owns the real apply, so
   // everything below narrates off a projection and writes nothing.
-  const projected = projectLedger(game.charInfo, ledger, game.date)
+  const projected = projectLedger(game.charInfo, ledger, { date: game.date, time: game.time })
 
   // The run-ins the affinity settle counts, which are dice and so are rolled once, and the
   // development build's forced meetings.
@@ -2451,7 +2451,9 @@ function showStatusLines(): boolean {
   const ledger = loopState.pendingLedgerResult
   // Folded by value, since the boundary's own apply is still to come: the milestone screens
   // diff the scene's folds against the store.
-  const projected = ledger ? projectLedger(game.charInfo, ledger, game.date) : null
+  const projected = ledger
+    ? projectLedger(game.charInfo, ledger, { date: game.date, time: game.time })
+    : null
   // `game.stats` is still the before-snapshot — the deltas land at the boundary — so the two
   // readings the rank-up screen walks between are both had here.
   const after = applyStatDeltas(game.stats, resolved.deltas)
@@ -2526,9 +2528,9 @@ export function dismissStatusModal(): void {
  * a blank one for each it filed nothing for, dated with the scene's own day.
  */
 function sceneMemoryRows(ledger: LedgerResponse | null): MemoryEditRow[] {
-  const { cast, characters, date } = useGameStore.getState()
+  const { cast, characters, date, time } = useGameStore.getState()
   const here = cast.filter((charId) => characters[charId])
-  return memoryEditRows(here, ledger ? ledgerMemories(ledger, false) : [], date)
+  return memoryEditRows(here, ledger ? ledgerMemories(ledger, false) : [], { date, time })
 }
 
 /** Puts the memory question on screen and resolves with the rows as the player leaves them. */
@@ -2541,8 +2543,8 @@ function askMemoryEdits(rows: readonly MemoryEditRow[]): Promise<readonly Memory
 
 /** Files what the answers changed: a filed memory rewritten or dropped, a blank row recorded. */
 function fileMemoryEdits(rows: readonly MemoryEditRow[], answers: readonly MemoryAnswer[]): void {
-  const { date } = useGameStore.getState()
-  for (const { charId, match, next } of memoryEditsOf(rows, answers, date)) {
+  const { date, time } = useGameStore.getState()
+  for (const { charId, match, next } of memoryEditsOf(rows, answers, { date, time })) {
     if (match) useGameStore.getState().replaceMemory(charId, match, next)
     else if (next) useGameStore.getState().recordMemory(charId, next)
   }

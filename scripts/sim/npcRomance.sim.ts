@@ -142,6 +142,7 @@ function playSemester(scenario: Scenario): SemesterResult {
       })
       const out = settleNpcRomance({
         date,
+        time,
         endsWeek: weekdayOf(date) === 0 && time === 1,
         relationships: settled,
         romance: state.npcRomance,

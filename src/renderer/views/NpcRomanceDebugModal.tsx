@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState, type JSX } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'motion/react'
+import { breakthroughMeterOf, METER_MAX } from '@shared/breakthrough'
 import { pairKeyOf } from '@shared/npcRelationships'
 import {
   ENCOURAGED_DAYS,
@@ -9,6 +10,7 @@ import {
   REJECTION_COOLDOWN_DAYS,
   WINGMAN_KEEP_DAYS
 } from '@shared/npcRomance'
+import { dedupedMemoriesFor } from '@shared/relationship'
 import { useModalShell } from '../components/useModalShell'
 import { TitleTab } from '../components/TitleTab'
 import { useGameStore } from '../stores/gameStore'
@@ -71,6 +73,21 @@ function sectionsOf(): DebugSection[] {
   const leak = pendingGossipLeak()
 
   return [
+    {
+      title: 'Breakthrough meter',
+      rows: game.chars.map((charId) => {
+        const info = game.charInfo[charId]
+        const memories = dedupedMemoriesFor(info)
+        const undated = memories.filter((memory) => memory.time === undefined).length
+        return {
+          key: charId,
+          who: name(charId),
+          facts: `meter ${breakthroughMeterOf(info)} of ${METER_MAX} · ${undated} of ${memories.length} memories without a half of the day${
+            info?.nameKnown ? '' : ' · name not known'
+          }`
+        }
+      })
+    },
     {
       title: 'Couples',
       rows: Object.entries(couples).map(([key, couple]) => {

@@ -14,20 +14,22 @@ import { pronounsOf } from './pronouns'
 import { secondPerson } from './readerVoice'
 import { markedLine } from './statusMark'
 import { hasTrait } from './traits'
-import type {
-  Character,
-  CharacterBehavior,
-  CharFlags,
-  CharInfo,
-  CharMemory,
-  CrushHint,
-  Emotion,
-  Gender,
-  MemoryType,
-  RelationshipEvent,
-  SceneLine,
-  TextMark,
-  TextMemorySource
+import {
+  memoryAt,
+  type Character,
+  type CharacterBehavior,
+  type CharFlags,
+  type CharInfo,
+  type CharMemory,
+  type CrushHint,
+  type Emotion,
+  type Gender,
+  type MemoryMoment,
+  type MemoryType,
+  type RelationshipEvent,
+  type SceneLine,
+  type TextMark,
+  type TextMemorySource
 } from './types'
 
 /** Affection scoring, disposition tiers and flag transitions. */
@@ -506,10 +508,11 @@ export function applyEvent(flags: CharFlags, event: RelationshipEvent): CharFlag
 export function foldRelationshipEvents(
   info: CharInfo,
   events: readonly RelationshipEvent[],
-  date: number,
+  when: MemoryMoment,
   gender: Gender,
   endedBecause?: string
 ): CharInfo {
+  const { date } = when
   const them = pronounsOf(gender).object
   const before = info.flags ?? emptyFlags()
   let flags = before
@@ -518,15 +521,15 @@ export function foldRelationshipEvents(
   // The milestones' own memories, stacked with whatever the ledger wrote about the scene.
   const milestones: CharMemory[] = []
   if (!before.hasKissed && flags.hasKissed) {
-    milestones.push({ date, type: 'loved', desc: `the reader kissed ${them} for the first time` })
+    milestones.push(memoryAt(when, 'loved', `the reader kissed ${them} for the first time`))
   }
   if (!before.hadSex && flags.hadSex) {
-    milestones.push({ date, type: 'loved', desc: `the reader slept with ${them} for the first time` })
+    milestones.push(memoryAt(when, 'loved', `the reader slept with ${them} for the first time`))
   }
   // Keyed on the count, so a second breakup writes a second memory.
   if (flags.brokenUp > before.brokenUp) {
     const why = endedBecause ? ` ${endedBecause}` : ''
-    milestones.push({ date, type: 'hated', desc: `things ended between the reader and ${them}${why}` })
+    milestones.push(memoryAt(when, 'hated', `things ended between the reader and ${them}${why}`))
   }
 
   const folded: CharInfo = {
@@ -553,7 +556,7 @@ export function foldRelationshipEvents(
  */
 export function leftTheReader(
   info: CharInfo,
-  date: number,
+  when: MemoryMoment,
   gender: Gender,
   forFirstName: string | undefined,
   reason: 'coldness' | 'betrayal'
@@ -565,7 +568,7 @@ export function leftTheReader(
     reason === 'betrayal'
       ? `because ${p.subject} could not forgive the reader for cheating on ${p.object}${closer}`
       : `because things had gone cold between them${closer}`
-  return foldRelationshipEvents(info, ['broke_up'], date, gender, because)
+  return foldRelationshipEvents(info, ['broke_up'], when, gender, because)
 }
 
 /**

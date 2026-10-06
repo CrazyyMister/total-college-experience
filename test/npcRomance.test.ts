@@ -74,6 +74,7 @@ function together(...members: string[]): NpcEncounterGroup[] {
 function input(over: Partial<NpcRomanceInput>): NpcRomanceInput {
   return {
     date: DAY,
+    time: 0,
     endsWeek: false,
     relationships: {},
     romance: emptyNpcRomance(),
@@ -712,8 +713,8 @@ describe('the man the reader displaced', () => {
   })
 
   it('files one grudge memory however often it is filed', () => {
-    const once = upsertJealousyMemory(undefined, rivalMemoryOf(characters.m, 30))
-    const twice = upsertJealousyMemory(once, rivalMemoryOf(characters.m, 31))
+    const once = upsertJealousyMemory(undefined, rivalMemoryOf(characters.m, { date: 30, time: 0 }))
+    const twice = upsertJealousyMemory(once, rivalMemoryOf(characters.m, { date: 31, time: 0 }))
     expect(twice).toHaveLength(1)
     expect(twice[0].type).toBe('hated')
   })
@@ -1168,12 +1169,14 @@ describe('what the reader’s wingman actions leave remembered of him', () => {
         {
           charId: 'm',
           date: DAY,
+          time: 0,
           type: 'loved',
           desc: 'the reader helped him get together with Chloe'
         },
         {
           charId: 'w',
           date: DAY,
+          time: 0,
           type: 'liked',
           desc: 'the reader helped bring her and Julian together'
         }
@@ -1279,6 +1282,7 @@ describe('what the reader’s wingman actions leave remembered of him', () => {
         {
           charId: 'm',
           date: DAY,
+          time: 0,
           type: 'disliked',
           desc: 'the reader pushed him to confess to Chloe, and she turned him down'
         }
@@ -1294,6 +1298,7 @@ describe('what the reader’s wingman actions leave remembered of him', () => {
         {
           charId: 'm',
           date: DAY,
+          time: 0,
           type: 'hated',
           desc: 'the reader told Chloe about his crush on her, and she turned him down'
         }
@@ -1349,6 +1354,7 @@ describe('what the reader’s wingman actions leave remembered of him', () => {
         {
           charId: 'm',
           date: DAY,
+          time: 0,
           type: 'hated',
           desc: 'the reader badmouthed him behind his back'
         }

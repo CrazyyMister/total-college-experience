@@ -177,7 +177,7 @@ describe('expireHangoutInvitations', () => {
     // The store's own date, which at this call site is the slot the reader is
     // spending elsewhere — not the one after it.
     expect(info?.memories).toEqual([
-      { date: 7, type: 'disliked', desc: 'the reader ignored her text' }
+      { date: 7, time: 0, type: 'disliked', desc: 'the reader ignored her text' }
     ])
   })
 
@@ -225,7 +225,7 @@ describe('expireHangoutInvitations', () => {
     const state = useGameStore.getState()
     for (const charId of ['a', 'b']) {
       expect(state.charInfo[charId]?.memories).toEqual([
-        { date: 7, type: 'hated', desc: "the reader ghosted her and didn't show up for Dinner" }
+        { date: 7, time: 0, type: 'hated', desc: "the reader ghosted her and didn't show up for Dinner" }
       ])
     }
     // The one who texted also carries the ordinary snub marks; the one who never
@@ -277,7 +277,7 @@ describe('expireHangoutInvitations', () => {
     const first = expireHangoutInvitations([])
     expect(first.turnedDown).toEqual(['a'])
     expect(useGameStore.getState().charInfo.a?.memories).toEqual([
-      { date: 7, type: 'disliked', desc: 'the reader turned down her request to hang out' }
+      { date: 7, time: 0, type: 'disliked', desc: 'the reader turned down her request to hang out' }
     ])
     // Spent as it was filed, so a replayed scene start files nothing.
     expect(useGameStore.getState().bunnyboard.conversations.a?.turnedDown).toBeUndefined()
@@ -307,7 +307,7 @@ describe('answerHangout — No', () => {
     const info = useGameStore.getState().charInfo.a
     expect(info?.ignoredInvitation).toBe(true)
     expect(info?.memories).toEqual([
-      { date: 7, type: 'disliked', desc: 'the reader ignored her text' }
+      { date: 7, time: 0, type: 'disliked', desc: 'the reader ignored her text' }
     ])
   })
 })

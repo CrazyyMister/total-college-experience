@@ -569,7 +569,7 @@ describe('initialFlags', () => {
 describe('foldRelationshipEvents', () => {
   it('applies the events in order and leaves the rest of her entry alone', () => {
     const info = charInfo({ nameKnown: true, dorm: 'elysium' })
-    const folded = foldRelationshipEvents(info, ['sex', 'became_lovers'], 7, 'woman')
+    const folded = foldRelationshipEvents(info, ['sex', 'became_lovers'], { date: 7, time: 0 }, 'woman')
     // `sex` then `became_lovers` must not leave `benefits` set — the whole
     // reason the events are folded as a group rather than one at a time.
     expect(folded.flags).toMatchObject({ hadSex: true, isLover: true, benefits: false })
@@ -578,18 +578,18 @@ describe('foldRelationshipEvents', () => {
   })
 
   it('writes the two biggest milestones their own memory, dated the slot that ran', () => {
-    const folded = foldRelationshipEvents(charInfo(), ['sex'], 7, 'woman')
+    const folded = foldRelationshipEvents(charInfo(), ['sex'], { date: 7, time: 0 }, 'woman')
     // Sleeping together implies the kiss, so a first time that is also a first
     // kiss says both — one memory each.
     expect(folded.memories).toEqual([
-      { date: 7, type: 'loved', desc: 'the reader kissed her for the first time' },
-      { date: 7, type: 'loved', desc: 'the reader slept with her for the first time' }
+      { date: 7, time: 0, type: 'loved', desc: 'the reader kissed her for the first time' },
+      { date: 7, time: 0, type: 'loved', desc: 'the reader slept with her for the first time' }
     ])
   })
 
   it('writes nothing for a milestone she had already reached', () => {
     const info = charInfo({ flags: { ...emptyFlags(), hasKissed: true, hadSex: true } })
-    expect(foldRelationshipEvents(info, ['kissed', 'sex'], 7, 'woman').memories).toEqual([])
+    expect(foldRelationshipEvents(info, ['kissed', 'sex'], { date: 7, time: 0 }, 'woman').memories).toEqual([])
   })
 
   it('lets a breakup land on top of the ledger\'s own memory of it', () => {
@@ -597,12 +597,13 @@ describe('foldRelationshipEvents', () => {
       memories: [{ date: 7, type: 'hated', desc: 'he ended it in the middle of dinner' }],
       flags: { ...emptyFlags(), isLover: true }
     })
-    const folded = foldRelationshipEvents(info, ['broke_up'], 7, 'woman')
+    const folded = foldRelationshipEvents(info, ['broke_up'], { date: 7, time: 0 }, 'woman')
     // Stacking is the one mechanism the list has for saying a thing mattered
     // more, and ending it has to outweigh whatever she hears afterwards.
     expect(folded.memories).toHaveLength(2)
     expect(folded.memories[1]).toEqual({
       date: 7,
+      time: 0,
       type: 'hated',
       desc: 'things ended between the reader and her'
     })
@@ -611,17 +612,17 @@ describe('foldRelationshipEvents', () => {
 
   it('takes a lover who leaves the reader through the same fold, with the reason on the memory', () => {
     const info = charInfo({ flags: { ...emptyFlags(), isLover: true } })
-    const left = leftTheReader(info, 7, 'woman', 'Sam', 'betrayal')
-    const reported = foldRelationshipEvents(info, ['broke_up'], 7, 'woman')
+    const left = leftTheReader(info, { date: 7, time: 0 }, 'woman', 'Sam', 'betrayal')
+    const reported = foldRelationshipEvents(info, ['broke_up'], { date: 7, time: 0 }, 'woman')
     expect(left.flags).toEqual(reported.flags)
     expect(left.brokeUpOn).toBe(7)
     expect(left.memories).toHaveLength(1)
     expect(left.memories[0].type).toBe('hated')
     expect(left.memories[0].desc).toContain('cheating')
-    expect(leftTheReader(info, 7, 'woman', 'Sam', 'coldness').memories[0].desc).toContain('cold')
+    expect(leftTheReader(info, { date: 7, time: 0 }, 'woman', 'Sam', 'coldness').memories[0].desc).toContain('cold')
     // Somebody who is no longer his lover is left as she is.
     const gone = charInfo({})
-    expect(leftTheReader(gone, 7, 'woman', 'Sam', 'coldness')).toBe(gone)
+    expect(leftTheReader(gone, { date: 7, time: 0 }, 'woman', 'Sam', 'coldness')).toBe(gone)
   })
 
   it('drops the oldest memory rather than growing past the cap', () => {
@@ -632,7 +633,7 @@ describe('foldRelationshipEvents', () => {
         desc: `old ${at}`
       }))
     })
-    const folded = foldRelationshipEvents(info, ['kissed'], 7, 'woman')
+    const folded = foldRelationshipEvents(info, ['kissed'], { date: 7, time: 0 }, 'woman')
     expect(folded.memories).toHaveLength(MEMORY_CAP)
     expect(folded.memories[0].desc).toBe('old 1')
     expect(folded.memories.at(-1)?.desc).toBe('the reader kissed her for the first time')
@@ -641,14 +642,14 @@ describe('foldRelationshipEvents', () => {
   it('dates the breakup, however the dating ended', () => {
     const info = charInfo({ flags: { ...emptyFlags(), isLover: true } })
     for (const event of ['broke_up', 'friendzoned_by_reader', 'friendzoned_reader'] as const) {
-      expect(foldRelationshipEvents(info, [event], 7, 'woman').brokeUpOn).toBe(7)
+      expect(foldRelationshipEvents(info, [event], { date: 7, time: 0 }, 'woman').brokeUpOn).toBe(7)
     }
   })
 
   it('dates the start of dating, and keeps it through the breakup for the exes line', () => {
-    const together = foldRelationshipEvents(charInfo(), ['became_lovers'], 9, 'woman')
+    const together = foldRelationshipEvents(charInfo(), ['became_lovers'], { date: 9, time: 0 }, 'woman')
     expect(together.datingSince).toBe(9)
-    const apart = foldRelationshipEvents(together, ['broke_up'], 12, 'woman')
+    const apart = foldRelationshipEvents(together, ['broke_up'], { date: 12, time: 0 }, 'woman')
     expect(apart.datingSince).toBe(9)
     expect(apart.brokeUpOn).toBe(12)
   })
@@ -657,7 +658,7 @@ describe('foldRelationshipEvents', () => {
     const folded = foldRelationshipEvents(
       charInfo({ brokeUpOn: 5, leftFor: 'other', datingSince: 1 }),
       ['became_lovers'],
-      9,
+      { date: 9, time: 0 },
       'woman'
     )
     // Gone rather than blanked, which is what the save carries for an absent optional.
@@ -668,7 +669,7 @@ describe('foldRelationshipEvents', () => {
 
   it('writes nothing at all, so the projection cannot disturb what it read', () => {
     const info = charInfo()
-    foldRelationshipEvents(info, ['sex'], 7, 'woman')
+    foldRelationshipEvents(info, ['sex'], { date: 7, time: 0 }, 'woman')
     expect(info.memories).toEqual([])
     expect(info.flags.hadSex).toBe(false)
   })

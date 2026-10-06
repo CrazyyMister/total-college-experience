@@ -481,7 +481,7 @@ describe('applyLedger', () => {
       events: []
     })
     expect(useGameStore.getState().charInfo.a.memories).toEqual([
-      { date: 7, type: 'loved', desc: 'walked her home' }
+      { date: 7, time: 0, type: 'loved', desc: 'walked her home' }
     ])
   })
 
@@ -568,9 +568,12 @@ describe('applyLedger', () => {
       events: []
     })
     const info = useGameStore.getState().charInfo.a
-    expect(info.memories).toEqual([{ date: 7, type: 'liked', desc: 'the reader walked her home' }])
+    expect(info.memories).toEqual([
+      { date: 7, time: 0, type: 'liked', desc: 'the reader walked her home' }
+    ])
     expect(info.textMemory).toEqual({
       date: 7,
+      time: 0,
       type: 'loved',
       desc: 'the reader asked about her recital'
     })
@@ -952,7 +955,8 @@ describe('projectLedger', () => {
     }
 
     const before = useGameStore.getState().charInfo
-    const projected = projectLedger(before, ledger, useGameStore.getState().date)
+    const { date, time } = useGameStore.getState()
+    const projected = projectLedger(before, ledger, { date, time })
     applyLedger(ledger)
 
     expect(projected.charInfo).toEqual(useGameStore.getState().charInfo)
@@ -962,13 +966,29 @@ describe('projectLedger', () => {
     expect(before.a.flags.hadSex).toBe(false)
   })
 
+  it('stamps a night scene’s memories with the night in the projection and the apply alike', () => {
+    useGameStore.setState({ time: 1 })
+    const ledger: LedgerResponse = {
+      memories: [{ charKey: 'sarah_rose', type: 'liked', desc: 'a good hour' }],
+      textMemories: [{ charKey: 'mina_kwon', type: 'liked', desc: 'a good text' }],
+      events: [{ charKey: 'sarah_rose', event: 'kissed' }]
+    }
+    const projected = projectLedger(useGameStore.getState().charInfo, ledger, { date: 7, time: 1 })
+    applyLedger(ledger)
+    const applied = useGameStore.getState().charInfo
+    expect(projected.charInfo).toEqual(applied)
+    expect(applied.a.memories.length).toBeGreaterThan(0)
+    expect(applied.a.memories.every((entry) => entry.time === 1)).toBe(true)
+    expect(applied.b.textMemory?.time).toBe(1)
+  })
+
   it('reaches the same entry the apply would for a girl the save has no row for', () => {
     useGameStore.setState({ charInfo: {} })
     const ledger: LedgerResponse = {
       memories: [{ charKey: 'sarah_rose', type: 'liked', desc: 'a good hour' }],
       events: [{ charKey: 'sarah_rose', event: 'kissed' }]
     }
-    const projected = projectLedger(useGameStore.getState().charInfo, ledger, 7)
+    const projected = projectLedger(useGameStore.getState().charInfo, ledger, { date: 7, time: 0 })
     applyLedger(ledger)
     expect(projected.charInfo).toEqual(useGameStore.getState().charInfo)
   })

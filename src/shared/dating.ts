@@ -3,7 +3,7 @@ import { pronounsOf } from './pronouns'
 import { applyEvent } from './relationship'
 import { upsertJealousyMemory } from './rumors'
 import { andList } from './sentences'
-import type { CharFlags, CharInfo, Gender } from './types'
+import { memoryAt, type CharFlags, type CharInfo, type Gender, type TimeSlot } from './types'
 
 /**
  * What starting to date somebody does to everybody else: a lover who has agreed to share
@@ -36,6 +36,8 @@ export interface DatingPassInput {
   genders: Readonly<Record<string, Gender>>
   npcRelationships: NpcRelationshipMap
   date: number
+  /** The half of the day of `date`, which the memories the pass files are stamped with. */
+  time: TimeSlot
 }
 
 /** Replacement entries for the girls the pass changed, and the lovers it left. */
@@ -51,7 +53,7 @@ export interface DatingPassOutcome {
  * and one memory each goes to the girls who had a claim on him or a friend who did.
  */
 export function settleDating(input: DatingPassInput): DatingPassOutcome {
-  const { roster, before, after, firstNames, npcRelationships, date } = input
+  const { roster, before, after, firstNames, npcRelationships, date, time } = input
   const pronounsFor = (charId: string) => pronounsOf(input.genders[charId] ?? 'woman')
   const touched: Record<string, CharInfo> = {}
   const breakups: { charId: string; forCharId: string }[] = []
@@ -88,7 +90,7 @@ export function settleDating(input: DatingPassInput): DatingPassOutcome {
       return
     const copy = touch(charId)
     if (!copy) return
-    copy.jealousyMemories = upsertJealousyMemory(held, { date, type, desc })
+    copy.jealousyMemories = upsertJealousyMemory(held, memoryAt({ date, time }, type, desc))
   }
 
   // The lovers he already had; one the scene itself broke up with is not among them.

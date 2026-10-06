@@ -110,7 +110,7 @@
 - `.vu-popups` — the frame inside a panel a combobox's floating list is placed against: the panel's whole box, taking no pointer of its own.
 - `.vu-test-row` / `.vu-test-note` — a custom endpoint's Test connection: the quiet button, the mono word it comes back with beside it, and on a failure the sentence on its own line below.
 - `.vu-note` — the prose panel a note modal is (Feedback): action-shaped, `.vu-note-text` paragraphs — the same paragraph a dialog's message is — and whatever the note shows, then a `.vu-note-foot`.
-- `.vu-track` / `.vu-bar` — a bar with a count behind it; both declare `display: block` so they work as inline elements.
+- `.vu-track` / `.vu-bar` — a bar with a count behind it, or none where the reading is never shown as a number, as a contact's Breakthrough meter on the page's Memories card; both declare `display: block` so they work as inline elements.
 - `.vu-ring` — the dotted circle `spin` turns, drawn in `currentColor`; it is a shape rather than a state, and the word beside it says what it means.
 - `.vu-pic-action` — the pill a picture raises saying what a click on it does, revealed with the picture's own hover or focus.
 - `.vu-x` — the ✕ that removes the thing it rides; it carries no position, and it is always a sibling of the face it rides rather than a child of it.

@@ -217,6 +217,7 @@ export function rollNpcRomanceSettle(
   }
   return settleNpcRomance({
     date: game.date,
+    time: game.time,
     // Sunday night closes the week.
     endsWeek: weekdayOf(game.date) === 0 && game.time === 1,
     relationships,
@@ -267,7 +268,10 @@ export function applyReaderLosses(
     const held = useGameStore.getState().charInfo[charId]?.jealousyMemories
     game.setJealousyMemories(
       charId,
-      upsertJealousyMemory(held, rivalMemoryOf(game.characters[charId], game.date))
+      upsertJealousyMemory(
+        held,
+        rivalMemoryOf(game.characters[charId], { date: game.date, time: game.time })
+      )
     )
   }
   for (const { charId, memory } of wingmanMemories) {

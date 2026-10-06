@@ -31,6 +31,8 @@ import {
   type IntimateAct,
   type LedgerResponse,
   MEMORY_TYPES,
+  memoryAt,
+  type MemoryMoment,
   type MemoryType,
   type TextMemorySource,
   type RelationshipEvent,
@@ -728,7 +730,7 @@ export function milestoneReports(projected: ProjectedLedger): MilestoneReport[] 
 function datingInputOf(
   before: Readonly<Record<string, CharInfo>>,
   after: Readonly<Record<string, CharInfo>>,
-  date: number
+  when: MemoryMoment
 ): DatingPassInput {
   const game = useGameStore.getState()
   const firstNames: Record<string, string> = {}
@@ -746,7 +748,8 @@ function datingInputOf(
     firstNames,
     genders,
     npcRelationships: game.npcRelationships,
-    date
+    date: when.date,
+    time: when.time
   }
 }
 
@@ -766,18 +769,15 @@ export function applyLedger(ledger: LedgerResponse): DatingPassOutcome {
     game.setExpelled()
   }
 
+  const when = { date: game.date, time: game.time }
   for (const entry of ledgerMemories(ledger)) {
-    game.recordMemory(entry.charId, { date: game.date, type: entry.type, desc: entry.desc })
+    game.recordMemory(entry.charId, memoryAt(when, entry.type, entry.desc))
   }
 
   // Still the finished slot's date: `advanceSlot` runs later in the boundary.
   // Replaces rather than appends — the phone holds one impression.
   for (const entry of ledgerTextMemories(ledger)) {
-    game.setTextMemory(
-      entry.charId,
-      { date: game.date, type: entry.type, desc: entry.desc },
-      entry.source
-    )
+    game.setTextMemory(entry.charId, memoryAt(when, entry.type, entry.desc), entry.source)
   }
 
   for (const [charId, events] of ledgerEvents(ledger)) {
@@ -793,7 +793,7 @@ export function applyLedger(ledger: LedgerResponse): DatingPassOutcome {
   // it, so this lands once however often it runs.
   game.recordActs(ledgerActs(ledger, false))
 
-  const dating = settleDating(datingInputOf(before, useGameStore.getState().charInfo, game.date))
+  const dating = settleDating(datingInputOf(before, useGameStore.getState().charInfo, when))
   useGameStore.getState().applyDatingSettle(dating)
   return dating
 }
@@ -817,7 +817,7 @@ export interface ProjectedLedger {
 export function projectLedger(
   charInfo: Readonly<Record<string, CharInfo>>,
   ledger: LedgerResponse,
-  date: number
+  when: MemoryMoment
 ): ProjectedLedger {
   const projected: Record<string, CharInfo> = { ...charInfo }
   const entryFor = (charId: string): CharInfo => projected[charId] ?? blankCharInfo()
@@ -827,14 +827,14 @@ export function projectLedger(
     const info = entryFor(entry.charId)
     projected[entry.charId] = {
       ...info,
-      memories: [...info.memories, { date, type: entry.type, desc: entry.desc }].slice(-MEMORY_CAP)
+      memories: [...info.memories, memoryAt(when, entry.type, entry.desc)].slice(-MEMORY_CAP)
     }
   }
 
   for (const entry of ledgerTextMemories(ledger, false)) {
     projected[entry.charId] = withTextMemory(
       entryFor(entry.charId),
-      { date, type: entry.type, desc: entry.desc },
+      memoryAt(when, entry.type, entry.desc),
       entry.source
     )
   }
@@ -844,12 +844,12 @@ export function projectLedger(
     projected[charId] = foldRelationshipEvents(
       entryFor(charId),
       events,
-      date,
+      when,
       useGameStore.getState().characters[charId]?.gender ?? 'woman'
     )
   }
 
-  const dating = settleDating(datingInputOf(charInfo, projected, date))
+  const dating = settleDating(datingInputOf(charInfo, projected, when))
   return {
     charInfo: { ...projected, ...dating.charInfo },
     scene: projected,

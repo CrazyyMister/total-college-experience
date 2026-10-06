@@ -1,5 +1,5 @@
 import { storedMemoryDesc } from '@shared/readerVoice'
-import type { CharMemory, MemoryType } from '@shared/types'
+import { memoryAt, type CharMemory, type MemoryMoment, type MemoryType } from '@shared/types'
 
 /** The boundary's memory question as data — its rows off the ledger, and what the answers change. */
 
@@ -29,7 +29,7 @@ export interface MemoryEdit {
 export function memoryEditRows(
   cast: readonly string[],
   filed: readonly { charId: string; type: MemoryType; desc: string }[],
-  date: number
+  when: MemoryMoment
 ): MemoryEditRow[] {
   const rows: MemoryEditRow[] = []
   const seen = new Set<string>()
@@ -42,7 +42,7 @@ export function memoryEditRows(
       const key = JSON.stringify([charId, entry.type, entry.desc])
       if (seen.has(key)) continue
       seen.add(key)
-      rows.push({ charId, applied: { date, type: entry.type, desc: entry.desc } })
+      rows.push({ charId, applied: memoryAt(when, entry.type, entry.desc) })
     }
     if (!any) rows.push({ charId, applied: null })
   }
@@ -62,12 +62,13 @@ export function memoryEditRows(
 
 /**
  * The edits the answers make, `answers[i]` answering `rows[i]`: a filed memory blanked is
- * dropped, changed is rewritten on its own date, and a blank row filled is recorded on `date`.
+ * dropped, changed is rewritten on its own day and half of the day, and a blank row filled is
+ * recorded at `when`.
  */
 export function memoryEditsOf(
   rows: readonly MemoryEditRow[],
   answers: readonly MemoryAnswer[],
-  date: number
+  when: MemoryMoment
 ): MemoryEdit[] {
   const edits: MemoryEdit[] = []
   rows.forEach(({ charId, applied }, index) => {
@@ -78,11 +79,11 @@ export function memoryEditsOf(
       if (!desc) {
         edits.push({ charId, match: applied, next: null })
       } else if (answer.type !== applied.type || desc !== applied.desc) {
-        const next: CharMemory = { date: applied.date, type: answer.type, desc }
+        const next: CharMemory = { ...applied, type: answer.type, desc }
         edits.push({ charId, match: applied, next })
       }
     } else if (desc) {
-      edits.push({ charId, match: null, next: { date, type: answer.type, desc } })
+      edits.push({ charId, match: null, next: memoryAt(when, answer.type, desc) })
     }
   })
   return edits

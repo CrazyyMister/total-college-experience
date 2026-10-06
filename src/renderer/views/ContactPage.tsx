@@ -1,6 +1,7 @@
 import { Fragment, useState, type JSX, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { romancesReader } from '@shared/characterRules'
+import { breakthroughMeterOf, METER_MAX } from '@shared/breakthrough'
 import { slotPartsOf, yearLabel } from '@shared/classes'
 import { dormLabel } from '@shared/dorms'
 import { jobDefOf, WEEK_DAY_HEADERS } from '@shared/jobs'
@@ -42,6 +43,7 @@ import {
   breatheDecor,
   dealt,
   fadeIn,
+  FILL,
   gestures,
   lift,
   press,
@@ -99,8 +101,8 @@ export function ContactPage({
   const memories = memoriesFor(info)
   const history = dedupedMemories(memories)
   // Sorted *after* the fold, so which of two identical entries survives does not move. The
-  // fold is oldest-first with a day's entries in the order they were laid down, and a memory
-  // carries no half, so within a date the later-laid-down entry reads first: night over day.
+  // fold is oldest-first with a day's entries in the order they were laid down, so within a
+  // date the later-laid-down entry reads first: night over day.
   const recent = history
     .map((memory, index) => ({ memory, index }))
     .sort((a, b) => b.memory.date - a.memory.date || b.index - a.index)
@@ -108,6 +110,9 @@ export function ContactPage({
   // The tag goes through `affectionFor`, never a sum of the memories: feed likes count too.
   const flags = info?.flags ?? emptyFlags()
   const isContact = Boolean(flags.gaveContactInfo)
+  // Her Breakthrough meter, for somebody whose list of memories is open to him and whose name
+  // he knows.
+  const meter = isContact && info?.nameKnown ? breakthroughMeterOf(info) : null
   const handle = info?.handle
   const feed = [...(info?.feed ?? [])].sort(newestFirst)
   // The days she made a friend, among what she posted. The other girl has to be one the
@@ -421,6 +426,19 @@ export function ContactPage({
           <Card
             label={isContact ? `Memories · ${history.length} of ${MEMORY_CAP}` : 'Memories'}
           >
+            {meter !== null && (
+              <div className="vu-contact-meter" role="img" aria-label="Breakthrough">
+                <span className="vu-contact-meter-label">Breakthrough</span>
+                <span className="vu-track">
+                  <motion.span
+                    className="vu-bar"
+                    initial={{ width: '0%' }}
+                    animate={{ width: `${(meter / METER_MAX) * 100}%` }}
+                    transition={FILL}
+                  />
+                </span>
+              </div>
+            )}
             {!isContact ? (
               <Locked>{AFTER_ADDING}</Locked>
             ) : history.length === 0 ? (

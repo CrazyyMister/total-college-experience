@@ -3,7 +3,15 @@ import { pronounsOf } from './pronouns'
 import { readerize } from './readerVoice'
 import { andList } from './sentences'
 import { shuffle } from './shuffle'
-import type { CharInfo, CharMemory, Gender, IntimateAct, Suspicion } from './types'
+import {
+  memoryAt,
+  type CharInfo,
+  type CharMemory,
+  type Gender,
+  type IntimateAct,
+  type Suspicion,
+  type TimeSlot
+} from './types'
 
 /**
  * Who saw the reader with whom and who they told: the suspicion one girl carries about one
@@ -19,7 +27,7 @@ const PASSERBY_CHANCE = 0.25
 
 /**
  * Files a jealousy memory, refreshing rather than duplicating: one that says the same in either
- * voice takes the new date and the new wording.
+ * voice takes the new day, half of the day and wording.
  */
 export function upsertJealousyMemory(
   list: readonly CharMemory[] | undefined,
@@ -30,7 +38,13 @@ export function upsertJealousyMemory(
   const at = existing.findIndex((memory) => readerize(memory.desc) === said)
   if (at < 0) return [...existing, entry]
   const next = [...existing]
-  next[at] = { ...next[at], date: entry.date, desc: entry.desc }
+  const { time: _filed, ...held } = next[at]
+  next[at] = {
+    ...held,
+    date: entry.date,
+    ...(entry.time !== undefined ? { time: entry.time } : {}),
+    desc: entry.desc
+  }
   return next
 }
 
@@ -53,6 +67,8 @@ export interface RumorPassInput {
   slot: number
   /** The date the memories it writes are dated with — the slot that just finished. */
   date: number
+  /** The half of the day of that slot, which the memories it writes are stamped with. */
+  time: TimeSlot
   /** Every kiss and every night the ledger reported, in the order it reported them. */
   acts: readonly IntimateAct[]
   /** The scene's cast: whoever was not in an act was standing there while it happened. */
@@ -177,7 +193,10 @@ export function rumorPass(
       const key = `${w}|${desc}`
       if (written.has(key)) return
       written.add(key)
-      memories.push({ charId: w, memory: { date: input.date, type, desc } })
+      memories.push({
+        charId: w,
+        memory: memoryAt({ date: input.date, time: input.time }, type, desc)
+      })
     }
 
     // Stamps this hour on what she suspects of each girl in it, replacing any older stamp.

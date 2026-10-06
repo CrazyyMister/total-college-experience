@@ -1,4 +1,11 @@
-import type { Character, CharMemory, MemoryType } from './types'
+import {
+  memoryAt,
+  type Character,
+  type CharMemory,
+  type MemoryMoment,
+  type MemoryType,
+  type TimeSlot
+} from './types'
 import { pronounsOf } from './pronouns'
 import { hasTrait } from './traits'
 import {
@@ -299,6 +306,8 @@ export function npcPartnerOf(map: NpcRomanceMap, charId: string): string | null 
 /** Everything {@link settleNpcRomance} folds over. */
 export interface NpcRomanceInput {
   date: number
+  /** The half of the day of `date`, which the memories the settle files are stamped with. */
+  time: TimeSlot
   /** Whether this settle closes the week, which is when couples roll their fight. */
   endsWeek: boolean
   /** The pair map after this slot's affinity settle, whose encounters say who got on. */
@@ -422,9 +431,9 @@ export function driftsFrom(state: ReaderLoverState, date: number, running: boole
  * The memory a man the reader displaced keeps of him. It names nobody, so upserting it files one
  * entry per rival however many times or for whomever he is displaced.
  */
-export function rivalMemoryOf(character: Character | undefined, date: number): CharMemory {
+export function rivalMemoryOf(character: Character | undefined, when: MemoryMoment): CharMemory {
   const possessive = pronounsOf(character?.gender ?? 'man').possessive
-  return { date, type: 'hated', desc: `the reader started dating ${possessive} girlfriend` }
+  return memoryAt(when, 'hated', `the reader started dating ${possessive} girlfriend`)
 }
 
 /**
@@ -739,7 +748,11 @@ export function settleNpcRomance(
       return
     }
     const desc = wingmanMemoryDesc(reason, characters[charId], characters[other], declared)
-    readerMemories.push({ charId, memory: { date, type, desc }, reason })
+    readerMemories.push({
+      charId,
+      memory: memoryAt({ date, time: input.time }, type, desc),
+      reason
+    })
     note('system', 'reader_memory', charId, other, detail)
   }
   // Whether the victim of a talk-down away from the scene hears of it from a friend who was in
