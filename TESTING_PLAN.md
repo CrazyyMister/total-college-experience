@@ -137,6 +137,10 @@ You will need externally kept data for testing:
 - [ ] Use Breakthrough, finish the scene and kill the app with the memory screen open. Continue and verify the screen asks again with the marked row, and that her page holds one marked memory.
 - [ ] With the provider set to Gemini, finish a scene with a crush, a use and (in a second scene) a class. Verify no INVALID_ARGUMENT in data/app.log.
 - [ ] Edit the marked memory on the memory screen and on her page, and blank it on the memory screen. Verify the sticker stays through an edit and the memory is gone after the blank.
+- [ ] Play three scenes with one contact in different places. In data/app.log verify the next scene's cast block lists her three encounters in order, and that a contact who was not there has none.
+- [ ] In a scene of three, let one leave before the end. Verify that in the next scene she has the encounter without its text.
+- [ ] With more encounters than the newest half carries text for, verify in data/app.log that the newest have their summary and the older ones only the day, the place and who was there.
+- [ ] Load a save from before encounters kept who and where, play a scene and verify it plays on without an error.
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 
