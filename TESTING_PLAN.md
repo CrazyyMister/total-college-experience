@@ -131,6 +131,12 @@ You will need externally kept data for testing:
 - [ ] Make a Breakthrough turn fail and retry it. Verify the instruction is sent again; cancel it and verify the typed words come back.
 - [ ] Use Breakthrough with a man and verify the instruction says the advance is friendship, trust or respect.
 - [ ] Load a save written before Breakthrough and play a scene. Verify it plays on without an error.
+- [ ] Use Breakthrough in a scene and finish it. Verify the summary says how it went, that the marked memory is on the memory screen at the boundary and then on her page, and that her bar stays empty.
+- [ ] Load a save from before Breakthrough results and play a scene. Verify it plays on without an error.
+- [ ] Use Breakthrough, finish the scene and kill the app once the ending has been written. Continue and verify the marked memory is on the memory screen once and, after Save, on her page once.
+- [ ] Use Breakthrough, finish the scene and kill the app with the memory screen open. Continue and verify the screen asks again with the marked row, and that her page holds one marked memory.
+- [ ] With the provider set to Gemini, finish a scene with a crush, a use and (in a second scene) a class. Verify no INVALID_ARGUMENT in data/app.log.
+- [ ] Edit the marked memory on the memory screen and on her page, and blank it on the memory screen. Verify the sticker stays through an edit and the memory is gone after the blank.
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 
