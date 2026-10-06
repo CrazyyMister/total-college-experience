@@ -25,6 +25,7 @@ import {
   type Haunt,
   type JobState,
   type Occasion,
+  type ExChoice,
   type StructuredRequest,
   type TimeSlot
 } from '@shared/types'
@@ -89,6 +90,8 @@ export interface TextingPromptState {
   time: TimeSlot
   /** The reader's accumulated stats, used for relationship requirement guidance. */
   stats?: PlayerStats
+  /** The girl he starts with as an ex, where New Game picked one. */
+  ex?: ExChoice | null
   /**
    * Every roster character except the one being texted — the lorebook's people,
    * excluded at the source so no entry can restate the `CHARACTER` block.
@@ -403,7 +406,7 @@ export function buildTextingPrompt(
     `${name} ${character.lastName}.`,
     ...(info?.major ? [yearMajorLine(info, character.gender)] : []),
     // The phone takes the one-character budget.
-    ...profileLines(character, info?.flags ?? emptyFlags()),
+    ...profileLines(character, info?.flags ?? emptyFlags(), 1, state.ex),
     ...relationshipLines(
       character,
       info?.flags ?? emptyFlags(),

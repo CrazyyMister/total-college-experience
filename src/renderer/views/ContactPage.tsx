@@ -1,6 +1,7 @@
 import { Fragment, useState, type JSX, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { romancesReader } from '@shared/characterRules'
+import { exOriginOf } from '@shared/exGirlfriend'
 import {
   breakthroughMeterOf,
   lastBreakthroughUse,
@@ -34,7 +35,7 @@ import {
   type StockOutfitSet
 } from '@shared/types'
 import { kindOf, pronounsOf } from '@shared/pronouns'
-import { formatShortGameDate } from '../prompts/gameDate'
+import { formatRememberedGameDate, formatShortGameDate } from '../prompts/gameDate'
 import { useBunnyboardStore } from '../stores/bunnyboardStore'
 import { profileUrl, spriteUrl, useSpriteVersion } from '../stores/characterStore'
 import { newestFirst } from '../stores/feedRolls'
@@ -84,6 +85,7 @@ export function ContactPage({
   const classes = useGameStore((s) => s.classes)
   const characters = useGameStore((s) => s.characters)
   const chars = useGameStore((s) => s.chars)
+  const ex = useGameStore((s) => s.ex)
   const npcRelationships = useGameStore((s) => s.npcRelationships)
   const npcFriendships = useGameStore((s) => s.npcFriendships)
   const npcRomance = useGameStore((s) => s.npcRomance)
@@ -159,7 +161,11 @@ export function ContactPage({
   // Rides `knowsTraits`: same threshold, same one-way rule.
   const showPreferred = flags.knowsTraits || isPositive(affection)
   // The same paragraph the prompts are given.
-  const loveLife = loveLifeBlurb(character, flags)
+  const loveLife = loveLifeBlurb(
+    character,
+    flags,
+    ex?.charId === charId ? { origin: exOriginOf(character, ex) } : undefined
+  )
   const showLoveLife = Boolean(loveLife) && (flags.knowsLoveLife || flags.isLover)
   // Her friends are published like any other field of her page, met or not.
   const known = chars.filter((id) => Boolean(characters[id]))
@@ -458,7 +464,7 @@ export function ContactPage({
               <div className="vu-contact-memories">
                 {recent.map((memory, index) => (
                   <Fragment key={`${memory.date}-${index}`}>
-                    <span className="vu-contact-when">{formatShortGameDate(memory.date)}</span>
+                    <span className="vu-contact-when">{formatRememberedGameDate(memory.date)}</span>
                     <span>
                       “{memorySentence(character.firstName, memory)}”
                       {memory.mark ? (

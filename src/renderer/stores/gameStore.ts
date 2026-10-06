@@ -11,6 +11,7 @@ import {
   withoutReaderRomance,
   withTextMemory
 } from '@shared/relationship'
+import { exOf } from '@shared/exGirlfriend'
 import {
   breakthroughsWithin,
   withBreakthroughUse,
@@ -125,6 +126,7 @@ import {
   type GameHistory,
   type GameSave,
   type Gender,
+  type ExChoice,
   type IntimateAct,
   type JobState,
   memoryAt,
@@ -287,6 +289,8 @@ interface GameStoreState {
   jobClosures: Record<string, ShiftSlot[]>
   /** Every slot's sky, read off the record and never rewritten. */
   weather: Weather[]
+  /** The girl he started with as an ex, read off the record; null where there is none. */
+  ex: ExChoice | null
   /** What the reader has bought and not yet given away. Persisted. */
   inventory: OwnedItem[]
   /** What each of his classes has accumulated, keyed by class code. Persisted. */
@@ -1384,6 +1388,7 @@ const initialState = {
   jobsClosed: [] as string[],
   jobClosures: {} as Record<string, ShiftSlot[]>,
   weather: [] as Weather[],
+  ex: null as ExChoice | null,
   inventory: [] as OwnedItem[],
   classRecords: {} as Record<string, ClassRecord>,
   gradesStanding: null as 'good' | 'bad' | null,
@@ -1512,6 +1517,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       jobsClosed: save.jobsClosed,
       jobClosures: record.jobClosures,
       weather: record.weather,
+      ex: exOf(record.ex, characters, record.chars),
       inventory: save.inventory,
       classRecords: save.classRecords,
       gradesStanding: save.gradesStanding,

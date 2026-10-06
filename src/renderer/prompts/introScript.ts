@@ -85,14 +85,37 @@ export function introScrollLines(stats: PlayerStats, date: number): SceneLine[] 
  * The orientation scene's action text, written *about* the reader rather than by him; the loop
  * does not log it as one of his lines.
  */
-export const ORIENTATION_PREMISE =
-  'The reader is standing with his orientation group in the Venus Quad. One of the other freshmen stands out to him. Neither of them knows anybody here yet and neither knows whether this is the start of anything at all — write the scene with that feeling: first day, everything still ahead, nothing decided.'
+export function orientationPremise(hasEx: boolean): string {
+  // The reader already knows his ex, so the scene is about two people who have not met rather than a man who knows nobody.
+  const strangers = hasEx
+    ? 'The two of them have never met, and neither knows'
+    : 'Neither of them knows anybody here yet and neither knows'
+  return `The reader is standing with his orientation group in the Venus Quad. One of the other freshmen stands out to him. ${strangers} whether this is the start of anything at all — write the scene with that feeling: first day, everything still ahead, nothing decided.`
+}
 
 /** The same scene when the roster has no freshmen: she is the upperclassman leading the group. */
-export function orientationLeaderPremise(character: Character | undefined): string {
+export function orientationLeaderPremise(
+  character: Character | undefined,
+  hasEx = false
+): string {
   const firstName = character?.firstName ?? 'The group leader'
   const p = pronounsOf(character?.gender ?? 'woman')
-  return `The reader's orientation group is short of half its people. ${firstName}, the upperclassman leading the group, introduces ${p.reflexive} to him, and the two of them talk while the stragglers turn up. ${p.Subject} already knows ${p.possessive} way around and is in no hurry; he knows nobody at all. Write the scene with that first-day feeling: an easy, unhurried conversation between two people who have just met, and the open question of whether it leads anywhere.`
+  const unknown = hasEx ? 'the two of them have never met' : 'he knows nobody at all'
+  return `The reader's orientation group is short of half its people. ${firstName}, the upperclassman leading the group, introduces ${p.reflexive} to him, and the two of them talk while the stragglers turn up. ${p.Subject} already knows ${p.possessive} way around and is in no hurry; ${unknown}. Write the scene with that first-day feeling: an easy, unhurried conversation between two people who have just met, and the open question of whether it leads anywhere.`
+}
+
+/**
+ * Who the orientation scene may open with: the freshmen, or anyone where there are none, the
+ * reader's ex never among them. `leader` is true when the pool is the whole roster.
+ */
+export function orientationPoolOf(
+  chars: readonly string[],
+  yearOf: (charId: string) => number | undefined,
+  exId?: string
+): { pool: string[]; leader: boolean } {
+  const others = chars.filter((charId) => charId !== exId)
+  const freshmen = others.filter((charId) => yearOf(charId) === 1)
+  return freshmen.length > 0 ? { pool: freshmen, leader: false } : { pool: others, leader: true }
 }
 
 /**

@@ -7,6 +7,7 @@ import {
   type Character,
   type CharFlags,
   type CharInfo,
+  type ExChoice,
   type StructuredRequest,
   type TimeSlot
 } from '@shared/types'
@@ -39,6 +40,8 @@ export interface FeedRepliesInput {
   lessNsfwText: boolean
   /** The reader's accumulated stats, used for relationship requirement guidance. */
   stats?: PlayerStats
+  /** The girl he starts with as an ex, where New Game picked one. */
+  ex?: ExChoice | null
   /** The reader's first name, the only thing about him the contacts are told. */
   readerFirstName: string
   /** The post, and the slot he wrote it in. */
@@ -73,13 +76,14 @@ function publicLine(character: Character, flags: CharFlags): string | null {
 function contactEntry(
   { character, info, charKey, texted }: FeedReplier,
   date: number,
-  stats: PlayerStats | undefined
+  stats: PlayerStats | undefined,
+  ex: ExChoice | null | undefined
 ): string[] {
   const flags = info.flags ?? emptyFlags()
   const secret = publicLine(character, flags)
   return [
     `${fullNameOf(character)} — "who": "${charKey}"`,
-    ...profileLines(character, flags),
+    ...profileLines(character, flags, 1, ex),
     ...relationshipLines(
       character,
       flags,
@@ -96,7 +100,7 @@ function contactEntry(
 
 /** Every contact the call names, described once each. */
 function contactBlock(input: FeedRepliesInput): string[] {
-  const entries = input.contacts.map((contact) => contactEntry(contact, input.date, input.stats))
+  const entries = input.contacts.map((contact) => contactEntry(contact, input.date, input.stats, input.ex))
   if (entries.length === 0) return []
   return [
     'CONTACTS',
@@ -182,6 +186,8 @@ export interface CommentReplyInput {
   lessNsfwText: boolean
   /** The reader's accumulated stats, used for relationship requirement guidance. */
   stats?: PlayerStats
+  /** The girl he starts with as an ex, where New Game picked one. */
+  ex?: ExChoice | null
   /** The reader's first name, the only thing about him she is told beyond her own record. */
   readerFirstName: string
   /** The day the reply is weighed at: her affection and memories as they stand then. */
@@ -200,7 +206,7 @@ export function buildCommentReplyPrompt(input: CommentReplyInput): StructuredReq
   const name = character.firstName
   const p = pronounsOf(character.gender)
   const user = [
-    ...spaced(['CONTACT', ...contactEntry(input.contact, input.date, input.stats)]),
+    ...spaced(['CONTACT', ...contactEntry(input.contact, input.date, input.stats, input.ex)]),
     ...spaced(quotedPost('THE POST', name, input.post)),
     ...spaced([
       'THE COMMENT',
@@ -236,6 +242,8 @@ export interface ReaderTagInput {
   lessNsfwText: boolean
   /** The reader's accumulated stats, used for relationship requirement guidance. */
   stats?: PlayerStats
+  /** The girl he starts with as an ex, where New Game picked one. */
+  ex?: ExChoice | null
   /** The reader's first name. */
   readerFirstName: string
   /** The day the post is weighed at: her affection and memories as they stand then. */
@@ -254,7 +262,7 @@ export function buildReaderTagPrompt(input: ReaderTagInput): StructuredRequest {
   const name = character.firstName
   const p = pronounsOf(character.gender)
   const user = [
-    ...spaced(['CONTACT', ...contactEntry(input.contact, input.date, input.stats)]),
+    ...spaced(['CONTACT', ...contactEntry(input.contact, input.date, input.stats, input.ex)]),
     ...spaced([
       'THE SCENE',
       `${name} and the reader, whose first name is ${input.readerFirstName}, were just in this scene together:`,

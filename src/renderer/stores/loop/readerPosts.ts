@@ -373,6 +373,7 @@ export function startReaderFeedAnswers(
     playthroughId: game.playthroughId ?? 'unsaved',
     lessNsfwText: lessNsfwTextNow(),
     stats,
+    ex: game.ex,
     readerFirstName: game.playerFirstName,
     date: game.date
   }

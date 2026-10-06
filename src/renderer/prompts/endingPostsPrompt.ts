@@ -4,6 +4,7 @@ import {
   fullNameOf,
   type Character,
   type CharInfo,
+  type ExChoice,
   type StructuredRequest,
   type TimeSlot
 } from '@shared/types'
@@ -38,6 +39,8 @@ export interface EndingPostsInput {
   playthroughId: string
   /** The reader's accumulated stats, used for relationship requirement guidance. */
   stats?: PlayerStats
+  /** The girl he starts with as an ex, where New Game picked one. */
+  ex?: ExChoice | null
   /** The player's `lessNsfwText` setting; picks which persona heads this call's prefix. */
   lessNsfwText: boolean
   /** Everybody the reply writes a post for, one entry each. */
@@ -88,7 +91,7 @@ function characterBlock(input: EndingPostsInput): string[] {
     const date = GRADUATION_DATE + poster.daysAfter
     return [
       `${fullNameOf(character)} — "char": "${charKey}"`,
-      ...profileLines(character, info.flags ?? emptyFlags()),
+      ...profileLines(character, info.flags ?? emptyFlags(), 1, input.ex),
       ...relationshipLines(
         character,
         info.flags ?? emptyFlags(),

@@ -2,9 +2,10 @@ import { describePlayer, describeReaderProfile, type PlayerStats } from '@shared
 import { acedExamsLine, GRADES_BAD_LINE, GRADES_GOOD_LINE } from '@shared/academics'
 import { andList } from '@shared/sentences'
 import { readerStandingOf, type ReaderStanding } from '@shared/relationship'
-import type { CharInfo, Character, ClassEntry, ClassRecord, Occasion } from '@shared/types'
+import { exOriginForReader } from '@shared/exGirlfriend'
+import type { CharInfo, Character, ClassEntry, ClassRecord, ExChoice, Occasion } from '@shared/types'
 import { handedBackAcedCount } from './classProgress'
-import { formatShortGameDate } from './gameDate'
+import { formatRememberedGameDate, formatShortGameDate } from './gameDate'
 
 /**
  * Dev-authored setting text injected into every scene prompt. This is the always-on half
@@ -47,8 +48,8 @@ function loveLifeLines(lovers: ReaderStanding['lovers']): string[] {
 function exesLine(exes: ReaderStanding['exes']): string {
   const parts = exes.map(({ name, from, to }) =>
     from !== undefined
-      ? `${name} from ${formatShortGameDate(from)} to ${formatShortGameDate(to)}`
-      : `${name} until ${formatShortGameDate(to)}`
+      ? `${name} from ${formatRememberedGameDate(from)} to ${formatRememberedGameDate(to)}`
+      : `${name} until ${formatRememberedGameDate(to)}`
   )
   return `The reader's exes: ${parts.join(', ')}.`
 }
@@ -82,6 +83,8 @@ export function readerText(
     standing?: 'good' | 'bad' | null
     lovers?: ReaderStanding['lovers']
     exes?: ReaderStanding['exes']
+    // How he and the ex he started with dated and parted, as the game tells it.
+    exOrigin?: string
   } = {}
 ): string {
   const bio = bioLine(reputation.bio ?? '')
@@ -93,7 +96,8 @@ export function readerText(
     ...(reputation.standing === 'good' ? [GRADES_GOOD_LINE] : []),
     ...(reputation.standing === 'bad' ? [GRADES_BAD_LINE] : []),
     ...loveLifeLines(reputation.lovers ?? []),
-    ...(reputation.exes?.length ? [exesLine(reputation.exes)] : [])
+    ...(reputation.exes?.length ? [exesLine(reputation.exes)] : []),
+    ...(reputation.exOrigin ? [reputation.exOrigin] : [])
   ].join(' ')
 }
 
@@ -112,6 +116,7 @@ export interface ReaderView {
   chars: readonly string[]
   charInfo: Readonly<Record<string, CharInfo>>
   characters: Readonly<Record<string, Character>>
+  ex: ExChoice | null
 }
 
 /** Every girl the reader's standing might name, by the first name she is known by. */
@@ -129,6 +134,8 @@ export function readerBlockOf(
   view: ReaderView,
   override?: { stats: PlayerStats; charInfo: Readonly<Record<string, CharInfo>> }
 ): string {
+  const { ex } = view
+  const exCharacter = ex ? view.characters[ex.charId] : undefined
   return readerText(view.playerFirstName, view.playerLastName, override?.stats ?? view.stats, {
     bio: view.bio,
     // Known for, not merely earned: a perfect paper counts once it comes back.
@@ -140,6 +147,7 @@ export function readerBlockOf(
       view.finalsScoresShown
     ),
     standing: view.gradesStanding,
+    ...(ex && exCharacter ? { exOrigin: exOriginForReader(exCharacter, ex) } : {}),
     ...readerStandingOf(view.chars, override?.charInfo ?? view.charInfo, firstNamesOf(view))
   })
 }

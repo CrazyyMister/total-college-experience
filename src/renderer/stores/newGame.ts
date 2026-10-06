@@ -5,6 +5,7 @@ import {
   type AppError,
   type Character,
   type Enrollment,
+  type ExChoice,
   type FeedAssignment,
   type HiddenScheduleAssignment,
   type JobAssignment,
@@ -70,6 +71,7 @@ export type StartOutcome =
 /** One press of Start Game, held across its retries. */
 interface StartAttempt {
   roster: readonly Character[]
+  ex: ExChoice | null
   classRequest: ReturnType<typeof buildClassPrompt>
   profileRequest: ReturnType<typeof buildProfilePrompt>
   occasionRequests: OccasionRequest[]
@@ -168,7 +170,7 @@ async function fetchProfiles(current: StartAttempt): Promise<Result<ProfileGenDr
   )
   if (!generated.ok) return { ok: false, error: generated.error }
   try {
-    return { ok: true, data: validateProfileDraft(generated.data, current.roster) }
+    return { ok: true, data: validateProfileDraft(generated.data, current.roster, current.ex) }
   } catch (err) {
     return { ok: false, error: toAppError(err) }
   }
@@ -268,7 +270,10 @@ async function runAttempt(current: StartAttempt, mine: object): Promise<StartOut
  * Start Game's generation pass: the three one-shots in parallel, then the local passes
  * that turn them into a semester.
  */
-export async function startNewGame(roster: readonly Character[]): Promise<StartOutcome> {
+export async function startNewGame(
+  roster: readonly Character[],
+  ex: ExChoice | null = null
+): Promise<StartOutcome> {
   const mine = {}
   run = mine
   sleepers = []
@@ -279,8 +284,9 @@ export async function startNewGame(roster: readonly Character[]): Promise<StartO
   )
   const current: StartAttempt = {
     roster,
+    ex,
     classRequest: buildClassPrompt(roster),
-    profileRequest: buildProfilePrompt(roster),
+    profileRequest: buildProfilePrompt(roster, ex),
     occasionRequests,
     occasionRequest: buildOccasionPrompt(occasionRequests)
   }
@@ -293,9 +299,12 @@ export async function startNewGame(roster: readonly Character[]): Promise<StartO
  * The failure modal's Retry — resumes the stored attempt, re-sending only the calls with no
  * reply yet. With nothing held, it starts over.
  */
-export async function retryNewGameStart(roster: readonly Character[]): Promise<StartOutcome> {
+export async function retryNewGameStart(
+  roster: readonly Character[],
+  ex: ExChoice | null = null
+): Promise<StartOutcome> {
   const current = attempt
-  if (!current) return startNewGame(roster)
+  if (!current) return startNewGame(roster, ex)
   const mine = {}
   run = mine
   sleepers = []

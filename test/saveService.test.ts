@@ -4,7 +4,8 @@ import { join } from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AUTOSAVE_ID, MAX_SLOT_SAVES, type SaveDraft } from '@shared/types'
 import { useGameStore } from '../src/renderer/stores/gameStore'
-import { enrollment, record } from './fixtures'
+import { exSeedOf } from '@shared/exGirlfriend'
+import { character, charInfo, enrollment, lcg, record } from './fixtures'
 
 /**
  * Save file CRUD. `paths.ts` reads `app.getAppPath()` at call time, so
@@ -183,6 +184,38 @@ describe('write paths', () => {
       saveId: 'manual03',
       date: 6
     })
+  })
+})
+
+describe('a playthrough that starts with an ex', () => {
+  it('reads back her choice and the dated memories she was seeded with, and an older record reads as none', async () => {
+    const mina = character({ charId: 'mina', firstName: 'Mina', lastName: 'Park' })
+    const seed = exSeedOf(mina, { tone: 'bad', endedBy: 'her' }, lcg(2))!
+    const choice = { charId: 'mina', tone: 'bad', endedBy: 'her' } as const
+    const info = { ...charInfo(), ...seed }
+
+    const { save } = await saveService.createPlaythrough(
+      record({ chars: ['mina'], ex: choice }),
+      draft({ charInfo: { mina: info } })
+    )
+    const read = await saveService.readSave(save.playthroughId, save.saveId)
+    expect(read.record.ex).toEqual(choice)
+    expect(read.save.charInfo.mina.memories).toEqual(seed.memories)
+    expect(read.save.charInfo.mina.datingSince).toBe(seed.datingSince)
+    expect(read.save.charInfo.mina.memories.every((memory) => memory.time === undefined)).toBe(true)
+
+    const { save: older } = await saveService.createPlaythrough(record({ chars: ['mina'] }), draft())
+    const readOlder = await saveService.readSave(older.playthroughId, older.saveId)
+    expect(readOlder.record.ex).toBeUndefined()
+  })
+
+  it('reads an enrollment with her choice, and one without', async () => {
+    const choice = { charId: 'a', tone: 'good', endedBy: 'both' } as const
+    const withEx = await saveService.writeEnrollment(enrollment({ ex: choice }))
+    const without = await saveService.writeEnrollment(enrollment())
+    await expect(saveService.readEnrollment(withEx.playthroughId)).resolves.toMatchObject({ ex: choice })
+    const plain = await saveService.readEnrollment(without.playthroughId)
+    expect(plain.ex).toBeUndefined()
   })
 })
 

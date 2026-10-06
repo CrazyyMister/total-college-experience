@@ -51,7 +51,8 @@ import {
   introScrollLines,
   isOrientationSlot,
   isTutorialSlot,
-  ORIENTATION_PREMISE,
+  orientationPoolOf,
+  orientationPremise,
   orientationLeaderPremise,
   tutorialLines
 } from '../prompts/introScript'
@@ -510,19 +511,24 @@ async function startOrientationScene(): Promise<void> {
   const run = currentRun()
   const game = useGameStore.getState()
 
-  // A freshman, or anyone at all when there are none, who gets the leader premise instead.
-  // No attendance filter: orientation cancels every class on day 0.
-  const freshmen = game.chars.filter((charId) => game.charInfo[charId]?.year === 1)
-  const pool = freshmen.length > 0 ? freshmen : game.chars
+  // A freshman, or anyone at all when there are none, who gets the leader premise instead; never
+  // the reader's ex, whom he already knows. No attendance filter: orientation cancels every class
+  // on day 0.
+  const { pool, leader } = orientationPoolOf(
+    game.chars,
+    (charId) => game.charInfo[charId]?.year,
+    game.ex?.charId
+  )
   if (pool.length === 0) {
     console.warn('[intro] no characters on the roster; orientation plays solo')
   }
   const picked = pool.length > 0 ? anyOf(pool) : null
   const cast = picked ? [picked] : []
+  const hasEx = game.ex !== null
   const action =
-    picked && freshmen.length === 0
-      ? orientationLeaderPremise(game.characters[picked])
-      : ORIENTATION_PREMISE
+    picked && leader
+      ? orientationLeaderPremise(game.characters[picked], hasEx)
+      : orientationPremise(hasEx)
 
   const snapshot: TurnSnapshot = { scene: game.captureScene(), action, intro: true }
   loopState.lastTurn = snapshot
@@ -889,6 +895,7 @@ async function fetchSlotIntro(
       date,
       time,
       stats: game.stats,
+      ex: game.ex,
       opening,
       lessNsfwText: lessNsfwTextNow(),
       recent: recentSummaries(date, time, pendingSummary),

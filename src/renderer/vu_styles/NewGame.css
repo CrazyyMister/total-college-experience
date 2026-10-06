@@ -167,3 +167,20 @@
 .vu-newgame-start {
   transform-origin: 100% 100%;
 }
+
+/* The ex's control sits at the far end of the foot from Start, on the panel-button shape the
+   header's fill button wears; what it says is the choice made, or the offer to make one. */
+.vu-newgame-ex {
+  margin-right: auto;
+  align-self: flex-end;
+}
+
+/* What her sheet says of her past, read-only under the faces: it scrolls past its cap rather
+   than growing the panel. */
+.vu-newgame-ex-read {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: 220px;
+  overflow: hidden auto;
+}

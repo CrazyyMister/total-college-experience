@@ -1814,6 +1814,21 @@ export interface SaveReadResult {
   save: GameSave
 }
 
+/** How the old relationship with the girl chosen as the reader's ex left things: warm or bitter. */
+export const EX_TONES = ['good', 'bad'] as const
+export type ExTone = (typeof EX_TONES)[number]
+
+/** Who ended it: she did, the reader did, or the two of them together. */
+export const EX_ENDERS = ['her', 'him', 'both'] as const
+export type ExEnder = (typeof EX_ENDERS)[number]
+
+/** The ex New Game picked: who she is, how it felt and who ended it. */
+export interface ExChoice {
+  charId: string
+  tone: ExTone
+  endedBy: ExEnder
+}
+
 /**
  * On-disk playthrough record — `/data/saves/{playthroughId}/playthrough.json`: everything
  * New Game settled and no save afterwards rewrites, written once beside the saves that read it.
@@ -1845,6 +1860,8 @@ export interface PlaythroughRecord {
   weather: Weather[]
   /** The settled half of every character's entry, keyed by charId. */
   profiles: Record<string, CharProfile>
+  /** The girl he starts the game with as an ex, where New Game picked one. */
+  ex?: ExChoice
 }
 
 /** The record as New Game hands it over; `saveService` stamps the version. */
@@ -1931,6 +1948,8 @@ export type EnrollmentDraft = QuickstartBundle & {
   bio?: string
   /** The output tokens New Game's own generation calls cost, carried onto the save at Finalize. */
   tokensGenerated?: number
+  /** The ex New Game picked, carried onto the record at Finalize. */
+  ex?: ExChoice
 }
 
 /**

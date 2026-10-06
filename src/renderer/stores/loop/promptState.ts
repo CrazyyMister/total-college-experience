@@ -5,6 +5,7 @@ import { globalSlotOf, slotFromId } from '@shared/jobs'
 import type { PlayerStats } from '@shared/playerStats'
 import { POSITIONS } from '@shared/positions'
 import { ROOM_VARIANTS } from '@shared/room'
+import { affectionFor, behaviorLevelOf } from '@shared/relationship'
 import { giftLoreNote, itemDefOf } from '@shared/shop'
 import {
   charKeyOf,
@@ -203,7 +204,26 @@ export async function applyCast(cast: string[], scene?: SceneKind): Promise<void
 export async function stageCast(cast: string[], scene?: SceneKind): Promise<void> {
   useGameStore.getState().setCast(cast, scene)
   useGameStore.getState().refreshDerivedFlags(cast)
+  logExesIn(cast)
   await loadCgReady(cast)
+}
+
+/**
+ * One console line for each of the reader's exes in a scene's cast: which of her five behavior
+ * texts she is written with, her affection and the text itself.
+ */
+function logExesIn(cast: readonly string[]): void {
+  const game = useGameStore.getState()
+  for (const charId of cast) {
+    const character = game.characters[charId]
+    const flags = game.charInfo[charId]?.flags
+    if (!character || !flags || flags.brokenUp === 0) continue
+    const affection = affectionFor(game.charInfo[charId], game.date, character)
+    const level = behaviorLevelOf(flags, affection)
+    console.log(
+      `[ex] ${character.firstName} is written with ${level} (affection ${affection}): ${character.behavior[level] || '(blank)'}`
+    )
+  }
 }
 
 /**
@@ -336,6 +356,7 @@ export function promptState(): PromptState {
     classes: game.classes,
     playerSchedule: game.playerSchedule,
     stats: game.stats,
+    ex: game.ex,
     droppedNotices: announceableDrops(),
     addedNotices: announceableAdds(),
     springBreakAway: game.springBreakAway,

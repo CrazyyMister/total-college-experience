@@ -745,6 +745,7 @@ function textingRequestOf(
       date: game.date,
       time: game.time,
       stats: game.stats,
+      ex: game.ex,
       roster: others,
       charInfo: game.charInfo,
       npcRelationships: game.npcRelationships,

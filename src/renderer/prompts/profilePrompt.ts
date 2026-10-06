@@ -2,6 +2,7 @@ import {
   charKeyOf,
   fullNameOf,
   type Character,
+  type ExChoice,
   type FeedAssignment,
   type HiddenScheduleAssignment,
   type JobAssignment,
@@ -116,9 +117,19 @@ function invalid(detail: string): never {
   throw appError('PROFILE_GEN_INVALID', 'The generated student profiles were not usable.', detail)
 }
 
-/** Builds the student-profile request. */
-export function buildProfilePrompt(roster: readonly Character[]): StructuredRequest {
+/** The key of the student the game fixes as a freshman, or null where nobody is. */
+function freshmanKeyOf(roster: readonly Character[], ex: ExChoice | null | undefined): string | null {
+  const character = ex ? roster.find((c) => c.charId === ex.charId) : undefined
+  return character ? charKeyOf(character.firstName, character.lastName) : null
+}
+
+/** Builds the student-profile request; the reader's ex, where there is one, is given as a freshman. */
+export function buildProfilePrompt(
+  roster: readonly Character[],
+  ex?: ExChoice | null
+): StructuredRequest {
   const { keys, cast } = rosterCastLines(roster)
+  const freshman = freshmanKeyOf(roster, ex)
 
   const system = [
     'You are a university student affairs office profiling enrolled students.',
@@ -182,6 +193,13 @@ export function buildProfilePrompt(roster: readonly Character[]): StructuredRequ
   const rest = [
     'characters holds one entry per student below, its key exactly as written before their name, in the order listed.',
     '',
+    ...(freshman
+      ? [
+          'GIVEN',
+          `${freshman} is a freshman: her year is 1, whatever else you decide about her.`,
+          ''
+        ]
+      : []),
     'STUDENTS',
     ...cast
   ].join('\n')
@@ -290,8 +308,10 @@ function foldByKey(
 /** Validates a reply. */
 export function validateProfileDraft(
   reply: ProfileGenReply,
-  roster: readonly Character[]
+  roster: readonly Character[],
+  ex?: ExChoice | null
 ): ProfileGenDraft {
+  const freshman = freshmanKeyOf(roster, ex)
   const validKeys = new Set(roster.map((c) => charKeyOf(c.firstName, c.lastName)))
   const folded = foldByKey(reply, validKeys)
   const characters: Record<string, CharProfileDraft> = {}
@@ -350,7 +370,11 @@ export function validateProfileDraft(
     }
 
     // The handle and her winter posts are repaired, like the job, not fatal.
-    const year = clamp(profile.year, 1, 4, `${key} year`)
+    // The reader's ex is always a freshman, whatever the reply says.
+    const year = key === freshman ? 1 : clamp(profile.year, 1, 4, `${key} year`)
+    if (key === freshman && profile.year !== 1) {
+      console.warn(`[profiles] ${key} is the reader's ex and was given year ${profile.year}; using 1.`)
+    }
     const rawHandle = typeof profile.handle === 'string' ? profile.handle.trim() : ''
     const handle = normalizeHandle(rawHandle)
     if (handle === '') {

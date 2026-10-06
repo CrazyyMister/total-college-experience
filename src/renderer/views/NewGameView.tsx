@@ -7,6 +7,7 @@ import { STARTING_MONEY } from '@shared/money'
 import { emptyTallies } from '@shared/tallies'
 import { placeNpcShifts, rollFreshmanJobStart, rollJobClosures } from '@shared/jobs'
 import { rollSemesterWeather } from '@shared/weather'
+import { canBeEx, exSeedOf } from '@shared/exGirlfriend'
 import { initialFlags } from '@shared/relationship'
 import { npcFriendsOf, rollInitialNpcRelationships } from '@shared/npcRelationships'
 import { rollPostLikes } from '@shared/feed'
@@ -22,6 +23,7 @@ import {
   type Character,
   type CharJob,
   type CharProfile,
+  type ExChoice,
   type FeedAssignment,
   type HiddenScheduleAssignment,
   type JobAssignment,
@@ -33,6 +35,7 @@ import {
 } from '@shared/types'
 import { CardCaption } from '../components/CardCaption'
 import { ConfirmModal } from '../components/ConfirmModal'
+import { ExPickerModal } from './ExPickerModal'
 import { LlmFailureModal } from '../components/LlmFailureModal'
 import { slotHalf } from '../prompts/gameDate'
 import { MOOD_CYCLE_LENGTH } from '../prompts/moods'
@@ -168,6 +171,9 @@ export function NewGameView(): JSX.Element {
   }, [])
 
   const [roster, setRoster] = useState<Character[]>(resumed?.characters ?? [])
+  // The girl he starts the game with as an ex, picked on this screen and carried by the enrollment.
+  const [exChoice, setExChoice] = useState<ExChoice | null>(resumed?.enrollment.ex ?? null)
+  const [choosingEx, setChoosingEx] = useState(false)
   // The generated catalog, held between Start Game and Finalize and seeded from the enrollment
   // where the registrar is being reopened; why `classSelect` routes back to this component.
   const [schedules, setSchedules] = useState<ScheduleResult | null>(
@@ -378,9 +384,18 @@ export function NewGameView(): JSX.Element {
 
   const inspected = roster.find((c) => c.charId === inspecting) ?? null
 
+  // The choice stands only while she is still on the roster and can be his romance.
+  const activeEx = useMemo(() => {
+    const chosen = exChoice && roster.find((c) => c.charId === exChoice.charId)
+    return exChoice && chosen && canBeEx(chosen) ? exChoice : null
+  }, [exChoice, roster])
+  const exCharacter = activeEx ? roster.find((c) => c.charId === activeEx.charId) : undefined
+
   // The two gates. Both go dead and say nothing: the roster beside them is what the
   // player would be reading either way.
   const startDead = roster.length < ROSTER_SIZE || starting !== null || startFailure !== null
+  // His ex is picked before the start and not during it.
+  const exDead = starting !== null || startFailure !== null
   const fillDead =
     roster.length >= ROSTER_SIZE ||
     eligible.length === 0 ||
@@ -390,7 +405,7 @@ export function NewGameView(): JSX.Element {
   // Whether the archway is on its way off the stage. A modal over a live Start is in the
   // list because motion reports no hover *ending* for a control something covered — the
   // arch would be left hanging above the screen with nothing to bring it back.
-  const covered = picking || inspecting !== null || warnings !== null
+  const covered = picking || choosingEx || inspecting !== null || warnings !== null
   const armed = hovering && !startDead && !covered && !still
 
   useEffect(() => {
@@ -444,7 +459,7 @@ export function NewGameView(): JSX.Element {
     // The two questions are asked over the generation's wait, heights first; the calls
     // themselves are `stores/newGame.ts`'s.
     setNamed(false)
-    setStarting(startNewGame(roster))
+    setStarting(startNewGame(roster, activeEx))
     setSizing(true)
   }
 
@@ -475,7 +490,8 @@ export function NewGameView(): JSX.Element {
       playerLastName: last,
       stats,
       ...(bio ? { bio } : {}),
-      ...(tokensGenerated > 0 ? { tokensGenerated } : {})
+      ...(tokensGenerated > 0 ? { tokensGenerated } : {}),
+      ...(activeEx ? { ex: activeEx } : {})
     })
     if (!written.ok) {
       showError(written.error)
@@ -528,7 +544,7 @@ export function NewGameView(): JSX.Element {
    */
   function retryStart(): void {
     setStartFailure(null)
-    setStarting(retryNewGameStart(roster))
+    setStarting(retryNewGameStart(roster, activeEx))
   }
 
   /** The failure modal's way out. */
@@ -686,6 +702,9 @@ export function NewGameView(): JSX.Element {
       })
     )
 
+    // What the game writes onto the ex before day 0, drawn here and kept by the first save.
+    const exSeed = activeEx && exCharacter ? exSeedOf(exCharacter, activeEx) : null
+
     const written = await useSaveStore.getState().createPlaythrough(
       {
         chars: roster.map((c) => c.charId),
@@ -696,7 +715,8 @@ export function NewGameView(): JSX.Element {
         // Each all-hours employer's two closed slots, rolled above off the fixed timetable.
         jobClosures,
         weather,
-        profiles
+        profiles,
+        ...(exSeed && activeEx ? { ex: activeEx } : {})
       },
       {
         schemaVersion: 12,
@@ -718,7 +738,9 @@ export function NewGameView(): JSX.Element {
                 nameKnown: false,
                 ...(job ? { job } : {}),
                 // Omitted for a freshman, whose break was somewhere else.
-                ...(winterFeeds[c.charId]?.length > 0 ? { feed: winterFeeds[c.charId] } : {})
+                ...(winterFeeds[c.charId]?.length > 0 ? { feed: winterFeeds[c.charId] } : {}),
+                // His ex starts with her story already written.
+                ...(exSeed && c.charId === activeEx?.charId ? exSeed : {})
               }
             ]
           })
@@ -747,7 +769,8 @@ export function NewGameView(): JSX.Element {
         bunnymapUnlocked: false,
         bunnyshopUnlocked: false,
         venusJobIntroSent: false,
-        bunnybotContactIntroSent: false,
+        // His ex is already a contact, so the first one he makes is not his first.
+        bunnybotContactIntroSent: exSeed !== null,
         bunnybotFirstPostNudgeSent: false,
         bunnybotTwoTimingTipSent: false,
         bunnybotDeferred: [],
@@ -953,6 +976,19 @@ export function NewGameView(): JSX.Element {
         initial="hidden"
         animate="shown"
       >
+        {/* Absent while nobody on the roster can be his ex and none is chosen. */}
+        {(activeEx || roster.some(canBeEx)) && (
+          <motion.button
+            id="new-game-ex-open"
+            className="vu-btn vu-btn--outline vu-btn--panel vu-paper vu-newgame-ex"
+            {...gestures(exDead, lift, press)}
+            disabled={exDead}
+            onClick={() => setChoosingEx(true)}
+          >
+            {exCharacter ? `Ex: ${exCharacter.firstName}` : 'Add an ex'}
+          </motion.button>
+        )}
+
         {/* The wrapper wears the state; the button inside keeps its own lift and press.
             `initial={false}` so a return from the timetable lands already doubled. */}
         <motion.div
@@ -988,6 +1024,22 @@ export function NewGameView(): JSX.Element {
             onPick={(character) => {
               setPicking(false)
               setRoster((prev) => [...prev, character])
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {choosingEx && (
+          <ExPickerModal
+            key="ex"
+            theme={theme}
+            roster={roster}
+            current={activeEx}
+            onClose={() => setChoosingEx(false)}
+            onConfirm={(choice) => {
+              setExChoice(choice)
+              setChoosingEx(false)
             }}
           />
         )}

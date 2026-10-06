@@ -54,6 +54,15 @@ export function formatShortGameDate(date: number): string {
   return `${MONTHS[at.getUTCMonth()].slice(0, 3)} ${at.getUTCDate()}`
 }
 
+/**
+ * {@link formatShortGameDate} for something remembered: a day before the semester began carries
+ * its year, since the bare month and day would read as this semester's.
+ */
+export function formatRememberedGameDate(date: number): string {
+  const short = formatShortGameDate(date)
+  return date < 0 ? `${short}, ${dateFromDay(date).getUTCFullYear()}` : short
+}
+
 /** `"1/28"` — the date as a figure, for the day-change splash's mono row. */
 export function formatNumericGameDate(date: number): string {
   const at = dateFromDay(date)

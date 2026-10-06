@@ -4,6 +4,7 @@ import {
   DISPOSITION_PHRASE,
   dispositionOf,
   isNegative,
+  isPastLover,
   isPositive
 } from '@shared/relationship'
 import { pronounsOf } from '@shared/pronouns'
@@ -103,7 +104,12 @@ function statusLine(
     return `${name} and the reader are lovers.`
   }
 
-  if (flags.hasKissed) return `${name} and the reader have kissed but are not lovers yet.`
+  // An ex has kissed too, but is not on the way to anything.
+  if (flags.hasKissed) {
+    return isPastLover(flags)
+      ? `${name} and the reader were lovers before, but they are not together now.`
+      : `${name} and the reader have kissed but are not lovers yet.`
+  }
 
   if (flags.friendZoned) {
     return flags.hasCrush
@@ -174,7 +180,14 @@ export function relationshipLines(
   // A crush is the louder fact, so it takes the neutral tier's slot rather than sitting
   // under a line saying she doesn't care.
   const disposition = dispositionOf(affection)
-  if (!flags.hasCrush || disposition !== 'neutral') {
+  if (isPastLover(flags) && disposition === 'neutral') {
+    // An ex who feels nothing either way would contradict the breakup line below.
+    lines.push(
+      affection > 0
+        ? `${name} is on good terms with the reader despite their breakup.`
+        : `${name} still resents the reader over their breakup.`
+    )
+  } else if (!flags.hasCrush || disposition !== 'neutral') {
     lines.push(`${name} ${DISPOSITION_PHRASE[disposition]} the reader.`)
   }
 

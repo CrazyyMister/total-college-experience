@@ -11,6 +11,7 @@ import { isPosition, POSITIONS } from '@shared/positions'
 import { ENCOUNTER_CAP, encountersOf } from '@shared/encounters'
 import { factCapFor, factsKnownBy } from '@shared/facts'
 import { pronounsOf } from '@shared/pronouns'
+import { exOriginIfHer } from '@shared/exGirlfriend'
 import { readerize } from '@shared/readerVoice'
 import { cgAction, showAction, spriteAction } from '@shared/sceneActions'
 import { andList } from '@shared/sentences'
@@ -41,6 +42,7 @@ import {
   charKeyOf,
   type CharMemory,
   type Encounters,
+  type ExChoice,
   type Fact,
   type ClassEntry,
   type ClassSlot,
@@ -64,7 +66,7 @@ import {
   formatChatDivider,
   formatDateBanner,
   formatSemesterProgress,
-  formatShortGameDate,
+  formatRememberedGameDate,
   ordinal
 } from './gameDate'
 import { jobDefOf, shiftSlotFullLabel } from '@shared/jobs'
@@ -226,6 +228,8 @@ export interface PromptState {
   addedNotices?: readonly AddedNotice[]
   /** The part-time job the reader holds, or null — the other half of his week. */
   playerJob: JobState | null
+  /** The girl he starts with as an ex, where New Game picked one. */
+  ex?: ExChoice | null
   /** The reader's accumulated stats, used for relationship requirement guidance. */
   stats?: PlayerStats
   /**
@@ -552,7 +556,7 @@ function castBlock(cast: readonly Character[], state: PromptState): string[] {
 
     const flags = info?.flags ?? emptyFlags()
     const affection = affectionFor(info, state.date, character)
-    lines.push(...profileLines(character, flags, cast.length))
+    lines.push(...profileLines(character, flags, cast.length, state.ex))
 
     // What kind of day she is having.
     const mood = moodLine(
@@ -736,7 +740,12 @@ export function yearMajorLine(info: CharInfo, gender: Gender): string {
 }
 
 /** Everything written about who a character *is*, shared by the cast block and the phone. */
-export function profileLines(character: Character, flags: CharFlags, castSize = 1): string[] {
+export function profileLines(
+  character: Character,
+  flags: CharFlags,
+  castSize = 1,
+  ex?: ExChoice | null
+): string[] {
   const p = pronounsOf(character.gender)
   // The writer is never shown the subject tags, so the gender is said outright.
   const lines: string[] = [`Gender: ${character.gender} (${p.subject}/${p.object}).`]
@@ -744,11 +753,14 @@ export function profileLines(character: Character, flags: CharFlags, castSize = 
   // A crowd of three or more gets the personality paragraph and nothing else.
   if (castSize < 3) {
     if (character.backstory) lines.push(`Backstory: ${character.backstory}`)
+    // The reader's ex's story, told after her backstory because it outranks it.
+    const origin = exOriginIfHer(ex, character)
+    if (origin) lines.push(`History with the reader: ${origin}`)
     // Her love life only when he is involved with her and alone with her.
     const involved = flags.isLover || flags.hasCrush || flags.benefits
     if (involved && castSize < 2) {
       // The same paragraph the contact profile shows him.
-      const loveLife = loveLifeBlurb(character, flags)
+      const loveLife = loveLifeBlurb(character, flags, origin ? {} : undefined)
       if (loveLife) lines.push(`Love life: ${loveLife}`)
     }
     if (character.likes.length > 0) lines.push(`Likes: ${character.likes.join(', ')}`)
@@ -880,7 +892,7 @@ export function memoryLines(
         entry === phone?.textMemory
           ? phoneMemoryDesc(entry.desc, phone.textMemorySource)
           : entry.desc
-      return `- ${formatShortGameDate(entry.date)}: ${character.firstName} ${entry.type} that ${readerize(desc)}`
+      return `- ${formatRememberedGameDate(entry.date)}: ${character.firstName} ${entry.type} that ${readerize(desc)}`
     })
   ]
 }

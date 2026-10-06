@@ -10,6 +10,7 @@ import {
   type CharInfo,
   type Haunt,
   type Occasion,
+  type ExChoice,
   type StructuredRequest,
   type TimeSlot
 } from '@shared/types'
@@ -110,6 +111,8 @@ export interface SlotIntroInput {
   date: number
   /** The reader's accumulated stats, used for relationship requirement guidance. */
   stats?: PlayerStats
+  /** The girl he starts with as an ex, where New Game picked one. */
+  ex?: ExChoice | null
   /** Which half of the day is opening: a day slot is the one he wakes into. */
   time: TimeSlot
   /** The player's `lessNsfwText` setting; picks which persona heads this call's prefix. */
@@ -442,7 +445,7 @@ function characterBlock(input: SlotIntroInput): string[] {
     named.add(charKey)
     entries.push([
       `${fullNameOf(character)} — "char": "${charKey}"`,
-      ...profileLines(character, info.flags ?? emptyFlags()),
+      ...profileLines(character, info.flags ?? emptyFlags(), 1, input.ex),
       ...(whereabouts
         ? [
             whereaboutsLine(

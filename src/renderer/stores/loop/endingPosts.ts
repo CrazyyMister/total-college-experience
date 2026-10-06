@@ -58,6 +58,7 @@ async function fetchEndingPosts(
       {
         playthroughId: game.playthroughId ?? 'unsaved',
         stats: game.stats,
+        ex: game.ex,
         lessNsfwText: lessNsfwTextNow(),
         posters
       },

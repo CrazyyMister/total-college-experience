@@ -10,11 +10,10 @@ import { motion } from 'motion/react'
 import { useModalShell } from '../components/useModalShell'
 import { TextField } from '../components/TextField'
 import { TitleTab } from '../components/TitleTab'
-import { profileUrl, useSpriteVersion } from '../stores/characterStore'
 import { useGameStore } from '../stores/gameStore'
 import type { ScreenTheme } from './clockTheme'
+import { PickFace } from './PickFace'
 import {
-  cardLift,
   dealt,
   gestures,
   lift,
@@ -22,11 +21,9 @@ import {
   press,
   quietLift,
   quietPress,
-  slideInQuick,
   veilIn
 } from './motion'
 import '../vu_styles/Gift.css'
-import '../vu_styles/Breakthrough.css'
 
 /** The faces arrive with the panel — nothing here resizes. */
 const FACE_DEAL = dealt(0, 0.04)
@@ -88,7 +85,7 @@ export function BreakthroughModal({
         {charIds.length > 1 && (
           <motion.div className="vu-giftto-row" variants={FACE_DEAL}>
             {charIds.map((charId) => (
-              <Face
+              <PickFace
                 key={charId}
                 charId={charId}
                 name={characters[charId]?.firstName ?? charId}
@@ -136,45 +133,5 @@ export function BreakthroughModal({
       </motion.form>
     </motion.div>,
     host
-  )
-}
-
-/** Her archway and her given name; the whole card is the control, and the picked one wears a border on its crop. */
-function Face({
-  charId,
-  name,
-  on,
-  onPick
-}: {
-  charId: string
-  name: string
-  on: boolean
-  onPick: () => void
-}): JSX.Element {
-  const version = useSpriteVersion(charId)
-
-  return (
-    <motion.div
-      className="vu-card vu-giftto-card vu-bt-face"
-      variants={slideInQuick}
-      {...gestures(false, cardLift, press)}
-    >
-      <motion.button
-        className="vu-card-face"
-        type="button"
-        aria-label={name}
-        aria-pressed={on}
-        onClick={onPick}
-      >
-        <span className="vu-arch vu-giftto-arch vu-paper">
-          <span className="vu-crop">
-            <img className="vu-crop-img" src={profileUrl(charId, version)} alt="" />
-          </span>
-        </span>
-        <span className="vu-card-caption">
-          <span className="vu-card-name">{name}</span>
-        </span>
-      </motion.button>
-    </motion.div>
   )
 }

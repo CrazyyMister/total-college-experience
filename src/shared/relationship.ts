@@ -259,11 +259,20 @@ function sentence(text: string): string {
 
 /**
  * Her four love-life fields as the one paragraph everything that shows or injects them reads.
+ * For the reader's chosen ex, `ex` leaves out what she was written with of her past — her dating
+ * history and her virginity — and puts `ex.origin`, when it has one, in their place.
  */
 export function loveLifeBlurb(
   character: Pick<Character, 'firstName' | 'datingHistory' | 'datingPreference' | 'kinks' | 'isVirgin'>,
-  flags: Pick<CharFlags, 'hadSex'>
+  flags: Pick<CharFlags, 'hadSex'>,
+  ex?: { origin?: string }
 ): string {
+  if (ex) {
+    const kept = [character.datingPreference, character.kinks]
+      .filter((part) => part?.trim())
+      .map(sentence)
+    return [...(ex.origin ? [ex.origin] : []), ...kept].join(' ')
+  }
   const parts = [character.datingHistory, character.datingPreference, character.kinks]
     .filter((part) => part?.trim())
     .map(sentence)
@@ -404,14 +413,26 @@ export function isNegative(affection: number): boolean {
   return affection <= -FRIENDLY_FLOOR
 }
 
-/** Picks which {@link CharacterBehavior} stage is live; first match wins. */
+/**
+ * Whether the reader and she were together and are not now, with nothing between them that
+ * would make her something else: a lover, a crush or a friend with benefits.
+ */
+export function isPastLover(flags: CharFlags): boolean {
+  return flags.brokenUp > 0 && !flags.isLover && !flags.hasCrush && !flags.benefits
+}
+
+/**
+ * Picks which {@link CharacterBehavior} stage is live; first match wins. An ex is an enemy only
+ * while her affection is at or below zero, and at least a friend above it.
+ */
 export function behaviorLevelOf(
   flags: CharFlags,
   affection: number
 ): keyof CharacterBehavior {
   if (flags.isLover) return 'withLover'
   if (flags.hasCrush) return 'withCrush'
-  if (isNegative(affection) || flags.brokenUp > 0) return 'withEnemy'
+  if (flags.brokenUp > 0) return affection > 0 ? 'withFriends' : 'withEnemy'
+  if (isNegative(affection)) return 'withEnemy'
   if (isPositive(affection)) return 'withFriends'
   return 'withStrangers'
 }

@@ -103,6 +103,17 @@ describe('validateProfileDraft', () => {
     vi.restoreAllMocks()
   })
 
+  it('makes the reader’s ex a freshman whatever the reply says, and drops her winter posts', () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const ex = { charId: 'char-1', tone: 'good', endedBy: 'her' } as const
+    const out = validateProfileDraft(profile({ year: 3, winterPosts: ['home for xmas'] }), ROSTER, ex)
+    expect(out.characters.sarah_rose.year).toBe(1)
+    expect(out.characters.sarah_rose.winterPosts).toEqual([])
+    // Anyone else is as the reply wrote her.
+    expect(validateProfileDraft(profile({ year: 3 }), ROSTER).characters.sarah_rose.year).toBe(3)
+    vi.restoreAllMocks()
+  })
+
   it('leaves her jobless when the employer is not in the catalog', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     const out = validateProfileDraft(profile({ job: 'space_station' }), ROSTER)
