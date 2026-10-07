@@ -91,8 +91,9 @@ assets/                  shipped content: the cast, backgrounds, the pose manife
                          and its marks, sound, the supporter names and their marble counts
 test/                    one file per unit under test, plus fixtures.ts
 scripts/                 the release pipeline: the transcode cache, the shipped cast's WebP copy and the
-                         one release command; and the hand-run tool that asks Gemini for a background's rain
-                         render
+                         one release command; and the two hand-run tools that ask Gemini for backgrounds: one
+                         for a background's rain render, one for options of new scenery (day, then night and
+                         rain edited from the chosen day) written only to a review folder under `data/`
   sim/                   the hand-run simulations, run by their own vitest config and never by the suite:
                          the roster's semester played off the test playthrough, also at sixteen with four of the
                          shipped cast added in memory, and what the men and the
