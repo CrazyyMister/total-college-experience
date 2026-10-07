@@ -146,34 +146,38 @@ export function recentSummaries(
 }
 
 /**
- * Records which cast members have a full set of CGs on disk, and which of their alternate
- * wardrobes are fully rendered.
+ * Records which cast members have a full set of CGs and a room on disk, and which alternate
+ * wardrobes are fully rendered for the whole roster: a phone photo can show any of them, and
+ * whether she wears her winter set is read off the same list as on the stage.
  */
 export async function loadCgReady(cast: readonly string[]): Promise<void> {
   const run = currentRun()
   const ready: Record<string, boolean> = {}
   const outfitReady: Record<string, OutfitSet[]> = {}
   const roomReady: Record<string, boolean> = {}
+  const inCast = new Set(cast)
+  const everyone = [...new Set([...cast, ...Object.keys(useGameStore.getState().characters)])]
   await Promise.all(
-    cast.map(async (charId) => {
+    everyone.map(async (charId) => {
+      const here = inCast.has(charId)
       const [status, outfits, room] = await Promise.all([
-        window.api.chars.cgs(charId),
+        here ? window.api.chars.cgs(charId) : null,
         window.api.chars.outfits(charId),
-        window.api.chars.room(charId)
+        here ? window.api.chars.room(charId) : null
       ])
       // Adult art is never offered for somebody who may have none, whatever is on disk.
       const adult = mayHaveAdultArt(useGameStore.getState().characters[charId]?.gender ?? 'woman')
-      if (status.ok) {
+      if (status?.ok) {
         ready[charId] = adult && POSITIONS.every((position) => status.data[position])
-      } else console.warn(`[cast] could not read CGs for ${charId}:`, status.error)
+      } else if (status) console.warn(`[cast] could not read CGs for ${charId}:`, status.error)
 
       if (outfits.ok) {
         const sets = readyOutfitSets(outfits.data)
         outfitReady[charId] = adult ? sets : sets.filter((set) => set !== 'nude')
       } else console.warn(`[cast] could not read outfits for ${charId}:`, outfits.error)
 
-      if (room.ok) roomReady[charId] = ROOM_VARIANTS.every((variant) => room.data[variant])
-      else console.warn(`[cast] could not read the room for ${charId}:`, room.error)
+      if (room?.ok) roomReady[charId] = ROOM_VARIANTS.every((variant) => room.data[variant])
+      else if (room) console.warn(`[cast] could not read the room for ${charId}:`, room.error)
     })
   )
   // A stale run's cast is no longer on the stage.

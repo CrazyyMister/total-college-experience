@@ -43,14 +43,31 @@ export const TAG_FIELDS: ReadonlyArray<{
   { key: 'swimOutfit', id: 'edit-swim-outfit', label: 'Swimwear' }
 ]
 
-/** The four wardrobes in the order they are shown, named as the player sees them. */
+/**
+ * The wardrobes in the order they are shown, named as the player sees them. The winter one is
+ * last, and a panel shows it only for a character who has it ({@link shownWardrobes}).
+ */
 export const WARDROBES: ReadonlyArray<{ target: SetTarget; set: OutfitSet | null; title: string }> =
   [
     { target: 'default', set: null, title: 'Default Outfit' },
     { target: 'pe', set: 'pe', title: 'PE Outfit' },
     { target: 'swim', set: 'swim', title: 'Swimsuit' },
-    { target: 'nude', set: 'nude', title: 'Nude Outfit' }
+    { target: 'nude', set: 'nude', title: 'Nude Outfit' },
+    { target: 'winter', set: 'winter', title: 'Winter Outfit' }
   ]
+
+/** The wardrobes a panel lays out: the winter column only where she has tags or sprites for it. */
+export function shownWardrobes(winter: boolean): typeof WARDROBES {
+  return winter ? WARDROBES : WARDROBES.filter((entry) => entry.set !== 'winter')
+}
+
+/** The winter wardrobe's tag field: a record may omit it, so it stands apart from the others. */
+export const WINTER_FIELD = {
+  key: 'winterOutfit',
+  id: 'edit-winter-outfit',
+  label: 'Winter Outfit',
+  hint: 'Clothes she wears indoors, from January 19 to March 15. Use a color once, and never her hair color: a repeated color leaks onto the wrong piece.'
+} as const
 
 /** The trait vocabulary as picker options (`shared/traits.ts`, authoritative). */
 export const TRAIT_OPTIONS = CHARACTER_TRAITS.map((trait) => ({

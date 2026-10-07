@@ -146,6 +146,8 @@ export interface TextingPromptState {
    * prompt says nothing of photos and the schema has no field for one.
    */
   photoOffer?: PhotoOffer | null
+  /** Whether she wears her winter set today, so a photo of her in her usual clothes shows it. */
+  wearsWinter?: boolean
 }
 
 /** A text's line breaks folded to spaces, so a message stays one prompt line. */
@@ -318,9 +320,14 @@ const NO_PHOTO = 'none'
  * The PHOTOS block: each kind the game offers on this reply, with what it would show, and the
  * one field she answers with. Nothing where nothing is offered.
  */
-function photoLines(name: string, offer: PhotoOffer | null | undefined, night: boolean): string[] {
+function photoLines(
+  name: string,
+  offer: PhotoOffer | null | undefined,
+  night: boolean,
+  winter: boolean
+): string[] {
   if (!offer || offer.kinds.length === 0) return []
-  const outfit = photoOutfitAt(offer.place)
+  const outfit = photoOutfitAt(offer.place, winter)
   const kinds = offer.kinds.map(
     (kind) => `- "${kind}": ${photoPhrase({ kind, place: offer.place, outfit, night })}`
   )
@@ -485,7 +492,12 @@ export function buildTextingPrompt(
     `Stay in ${p.possessive} voice and keep it text-length: this is a phone thread, not prose.`,
     ...meetUpLines(name, character.gender, state.charLocation, state.charHaunt, state.time, away),
     '',
-    ...photoLines(name, state.photoOffer, state.time === 1),
+    ...photoLines(
+      name,
+      state.photoOffer,
+      state.time === 1,
+      state.wearsWinter === true
+    ),
     'BLOCKING',
     `Set "blocked" to true only if these texts have pushed ${name} to cut the reader off completely. ${p.Subject} is done, and blocks him on Bunnyboard as ${p.possessive} last text lands.`,
     `${p.Possessive} final messages should read like somebody who is about to do that.`,

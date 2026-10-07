@@ -3,7 +3,8 @@ import { romancesReader, SUBJECT_TAGS } from '@shared/characterRules'
 import { slotFullLabel, yearLabel } from '@shared/classes'
 import { dormClause } from '@shared/dorms'
 import { EMOTIONS } from '@shared/emotions'
-import { isCustomOutfitSlot, outfitTagsFor, spriteRefsFor, STOCK_OUTFIT_SETS } from '@shared/outfits'
+import { isStockOutfitSet, outfitTagsFor, spriteRefsFor, STOCK_OUTFIT_SETS } from '@shared/outfits'
+import { wearsWinter } from '@shared/season'
 import { DEFAULT_PLAYER_STATS, STAT_KEYS, type PlayerStats } from '@shared/playerStats'
 import { fullDescriptionOf, kindSentenceOf, projectStandingLine } from '@shared/academics'
 import type { ClassKind, ProjectProgress } from '@shared/academics'
@@ -539,7 +540,11 @@ function castBlock(cast: readonly Character[], state: PromptState): string[] {
     if (appearance.length > 0) {
       lines.push(`Appearance: ${appearance.join(', ')}`)
     }
-    const mainOutfit = wardrobeProse(character.outfit)
+    // While she wears her winter set, that is her main outfit: the text must not contradict the sprite.
+    const winterTags = wearsWinter(state.date, state.outfitReady[character.charId])
+      ? outfitTagsFor(character, 'winter')
+      : []
+    const mainOutfit = wardrobeProse(winterTags.length > 0 ? winterTags : character.outfit)
     if (mainOutfit) {
       lines.push(`Main Outfit: ${mainOutfit}`)
     }
@@ -906,8 +911,9 @@ function actionEnum(cast: readonly Character[], state: PromptState): string[] {
     values.push(showAction('show', key), showAction('hide', key))
     for (const emotion of EMOTIONS) values.push(spriteAction(key, emotion))
     for (const set of state.outfitReady[character.charId] ?? []) {
-      // A custom wardrobe is the player's own; the model is never offered one.
-      if (isCustomOutfitSlot(set)) continue
+      // A custom wardrobe is the player's own and the winter set the code's; the model is
+      // never offered either.
+      if (!isStockOutfitSet(set)) continue
       for (const ref of spriteRefsFor(set)) values.push(spriteAction(key, ref))
     }
   }

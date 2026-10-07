@@ -1664,7 +1664,8 @@ export function GameView(): JSX.Element {
             const pose = displaySpriteRef(
               emotions[charId] ?? 'neutral',
               outfitLock[charId],
-              outfitReady[charId]
+              outfitReady[charId],
+              date
             )
             return (
               <PortraitSlot
@@ -2101,7 +2102,15 @@ export function GameView(): JSX.Element {
             name={statusModal.name}
             lines={statusModal.lines}
             negative={statusModal.negative}
-            sprite={spriteUrl(statusModal.charId, statusModal.emotion)}
+            sprite={spriteUrl(
+              statusModal.charId,
+              displaySpriteRef(
+                statusModal.emotion,
+                undefined,
+                outfitReady[statusModal.charId],
+                date
+              )
+            )}
             scale={characters[statusModal.charId]?.height ?? 1}
             theme={half}
             onClose={dismissStatusModal}

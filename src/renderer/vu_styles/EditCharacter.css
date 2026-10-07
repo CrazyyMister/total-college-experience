@@ -24,6 +24,11 @@
   gap: 16px;
 }
 
+/* A fifth column, for a character who has a winter set. */
+.vu-edit-wardrobes--five {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
 /* The row measures itself under a name, which is how its tiles' queries read it past the tile
    around them: a tile with no peek hugs its words where the row is wide, and every tile stands
    in two rows where it is not. */

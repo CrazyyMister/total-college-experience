@@ -9,6 +9,7 @@ import { formatDateBanner, prevSlot } from '../prompts/gameDate'
 import type { CalendarEvent, CharInfo, EventCancellation, Gender, Occasion } from '@shared/types'
 import { affectionFor, dispositionOf, emptyFlags, isPositive } from '@shared/relationship'
 import { requestAcceptChance } from '@shared/feed'
+import { wearsWinter } from '@shared/season'
 import {
   npcFriendsOf,
   type NpcRelationshipMap,
@@ -250,7 +251,8 @@ function replyPhotoFor(
     offered.offer?.place ?? photoPlaceOf(charHiddenLocationNow(charId)),
     game.time === 1,
     weatherAt(game.weather, game.date, game.time),
-    photoSeed()
+    photoSeed(),
+    wearsWinter(game.date, game.outfitReady[charId])
   )
 }
 
@@ -348,7 +350,8 @@ export function invitationPhotoFor(
     photoPlaceOf(location),
     time === 1,
     weatherAt(game.weather, date, time),
-    photoSeed()
+    photoSeed(),
+    wearsWinter(date, game.outfitReady[pick.charId])
   )
   report.push(`${name(pick.charId)} sends a ${pick.kind} photo at ${photo.place}, seed ${photo.seed}`)
   return { charId: pick.charId, photo }
@@ -766,7 +769,8 @@ function textingRequestOf(
       // The one absence a thread survives, so her block has to say it.
       springBreakAway: game.springBreakAway,
       // The photos she may send with this reply, worked out by the game.
-      photoOffer: offered.offer
+      photoOffer: offered.offer,
+      wearsWinter: wearsWinter(game.date, game.outfitReady[charId])
     },
     // The same reader block a scene gets, grades and all.
     readerBlockOf(game)

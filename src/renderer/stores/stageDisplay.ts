@@ -1,5 +1,6 @@
 import { parseSpriteRef, spriteRef } from '@shared/outfits'
 import { isPosition } from '@shared/positions'
+import { wearsWinter } from '@shared/season'
 import { sfwCgRefOf } from '@shared/sfw'
 import type { OutfitLock, OutfitSet, Position, SpriteRef } from '@shared/types'
 
@@ -28,17 +29,29 @@ export function displaySlotsOf(
   return shown
 }
 
-/** The sprite reference actually drawn for a character under a wardrobe lock. */
+/**
+ * The sprite reference actually drawn for a character under a wardrobe lock on `date`. Her
+ * usual clothes — a bare emotion, whether the lock or the scene left it so — are her winter set
+ * while she wears one; any other set, and a CG, is drawn as it is.
+ */
 export function displaySpriteRef(
   ref: SpriteRef,
   lock: OutfitLock | undefined,
-  ready: readonly OutfitSet[] | undefined
+  ready: readonly OutfitSet[] | undefined,
+  date: number
 ): SpriteRef {
-  if (!lock || isPosition(ref)) return ref
+  if (isPosition(ref)) return ref
   const parsed = parseSpriteRef(ref)
   if (!parsed) return ref
-  if (lock === 'default') return spriteRef(parsed.emotion, null)
-  return ready?.includes(lock) ? spriteRef(parsed.emotion, lock) : ref
+  const locked =
+    lock === 'default'
+      ? spriteRef(parsed.emotion, null)
+      : lock && ready?.includes(lock)
+        ? spriteRef(parsed.emotion, lock)
+        : ref
+  return locked === parsed.emotion && wearsWinter(date, ready)
+    ? spriteRef(parsed.emotion, 'winter')
+    : locked
 }
 
 /** Whether a change of sprite is a change of wardrobe, and so of her silhouette. */

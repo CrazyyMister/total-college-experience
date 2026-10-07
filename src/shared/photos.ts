@@ -132,9 +132,12 @@ export function photoTimeTags(
   return tags
 }
 
-/** The set she wears at a place unless something else is chosen. */
-export function photoOutfitAt(placeId: string): PhotoOutfit {
-  return PHOTO_PLACES[placeId]?.outfit ?? 'main'
+/**
+ * The set she wears at a place unless something else is chosen: her usual clothes, which are her
+ * winter set where `winter` says she is wearing it (the caller asks `wearsWinter`).
+ */
+export function photoOutfitAt(placeId: string, winter = false): PhotoOutfit {
+  return PHOTO_PLACES[placeId]?.outfit ?? (winter ? 'winter' : 'main')
 }
 
 /** Where she is when the map places her nowhere, or somewhere no photo can show. */
@@ -360,7 +363,9 @@ export function photoPhrase(
         ? ', in her gym clothes'
         : photo.outfit === 'swim'
           ? ', in her swimsuit'
-          : ', in another of her outfits'
+          : photo.outfit === 'winter'
+            ? ', in her winter clothes'
+            : ', in another of her outfits'
   const when = photo.night ? 'at night' : 'during the day'
   return `${PHOTO_KIND_PHRASES[photo.kind]} ${where}${wearing}, ${when}`
 }

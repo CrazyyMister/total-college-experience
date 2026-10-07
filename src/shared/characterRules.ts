@@ -99,6 +99,7 @@ const CHARACTER_REQUIRED: Record<
     | 'regenTags'
     | 'updatedAt'
     | 'voicePitch'
+    | 'winterOutfit'
   >,
   true
 > = {

@@ -208,7 +208,8 @@ export async function composeStageThumbnail(scene: SceneState): Promise<string |
         const ref = displaySpriteRef(
           stage.emotions[charId] ?? 'neutral',
           scene.outfitLock?.[charId],
-          game.outfitReady[charId]
+          game.outfitReady[charId],
+          game.date
         )
         // A portrait's height is her scale's alone; only its width waits on the decoded image.
         const height = stagePortraitPlacement(index, row.length, scale, 1).height

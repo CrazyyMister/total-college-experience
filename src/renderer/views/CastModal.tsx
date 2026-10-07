@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type JSX } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'motion/react'
-import { isCustomOutfitSlot, outfitLabelOf } from '@shared/outfits'
+import { isCustomOutfitSlot, isStockOutfitSet, outfitLabelOf } from '@shared/outfits'
 import type { Character, CustomOutfitSlot, OutfitLock } from '@shared/types'
 import { placeUnder } from '../components/popupPlace'
 import { useDismissLayer, useModalShell } from '../components/useModalShell'
@@ -87,8 +87,9 @@ export function CastModal({ theme, onClose }: CastModalProps): JSX.Element | nul
                 // Withheld, the nude pill is absent rather than dead. A lock left
                 // standing on it degrades through `displaySpriteRef`.
                 const ready = outfitReady[charId] ?? []
+                // Her winter set is no pill: it is what 'Default' shows while it is winter.
                 const sets = ready.filter(
-                  (set) => !isCustomOutfitSlot(set) && !(noNsfwImages && set === 'nude')
+                  (set) => isStockOutfitSet(set) && !(noNsfwImages && set === 'nude')
                 )
                 // Her player-authored wardrobes stand behind one pill of their own, and her
                 // main outfit is offered as long as there is any lock at all to come off.

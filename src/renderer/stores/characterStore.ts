@@ -1294,6 +1294,14 @@ export function missingContentPlan(
           EMOTIONS.filter((emotion) => !state.outfits[charId]?.[slot]?.[emotion]).length
         )
       }
+      // Only a character whose record carries winter tags: with none there is nothing to
+      // render from, and she is not short of a set she was never meant to have.
+      if (character.winterOutfit && character.winterOutfit.length > 0) {
+        consider(
+          'winter',
+          EMOTIONS.filter((emotion) => !state.outfits[charId]?.winter?.[emotion]).length
+        )
+      }
       if (!sfwWithholds('cgs', gates.noNsfwImages, character.gender)) {
         consider('cgs', POSITIONS.filter((position) => !state.cgs[charId]?.[position]).length)
       }

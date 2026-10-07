@@ -89,10 +89,12 @@ import {
   listText,
   PREFERRED_STAT_OPTIONS,
   sheetPlaceholders,
+  shownWardrobes,
   TAG_FIELDS,
   textList,
   TRAIT_OPTIONS,
-  WARDROBES
+  WARDROBES,
+  WINTER_FIELD
 } from './characterFields'
 import { DuplicateIcon, FolderIcon } from './characterIcons'
 import { CustomOutfitsModal } from './CustomOutfitsModal'
@@ -203,6 +205,7 @@ interface Form {
   outfit: string[]
   peOutfit: string[]
   swimOutfit: string[]
+  winterOutfit: string[]
   negativeTags: string[]
   roomPrompt: string
   height: number
@@ -234,6 +237,7 @@ function formOf(character: Character): Form {
     outfit: [...character.outfit],
     peOutfit: [...character.peOutfit],
     swimOutfit: [...character.swimOutfit],
+    winterOutfit: [...(character.winterOutfit ?? [])],
     negativeTags: [...(character.negativeTags ?? [])],
     roomPrompt: character.roomPrompt,
     height: character.height,
@@ -374,6 +378,11 @@ export function EditCharacterModal({
       ? doneCountOf(expressions, charId)
       : EMOTIONS.filter((emotion) => outfits?.[set]?.[emotion]).length
 
+  /** Whether her saved record carries winter tags: the column's render control waits on them. */
+  const winterTagged = (character.winterOutfit?.length ?? 0) > 0
+  /** The winter column is laid out for a character who has tags for it or sprites of it. */
+  const winterShown = winterTagged || wardrobeDone('winter') > 0
+
   /** This set's bucket in the run, if it has one — running or waiting its turn. */
   const taskOf = (target: SetTarget): RenderTask | undefined => liveTaskFor(progress, target)
 
@@ -450,6 +459,7 @@ export function EditCharacterModal({
       outfit: form.outfit,
       peOutfit: form.peOutfit,
       swimOutfit: form.swimOutfit,
+      winterOutfit: form.winterOutfit,
       height: form.height,
       negativeTags: form.negativeTags,
       roomPrompt: form.roomPrompt,
@@ -458,6 +468,7 @@ export function EditCharacterModal({
     }
     // Absent and empty mean the same thing, so an empty list is left out of character.json.
     if (next.negativeTags?.length === 0) delete next.negativeTags
+    if (next.winterOutfit?.length === 0) delete next.winterOutfit
     // Likewise absent and centre, so a voice nobody moved is left out too.
     if (next.voicePitch === 0) delete next.voicePitch
     return next
@@ -708,7 +719,8 @@ export function EditCharacterModal({
     // A set the setting withholds is offered no control and no repair — unless a
     // render of it is still going, whose Cancel stays reachable.
     const offered =
-      sfwWithholds(target, noNsfwImages, form.gender) && !taskOf(target)
+      (sfwWithholds(target, noNsfwImages, form.gender) && !taskOf(target)) ||
+      (target === 'winter' && !winterTagged)
         ? {}
         : {
             control: setControl,
@@ -816,8 +828,8 @@ export function EditCharacterModal({
           <TitleTab>Edit character</TitleTab>
 
           <div className="vu-edit-images">
-            <div className="vu-edit-wardrobes">
-              {WARDROBES.map(({ target, set, title }) => (
+            <div className={winterShown ? 'vu-edit-wardrobes vu-edit-wardrobes--five' : 'vu-edit-wardrobes'}>
+              {shownWardrobes(winterShown).map(({ target, set, title }) => (
                 <WardrobeColumn key={target} {...columnFor(target, set, title)} />
               ))}
             </div>
@@ -1240,6 +1252,17 @@ export function EditCharacterModal({
                         />
                       </label>
                     ))}
+
+                    <label className="vu-field" htmlFor={WINTER_FIELD.id}>
+                      <span className="vu-field-label">{WINTER_FIELD.label}</span>
+                      <ChipListInput
+                        id={WINTER_FIELD.id}
+                        values={form.winterOutfit}
+                        onChange={setField('winterOutfit')}
+                        placeholder="Enter or comma to add a tag"
+                      />
+                      <span className="vu-field-hint">{WINTER_FIELD.hint}</span>
+                    </label>
 
                     <label className="vu-field" htmlFor="edit-negative-tags">
                       <span className="vu-field-label">Additional Negative Prompts</span>

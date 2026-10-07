@@ -7,7 +7,7 @@ import { STAT_ATTRACTIONS } from '@shared/playerStats'
 import { POSITIONS } from '@shared/positions'
 import { ROOM_VARIANTS } from '@shared/room'
 import { sfwWithholds, withheldReason } from '@shared/sfw'
-import { fullNameOf, type Character } from '@shared/types'
+import { fullNameOf, type Character, type OutfitSet } from '@shared/types'
 import { LandscapeTile } from '../components/LandscapeTile'
 import { useModalShell } from '../components/useModalShell'
 import { TitleTab } from '../components/TitleTab'
@@ -20,7 +20,7 @@ import {
   useSpriteVersion
 } from '../stores/characterStore'
 import { noNsfwImagesOf, useSettingsStore } from '../stores/settingsStore'
-import { behaviorFieldsFor, TAG_FIELDS, WARDROBES } from './characterFields'
+import { behaviorFieldsFor, shownWardrobes, TAG_FIELDS, WINTER_FIELD } from './characterFields'
 import { DuplicateIcon, FolderIcon } from './characterIcons'
 import { ImageGalleryModal } from './ImageGalleryModal'
 import {
@@ -137,10 +137,12 @@ export function CharacterModal({
   const [duplicating, setDuplicating] = useState(false)
 
   /** How many of one wardrobe's sprites are on disk; `null` is the default set. */
-  const wardrobeDone = (set: (typeof WARDROBES)[number]['set']): number => {
+  const wardrobeDone = (set: OutfitSet | null): number => {
     const status = set === null ? expressions : outfits?.[set]
     return EMOTIONS.filter((emotion) => status?.[emotion]).length
   }
+  /** The winter column is laid out for a character who has tags for it or sprites of it. */
+  const winterShown = (character.winterOutfit?.length ?? 0) > 0 || wardrobeDone('winter') > 0
   const cgsOnDisk = POSITIONS.filter((position) => cgs?.[position]).length
   const roomOnDisk = ROOM_VARIANTS.filter((variant) => rooms?.[variant]).length
 
@@ -173,8 +175,10 @@ export function CharacterModal({
           <TitleTab>Character</TitleTab>
 
           <div className="vu-edit-images">
-            <div className="vu-edit-wardrobes">
-              {WARDROBES.map(({ target, set, title }) => (
+            <div
+              className={winterShown ? 'vu-edit-wardrobes vu-edit-wardrobes--five' : 'vu-edit-wardrobes'}
+            >
+              {shownWardrobes(winterShown).map(({ target, set, title }) => (
                 <WardrobeColumn
                   key={target}
                   charId={charId}
@@ -336,6 +340,9 @@ export function CharacterModal({
                     {TAG_FIELDS.map(({ key, label }) => (
                       <Chips key={key} label={label} values={character[key]} />
                     ))}
+                    {(character.winterOutfit?.length ?? 0) > 0 && (
+                      <Chips label={WINTER_FIELD.label} values={character.winterOutfit ?? []} />
+                    )}
                     <Chips
                       label="Additional negative prompts"
                       values={character.negativeTags ?? []}

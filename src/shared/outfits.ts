@@ -5,6 +5,7 @@ import type {
   Emotion,
   ExpressionTarget,
   OutfitSet,
+  SeasonOutfitSet,
   SeededSet,
   SpriteRef,
   StockOutfitSet
@@ -24,13 +25,17 @@ export const CUSTOM_OUTFIT_SLOTS: readonly CustomOutfitSlot[] = [
   'custom5'
 ] as const
 
+/** The seasonal wardrobes, appended after the custom slots so no earlier id moves. */
+export const SEASON_OUTFIT_SETS: readonly SeasonOutfitSet[] = ['winter'] as const
+
 /**
  * Every alternate wardrobe, in a stable order (used for status grids, job counts and the
  * scene schema's emotion enum).
  */
 export const OUTFIT_SETS: readonly OutfitSet[] = [
   ...STOCK_OUTFIT_SETS,
-  ...CUSTOM_OUTFIT_SLOTS
+  ...CUSTOM_OUTFIT_SLOTS,
+  ...SEASON_OUTFIT_SETS
 ] as const
 
 /** The longest a player-authored wardrobe's name may be. */
@@ -59,6 +64,14 @@ export function isOutfitSet(value: string): value is OutfitSet {
   return (OUTFIT_SETS as readonly string[]).includes(value)
 }
 
+/**
+ * Whether a set is one of the three stock wardrobes: the only ones the writer is ever offered,
+ * since a custom slot is the player's own and the winter set is the code's.
+ */
+export function isStockOutfitSet(value: string): value is StockOutfitSet {
+  return (STOCK_OUTFIT_SETS as readonly string[]).includes(value)
+}
+
 /** Type guard narrowing an arbitrary string to {@link CustomOutfitSlot}. */
 export function isCustomOutfitSlot(value: string): value is CustomOutfitSlot {
   return (CUSTOM_OUTFIT_SLOTS as readonly string[]).includes(value)
@@ -70,10 +83,11 @@ export function customSlotNumber(slot: CustomOutfitSlot): number {
 }
 
 /** Human label for a stock set, for status lines and job cards. */
-export const OUTFIT_SET_LABELS: Record<StockOutfitSet, string> = {
+export const OUTFIT_SET_LABELS: Record<StockOutfitSet | SeasonOutfitSet, string> = {
   pe: 'PE wear',
   swim: 'swimsuit',
-  nude: 'nude'
+  nude: 'nude',
+  winter: 'winter outfit'
 }
 
 /** What one of a character's sets is called on screen: her own name for a custom slot. */
@@ -103,16 +117,21 @@ const SWIM_NEGATIVE_TAGS: readonly string[] = [
   'gloves'
 ] as const
 
+/** A tag list read defensively: a hand-edited record reaches the prompt builder unvalidated. */
+function stringTags(tags: unknown): string[] {
+  return Array.isArray(tags) ? tags.filter((tag) => typeof tag === 'string') : []
+}
+
 /**
- * The booru tags one outfit set renders from. A custom slot's are read defensively, since a
- * hand-edited record reaches the prompt builder unvalidated.
+ * The booru tags one outfit set renders from. A custom slot's and the winter set's are read
+ * defensively, since a hand-edited record reaches the prompt builder unvalidated.
  */
 export function outfitTagsFor(character: Character, set: OutfitSet): readonly string[] {
   if (set === 'pe') return character.peOutfit
   if (set === 'swim') return character.swimOutfit
   if (set === 'nude') return NUDE_OUTFIT_TAGS
-  const tags = character.customOutfits?.[set]?.tags
-  return Array.isArray(tags) ? tags.filter((tag) => typeof tag === 'string') : []
+  if (set === 'winter') return stringTags(character.winterOutfit)
+  return stringTags(character.customOutfits?.[set]?.tags)
 }
 
 /**
