@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type JSX } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type JSX } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { appError, toAppError } from '@shared/errors'
 import { EMOTIONS } from '@shared/emotions'
@@ -14,6 +14,7 @@ import { npcFriendsOf, rollInitialNpcRelationships } from '@shared/npcRelationsh
 import { rollPostLikes } from '@shared/feed'
 import { andList } from '@shared/sentences'
 import { shuffle } from '@shared/shuffle'
+import { ROSTER_MAX, ROSTER_MIN } from '@shared/roster'
 import {
   fullNameOf,
   type AppError,
@@ -102,16 +103,18 @@ import { NewGameSetup } from './NewGameSetup'
 import { PlayerNameModal } from './PlayerNameModal'
 import '../vu_styles/NewGame.css'
 
-/**
- * How many characters a game starts with — exact, not a cap. The registrar offers only the
- * classes a roster girl attends, and twelve girls' loads are what leave the player enough
- * non-PE courses in distinct slots to finalize a legal schedule.
- */
-const ROSTER_SIZE = 12
-
 /** What two roster entries may not share. */
 function firstNameKeyOf(character: Character): string {
   return character.firstName.trim().toLowerCase()
+}
+
+/** What stepping the roster down to `size` says it costs. */
+function shrinkMessage(leaving: Character[], exId: string | undefined, size: number): string {
+  const exLeaves = leaving.find((c) => c.charId === exId)
+  return (
+    `A roster of ${size} takes ${andList(leaving.map(fullNameOf))} off it.` +
+    (exLeaves ? ` ${exLeaves.firstName} is the ex you picked, so that pick goes with her.` : '')
+  )
 }
 
 /**
@@ -181,6 +184,18 @@ export function NewGameView(): JSX.Element {
   }, [])
 
   const [roster, setRoster] = useState<Character[]>(resumed?.characters ?? [])
+  // How many characters the game starts with — exact, not a cap, and never fewer than
+  // `ROSTER_MIN`: the registrar offers only the classes a roster girl attends, and twelve girls'
+  // loads are what leave the player enough non-PE courses in distinct slots to finalize a legal
+  // schedule. A resumed registrar opens on the size it was started with; the limits only adjust
+  // what the stepper shows and never cut anybody from the enrollment.
+  const [rosterSize, setRosterSize] = useState(() =>
+    Math.min(ROSTER_MAX, Math.max(ROSTER_MIN, resumed?.characters.length ?? ROSTER_MIN))
+  )
+  // The size a step down is waiting on the answer for, where it would take somebody off.
+  const [shrinkTo, setShrinkTo] = useState<number | null>(null)
+  // The slots on screen: the size, or the enrollment's own count where that is past the limits.
+  const slots = Math.max(rosterSize, roster.length)
   // Which of the screen's two steps is up: the roster, or what he brings to the game beside it.
   const [step, setStep] = useState<'roster' | 'setup'>('roster')
   // The girl he starts the game with as an ex, picked on this screen and carried by the enrollment.
@@ -411,15 +426,17 @@ export function NewGameView(): JSX.Element {
   // The two gates. Both go dead and say nothing: the roster beside them is what the
   // player would be reading either way. The foot's button is the step's one answer: on to the
   // setup once the roster is full, and the start from there.
-  const rosterFull = roster.length >= ROSTER_SIZE
+  const rosterFull = roster.length >= slots
   const footDead =
     step === 'roster'
       ? !rosterFull
       : !rosterFull || starting !== null || startFailure !== null
   // His ex is picked before the start and not during it.
   const exDead = starting !== null || startFailure !== null
+  // The roster's size is settled before the start and not during it.
+  const sizeDead = exDead
   const fillDead =
-    roster.length >= ROSTER_SIZE ||
+    rosterFull ||
     eligible.length === 0 ||
     starting !== null ||
     startFailure !== null
@@ -427,7 +444,8 @@ export function NewGameView(): JSX.Element {
   // Whether the archway is on its way off the stage. A modal over a live Start is in the
   // list because motion reports no hover *ending* for a control something covered — the
   // arch would be left hanging above the screen with nothing to bring it back.
-  const covered = picking || choosingEx || inspecting !== null || warnings !== null
+  const covered =
+    picking || choosingEx || inspecting !== null || warnings !== null || shrinkTo !== null
   const armed = hovering && !footDead && !covered && !still
 
   useEffect(() => {
@@ -466,7 +484,7 @@ export function NewGameView(): JSX.Element {
     const picked: Character[] = []
 
     for (const charId of shuffle(eligible)) {
-      if (roster.length + picked.length >= ROSTER_SIZE) break
+      if (roster.length + picked.length >= slots) break
       const character = characters[charId]
       const key = firstNameKeyOf(character)
       if (taken.has(key)) continue
@@ -475,6 +493,29 @@ export function NewGameView(): JSX.Element {
     }
 
     if (picked.length > 0) setRoster((prev) => [...prev, ...picked])
+  }
+
+  /**
+   * A step of the size. The slots past the new size go first, and with them goes nobody unless
+   * more are picked than the new size holds: then the last picked are taken off, after the
+   * answer to what that costs.
+   */
+  function stepSize(step: -1 | 1): void {
+    const next = rosterSize + step
+    if (next < ROSTER_MIN || next > ROSTER_MAX) return
+    if (roster.length > next) {
+      setShrinkTo(next)
+      return
+    }
+    setRosterSize(next)
+  }
+
+  /** The step down's answer: the last picked go, and the size follows. */
+  function confirmShrink(): void {
+    if (shrinkTo === null) return
+    setRoster((prev) => prev.slice(0, shrinkTo))
+    setRosterSize(shrinkTo)
+    setShrinkTo(null)
   }
 
   /** On to the setup; a shared first name on the roster blocks it. */
@@ -1026,8 +1067,13 @@ export function NewGameView(): JSX.Element {
               </div>
 
               <span className="vu-newgame-count">
-                {roster.length}/{ROSTER_SIZE} characters
+                {roster.length}/{slots} characters
               </span>
+
+              <div className="vu-newgame-size">
+                <SizeStep step={-1} dead={sizeDead || rosterSize <= ROSTER_MIN} onStep={stepSize} />
+                <SizeStep step={1} dead={sizeDead || rosterSize >= ROSTER_MAX} onStep={stepSize} />
+              </div>
 
               <motion.button
                 id="new-game-fill"
@@ -1041,14 +1087,16 @@ export function NewGameView(): JSX.Element {
               </motion.button>
             </motion.header>
 
-            {/* All ROSTER_SIZE tiles are rendered, filled ones first, so the count reads at a glance. */}
+            {/* All the slots are rendered, filled ones first, so the count reads at a glance. Two
+                rows whatever the size; the columns are the half, rounded up. */}
             <motion.ul
               className="vu-newgame-grid"
+              style={{ '--cols': Math.ceil(slots / 2) } as CSSProperties}
               variants={GRID_IN}
               initial="hidden"
               animate="shown"
             >
-              {Array.from({ length: ROSTER_SIZE }, (_, index) => {
+              {Array.from({ length: slots }, (_, index) => {
                 const character = roster[index]
                 return character ? (
                   <RosterTile
@@ -1197,6 +1245,23 @@ export function NewGameView(): JSX.Element {
         )}
       </AnimatePresence>
 
+      {/* Taking somebody off the roster is asked first, and cancelling leaves everything as it
+          was. The ex goes with her where she is among them, as she does by the ✕. */}
+      <AnimatePresence>
+        {shrinkTo !== null && (
+          <ConfirmModal
+            key="shrink"
+            id="new-game-shrink"
+            theme={theme}
+            title="Smaller roster"
+            message={shrinkMessage(roster.slice(shrinkTo), activeEx?.charId, shrinkTo)}
+            confirmText="Remove"
+            onConfirm={confirmShrink}
+            onCancel={() => setShrinkTo(null)}
+          />
+        )}
+      </AnimatePresence>
+
       {/* One presence for both questions the start asks: the lineup's answer starts a crossing,
           and the name panel is raised under its cover well after the lineup's own exit finishes. */}
       <AnimatePresence>
@@ -1247,6 +1312,31 @@ export function NewGameView(): JSX.Element {
       </AnimatePresence>
 
     </div>
+  )
+}
+
+/** One end of the roster's size: the square that takes a slot off it or puts one on. */
+function SizeStep({
+  step,
+  dead,
+  onStep
+}: {
+  /** -1 takes a slot off, +1 puts one on. */
+  step: -1 | 1
+  dead: boolean
+  onStep: (step: -1 | 1) => void
+}): JSX.Element {
+  return (
+    <motion.button
+      className="vu-square vu-square--step"
+      type="button"
+      disabled={dead}
+      aria-label={step < 0 ? 'Fewer characters' : 'More characters'}
+      {...gestures(dead, quietLift, quietPress)}
+      onClick={() => onStep(step)}
+    >
+      {step < 0 ? '−' : '+'}
+    </motion.button>
   )
 }
 

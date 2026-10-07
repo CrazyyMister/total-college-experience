@@ -115,6 +115,14 @@
   font: 700 16px var(--font-mono);
 }
 
+/* The two steps of the roster's size, side by side beside the count they move. */
+.vu-newgame-size {
+  display: flex;
+  flex: none;
+  gap: 10px;
+  margin-left: -10px;
+}
+
 /* The one action that is not the screen's primary, at the far end of the row. */
 .vu-newgame-fill {
   gap: 10px;
@@ -124,12 +132,12 @@
 
 /* ---- the grid -------------------------------------------------------------- */
 
-/* Six across and two down: all twelve are on screen from the first frame, so the cap is
-   legible before the first pick. */
+/* Two rows whatever the size, and half the slots across (`--cols`, set by the screen):
+   every slot is on screen from the first frame, so the size is legible before the first pick. */
 .vu-newgame-grid {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(var(--cols, 6), 1fr);
   gap: 24px;
   margin: 0;
   padding: 0;
@@ -137,10 +145,11 @@
 }
 
 /* Half again as close as the grid's own crop: the roster is the largest a card ever gets,
-   and a face the player is choosing between is worth the frame. */
+   and a face the player is choosing between is worth the frame. The archway keeps one shape
+   (273 by 286 with twelve across the full stage) and scales with the column the size leaves it. */
 .vu-newgame-arch {
   --card-zoom: 1.95;
-  height: 286px;
+  aspect-ratio: 273 / 286;
 }
 
 /* Both cards of a shared first name, since the pair is the problem and neither one is.

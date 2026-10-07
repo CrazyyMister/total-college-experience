@@ -24,7 +24,7 @@
 - A **playthrough** is one continuous game: a folder of saves plus the one **record** (`playthrough.json`) they are all read against; before the record exists the folder holds one **enrollment** instead, the semester waiting on its timetable. A **save** is a file in it — a slot-save at a boundary, one **autosave**, the last decision point reached, or one of ninety **manual saves** the player writes from the menu.
 - An **event** is a plan the reader agreed to with somebody. An **occasion** happens whether he turns up or not, belongs to nobody, and is the only one of the two that can close the university.
 - **charId** is the on-disk identity (a UUID). **charKey** (`first_last`) is the prompt identity — the only form the model sees or emits — translated at the edge and never used in a path. Neither is the display name.
-- The **roster** is everybody in the playthrough — twelve characters, picked at New Game and never fewer; the **cast** is who is in the scene. A **slot** is one half of one day; the **boundary** is the moment a slot ends and the next begins.
+- The **roster** is everybody in the playthrough — twelve to sixteen characters, the number picked at New Game (`shared/roster.ts`) and never fewer than twelve; the **cast** is who is in the scene. A **slot** is one half of one day; the **boundary** is the moment a slot ends and the next begins.
 - The **shipped cast** lives under `assets/characters` and is read-only; the **player's own** characters live under `data/characters`.
 
 ## 2. Design and mechanics
