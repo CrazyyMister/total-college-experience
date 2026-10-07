@@ -180,6 +180,8 @@ You will need externally kept data for testing:
 - [ ] In a game of sixteen, open the map, the contact list and the Cast modal at 1280×720 and verify nothing is clipped and the lists scroll where they overflow.
 - [ ] Load a save from before March 16, play a scene, send a phone message and advance to the next period. Verify data/app.log's scene and phone requests carry "It is winter." in their NOW block and the period opening's WEATHER block starts with "It is winter.". Repeat with a save from after March 16 and "It is spring.".
 - [ ] Start a new game and verify the January 19 opening mentions only a few early flowers, not flowers everywhere.
+- [ ] Give a character of yours a winter outfit, render it and play a scene with her before March 16. Verify she wears it on stage, her "Main Outfit:" line in data/app.log names the winter tags, the Cast modal's wardrobe locks do not list it, and a text photo of her carries the winter tags and "in her winter clothes".
+- [ ] Load a save with her after March 16 and verify she wears her usual clothes, and that a character without a winter outfit wears her usual clothes all semester.
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 
