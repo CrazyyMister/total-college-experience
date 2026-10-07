@@ -67,6 +67,7 @@ import {
   formatDateBanner,
   formatSemesterProgress,
   formatRememberedGameDate,
+  seasonLine,
   ordinal
 } from './gameDate'
 import { jobDefOf, shiftSlotFullLabel } from '@shared/jobs'
@@ -1047,6 +1048,7 @@ function nowBlock(cast: readonly Character[], state: PromptState): string[] {
       : [
           `It is ${formatDateBanner(state.date, state.time)}`,
           formatSemesterProgress(state.date),
+          seasonLine(state.date),
           ...(state.weather ? weatherLines(state.weather, state.date, state.time) : [])
         ]),
     ...(state.bg ? [`Current bg: ${state.bg}`] : []),

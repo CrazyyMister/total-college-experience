@@ -240,7 +240,7 @@ export const FEED_MESSAGES: readonly FeedMessage[] = [
   'reading day and the whole quad is at selkie. wheres your motivation!?',
   'no one TA should have all that power',
   'CAN WE GET MUCH HIGHER?? (so high)',
-  'i never thought i could get tired of an eternal spring but here we are welcome to veridan',
+  'i never thought i could get tired of a winter this mild but here we are welcome to veridan',
   'Petition for the Loop to stop at the Stalestein after 2am',
   'so your telling me thorne can book any celebrity on earth for the auditorium and he books a guy who plays the spoons',
   'hnnnnnnnnnnnnnnn let\'s larp',

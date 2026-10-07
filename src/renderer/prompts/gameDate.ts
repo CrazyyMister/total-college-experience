@@ -1,5 +1,6 @@
 import type { CharJob, TimeSlot } from '@shared/types'
 import { shiftSlotOf } from '@shared/jobs'
+import { seasonAt } from '@shared/season'
 
 /**
  * In-game calendar helpers; fixed non-leap anchor keeps dates deterministic. 2015
@@ -87,6 +88,11 @@ export function formatSemesterProgress(date: number): string {
   return week === 1
     ? `It's day ${date + 1} of the semester.`
     : `It's the ${ordinal(week)} week of the semester.`
+}
+
+/** The season `date` falls in, as the one line the prompts' `NOW` and `WEATHER` blocks carry. */
+export function seasonLine(date: number): string {
+  return `It is ${seasonAt(date)}.`
 }
 
 /** Word ordinals for the slot-opening line; past this it falls back to `21st`. */

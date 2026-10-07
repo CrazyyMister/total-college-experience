@@ -35,7 +35,8 @@ import {
   formatChatDivider,
   formatDateBanner,
   formatRelativeSlot,
-  formatSemesterProgress
+  formatSemesterProgress,
+  seasonLine
 } from './gameDate'
 import {
   ambientLoreCharacters,
@@ -465,6 +466,7 @@ export function buildTextingPrompt(
     'NOW',
     `It is ${formatDateBanner(state.date, state.time)}`,
     formatSemesterProgress(state.date),
+    seasonLine(state.date),
     // Texting happens before the slot's scene; without this she treats the day as over.
     state.time === 0 ? 'Morning classes are starting soon.' : 'Night classes are starting soon.',
     ...(state.weather ? weatherLines(state.weather, state.date, state.time) : []),

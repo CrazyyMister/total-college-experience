@@ -22,9 +22,9 @@ Student government: VSA, split into CAPC (decor, plants) and SEB (events, mixers
 Social App: Bunnyboard.
 
 VERIDAN, USA
-River City (the Silk River) | Always Spring | 300k Population | Transit: The Loop electric tram.
+River City (the Silk River) | Mild Winters, Early Springs | 300k Population | Transit: The Loop electric tram.
 
-Nineteenth-century textile money built Veridan, but its mills died in the 1970s and it coasted downhill until Thorne planted VU here in 2014, triggering an investment boom that delighted some longtime residents and enraged others. Sheltered by the river valley, it sits in a near-perpetual spring that meteorologists still can't explain properly.
+Nineteenth-century textile money built Veridan, but its mills died in the 1970s and it coasted downhill until Thorne planted VU here in 2014, triggering an investment boom that delighted some longtime residents and enraged others. Sheltered by the river valley, its winters are short and mild, its springs come early, and it does not snow in the valley, which meteorologists still can't explain properly.
 
 Districts: Stanchion Street ($), Downtown ($$), Promenade ($$$).
 Stanchion: BTB Arcade, Stalestein Bar (and stage), Hotel DREAMS (love hotel), Freights Books & Records, Pastel Palace (sweets), CuteTea, Eastern Buffet.

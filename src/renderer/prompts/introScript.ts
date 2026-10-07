@@ -37,7 +37,7 @@ export function introScrollLines(stats: PlayerStats, date: number): SceneLine[] 
     },
     { text: `You decided to get off a stop early to walk around a bit.` },
     {
-      text: `The weather is incredible. When you left your hometown, it was still completely frozen over there. But the air here is pleasantly cool, and the smell of blooming flowers is everywhere.`
+      text: `The weather is incredible. When you left your hometown, it was still completely frozen over there. But the air here is pleasantly cool, and a few early flowers are already blooming.`
     },
     {
       text: `You read that it may have something to do with the Silk River, which runs through the city, but you skipped the meteorologist explanation.`

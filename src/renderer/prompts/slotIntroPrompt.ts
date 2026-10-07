@@ -15,6 +15,7 @@ import {
   type TimeSlot
 } from '@shared/types'
 import type { Weather } from '@shared/weather'
+import { seasonLine } from './gameDate'
 import type { LoreEntry } from './lorebook'
 import { examLookaheadLine } from './occasions'
 import { whereaboutsLine, type NpcCompanions } from './npcRelationship'
@@ -145,7 +146,7 @@ export interface SlotIntroInput {
   occasionLeadUps?: readonly string[]
   /**
    * The whole semester's sky, one reading per slot — the `WEATHER` block walks back through it
-   * for how long the weather has held. Absent means the block is not written at all.
+   * for how long the weather has held. Absent means the block carries only the season.
    */
   weather?: readonly Weather[]
   /**
@@ -221,10 +222,10 @@ const SCHEMA = objectSchema('slot_intro', ['lines'], {
   }
 })
 
-/** What the sky is doing as the slot opens, on a slot there is anything to say about. */
+/** The season as the slot opens, then what the sky is doing on a slot there is anything to say about. */
 function weatherBlock(input: SlotIntroInput): string[] {
   const lines = input.weather ? weatherLines(input.weather, input.date, input.time) : []
-  return lines.length > 0 ? ['WEATHER', ...lines] : []
+  return ['WEATHER', seasonLine(input.date), ...lines]
 }
 
 /**
