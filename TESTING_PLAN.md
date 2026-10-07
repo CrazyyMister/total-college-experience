@@ -165,6 +165,9 @@ You will need externally kept data for testing:
 - [ ] On the custom endpoint (OpenRouter), start a New Game with a course picked and finish the heights and name screens. Verify the registrar opens with its four course classes tagged "Your course" and data/app.log has no [classes] warning.
 - [ ] Start a New Game and open F9. Verify the "Left out of the week" section reads "Nothing left out" or lists, per character, what her week could not place, and that data/app.log has a [haunts] summary line for the game and a [haunts] line for each character with something left out.
 - [ ] Load a save from before the week kept what it left out and open F9. Verify "Left out of the week" reads "No record".
+- [ ] In New Game, fill the roster and go to the setup step. Pick an ex and a course, go back to the roster by the arrow and by Escape, forward again, and verify both picks stand and that Escape on the setup never leaves for the menu. Verify Quickstart still goes straight to the name question.
+- [ ] Make New Game's generation fail from the setup step. Verify the failure's back button returns to the setup with the ex and the course still picked, and Retry works.
+- [ ] Open New Game's roster and setup steps at 1920×1080, 2560×1440, 1280×720 and 1440×1080, in the day and the night theme, and verify nothing is clipped and nothing sits under the foot's button.
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 
