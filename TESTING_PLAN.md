@@ -168,6 +168,12 @@ You will need externally kept data for testing:
 - [ ] In New Game, fill the roster and go to the setup step. Pick an ex and a course, go back to the roster by the arrow and by Escape, forward again, and verify both picks stand and that Escape on the setup never leaves for the menu. Verify Quickstart still goes straight to the name question.
 - [ ] Make New Game's generation fail from the setup step. Verify the failure's back button returns to the setup with the ex and the course still picked, and Retry works.
 - [ ] Open New Game's roster and setup steps at 1920×1080, 2560×1440, 1280×720 and 1440×1080, in the day and the night theme, and verify nothing is clipped and nothing sits under the foot's button.
+- [ ] In New Game, step the roster size from 12 up to 16 and verify the grid keeps two rows, Fill empty slots randomly fills to the size, and the foot's button wakes only when the roster is full.
+- [ ] With a full roster of 16, step the size down to 13 and verify it asks first, naming the three who go, Cancel keeps all 16 and the confirm removes the last three. With 15 of 16 picked, step down once and verify the empty slot goes without a question and nobody leaves; step down again and verify it asks, naming only the last one.
+- [ ] Pick an ex who stands among the last slots, step the size down past her and verify the question says her pick goes with her and the setup no longer shows her as the ex.
+- [ ] Start a New Game with 13 characters and another with 16 on the custom endpoint (OpenRouter) and verify the heights lineup holds all of them, the class and profile calls succeed and the registrar opens.
+- [ ] Leave the registrar of a game of 16 and resume it from Load Game; verify the registrar opens and the finished game holds all 16.
+- [ ] Load a save with twelve characters and verify nothing about the roster looks different from before.
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 
