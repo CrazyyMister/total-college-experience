@@ -82,7 +82,33 @@ function sectionsOf(): DebugSection[] {
       : [{ key: charId, who: name(charId), facts: entries.map(leftOutLine).join(' · ') }]
   })
 
+  const feedPosts = game.chars.flatMap((charId) => game.charInfo[charId]?.feed ?? [])
+  const lastWeekPosts = feedPosts.filter((post) => post.date > game.date - 7 && post.date <= game.date)
+  const suspicions = game.chars.reduce(
+    (sum, charId) => sum + (game.charInfo[charId]?.suspicions?.length ?? 0),
+    0
+  )
+  const leftOutTotal = game.chars.reduce(
+    (sum, charId) => sum + (game.charInfo[charId]?.leftOut?.length ?? 0),
+    0
+  )
+  const counts: [string, string][] = [
+    ['Characters', `${game.chars.length}`],
+    ['Posts on the feeds', `${feedPosts.length} held · ${lastWeekPosts.length} in the last 7 days`],
+    ['Suspicions held', `${suspicions}`],
+    ['Crushes', `${Object.keys(crushes).length}`],
+    ['Couples', `${Object.keys(couples).length}`],
+    [
+      'Haunts and shifts left out',
+      recorded ? `${leftOutTotal}` : 'no record: this game was dealt before the week kept it'
+    ]
+  ]
+
   return [
+    {
+      title: 'Roster counts',
+      rows: counts.map(([who, facts]) => ({ key: who, who, facts }))
+    },
     {
       title: 'Breakthrough meter',
       rows: game.chars.map((charId) => {

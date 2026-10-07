@@ -1,4 +1,4 @@
-import { readFileSync } from 'fs'
+import { readdirSync, readFileSync } from 'fs'
 import { resolve } from 'path'
 import { it } from 'vitest'
 import { readCharacterRecord } from '@shared/characterRules'
@@ -9,7 +9,14 @@ import {
   type NpcRomanceMap,
   type NpcRomanceTally
 } from '@shared/npcRomance'
-import type { Character, Gender, GameSave, PlaythroughRecord, TimeSlot } from '@shared/types'
+import type {
+  Character,
+  Gender,
+  GameSave,
+  PlaythroughRecord,
+  ShiftSlot,
+  TimeSlot
+} from '@shared/types'
 import { useGameStore } from '../../src/renderer/stores/gameStore'
 import {
   applyNpcOverlay,
@@ -35,34 +42,49 @@ const FOLDER = resolve(ROOT, 'testsave/1790392968199')
 interface Scenario {
   name: string
   identities: { gender: Gender; attractedTo: Gender }[]
+  /** Women of the shipped cast added to the roster, in memory only. */
+  extra?: number
 }
 
 const man = (attractedTo: Gender) => ({ gender: 'man' as const, attractedTo })
+
+const FOUR_MEN = [
+  man('woman'),
+  man('woman'),
+  man('woman'),
+  man('man'),
+  { gender: 'woman' as const, attractedTo: 'woman' as const }
+]
+const EIGHT_MEN = [
+  man('woman'),
+  man('woman'),
+  man('woman'),
+  man('woman'),
+  man('woman'),
+  man('woman'),
+  man('man'),
+  man('man')
+]
+
+/** The women of the shipped cast the sixteen scenarios add to the twelve, all attracted to men. */
+const EXTRA_WOMEN = 4
 
 const SCENARIOS: Scenario[] = [
   { name: 'Elenco como está (12 mulheres atraídas por homens)', identities: [] },
   {
     name: '4 homens (3 por mulheres, 1 por homens) + 1 mulher por mulheres',
-    identities: [
-      man('woman'),
-      man('woman'),
-      man('woman'),
-      man('man'),
-      { gender: 'woman', attractedTo: 'woman' }
-    ]
+    identities: FOUR_MEN
   },
   {
-    name: '8 homens (6 por mulheres, 2 por homens)',
-    identities: [
-      man('woman'),
-      man('woman'),
-      man('woman'),
-      man('woman'),
-      man('woman'),
-      man('woman'),
-      man('man'),
-      man('man')
-    ]
+    name: 'O mesmo com 16: + 4 mulheres atraídas por homens',
+    identities: FOUR_MEN,
+    extra: EXTRA_WOMEN
+  },
+  { name: '8 homens (6 por mulheres, 2 por homens)', identities: EIGHT_MEN },
+  {
+    name: 'O mesmo com 16: + 4 mulheres atraídas por homens',
+    identities: EIGHT_MEN,
+    extra: EXTRA_WOMEN
   }
 ]
 
@@ -86,6 +108,70 @@ function loadPlaythrough(): {
   return { record, save, characters }
 }
 
+/**
+ * How far a clone's week is turned from the student's it was copied from: three days of the
+ * week, so it keeps day and night in place and never stands where its original does.
+ */
+const CLONE_TURN = 6
+
+/** A weekly map with its slots turned by {@link CLONE_TURN} inside a week of `size` slots. */
+function turnedWeek<T>(week: Record<number, T>, size: number): Record<number, T> {
+  return Object.fromEntries(
+    Object.entries(week).map(([slot, value]) => [(Number(slot) + CLONE_TURN) % size, value])
+  )
+}
+
+/**
+ * Adds `count` women of the shipped cast to the roster in memory, each wearing the profile and
+ * the save entry of one of the first students with her week turned, so the test playthrough on
+ * disk is never touched.
+ */
+function addClones(
+  record: PlaythroughRecord,
+  save: GameSave,
+  characters: Record<string, Character>,
+  count: number
+): void {
+  const root = resolve(ROOT, 'assets/characters')
+  const sources = [...record.chars]
+  const added = readdirSync(root)
+    .filter((charId) => !record.chars.includes(charId))
+    .map((charId) => {
+      const path = resolve(root, charId, 'character.json')
+      return readCharacterRecord(readJson<unknown>(path), path).character
+    })
+    .filter((character) => character.gender === 'woman' && character.attractedTo === 'man')
+    .slice(0, count)
+  if (added.length < count) throw new Error(`Only ${added.length} women of the cast to add.`)
+
+  added.forEach((character, i) => {
+    const source = sources[i]
+    const profile = record.profiles[source]
+    const state = save.charInfo[source]
+    characters[character.charId] = character
+    record.chars.push(character.charId)
+    record.profiles[character.charId] = {
+      ...profile,
+      schedule: turnedWeek(profile.schedule, 10),
+      ...(profile.hiddenSchedule ? { hiddenSchedule: turnedWeek(profile.hiddenSchedule, 14) } : {})
+    }
+    save.charInfo[character.charId] = {
+      ...state,
+      memories: [],
+      ...(state.job
+        ? {
+            job: {
+              ...state.job,
+              shifts: state.job.shifts
+                .map((slot) => ((slot + CLONE_TURN) % 14) as ShiftSlot)
+                .sort((a, b) => a - b)
+            }
+          }
+        : {})
+    }
+  })
+}
+
 /** Totals over one semester. */
 interface SemesterResult extends NpcRomanceTally {
   couplesAtEnd: number
@@ -95,6 +181,7 @@ interface SemesterResult extends NpcRomanceTally {
 
 function playSemester(scenario: Scenario): SemesterResult {
   const { record, save, characters } = loadPlaythrough()
+  if (scenario.extra) addClones(record, save, characters, scenario.extra)
   record.chars.forEach((charId, i) => {
     const identity = scenario.identities[i]
     if (identity) characters[charId] = { ...characters[charId], ...identity }

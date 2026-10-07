@@ -37,6 +37,7 @@ import {
 } from '../stores/photoDebugActions'
 import { usePhotoStore } from '../stores/photoStore'
 import { readerPostDebugRows } from '../stores/loop/readerPosts'
+import { sendWorstCaseRequests } from '../stores/worstCaseDebug'
 import {
   debugFailFeedReplies,
   debugFeedReplier,
@@ -121,6 +122,8 @@ export function NpcRomanceDebugTools({ onChanged }: NpcRomanceDebugToolsProps): 
   const [y, setY] = useState(options[1]?.value ?? options[0]?.value ?? '')
   const [n, setN] = useState('10')
   const [result, setResult] = useState<DebugResult | null>(null)
+  // The worst-case requests are out: the button waits for both replies.
+  const [measuring, setMeasuring] = useState(false)
 
   const run = (tool: Tool): void => {
     setResult(tool.run(x, y, Number(n) || 0))
@@ -248,6 +251,24 @@ export function NpcRomanceDebugTools({ onChanged }: NpcRomanceDebugToolsProps): 
           }}
         >
           Delete X’s photo files
+        </motion.button>
+      </div>
+      <h3 className="vu-romance-debug-title">Worst-case summary requests</h3>
+      <div className="vu-romance-debug-tools">
+        <motion.button
+          className="vu-btn vu-paper vu-btn--panel"
+          type="button"
+          disabled={measuring}
+          {...gestures(measuring, lift, press)}
+          onClick={() => {
+            setMeasuring(true)
+            setResult({ ok: true, text: 'Sending the ledger’s and the facts’ requests…' })
+            void sendWorstCaseRequests()
+              .then(setResult)
+              .finally(() => setMeasuring(false))
+          }}
+        >
+          Send the worst-case ledger request
         </motion.button>
       </div>
       {result && (
