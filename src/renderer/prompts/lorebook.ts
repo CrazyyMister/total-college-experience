@@ -4,7 +4,7 @@
  * plus roster characters, built per call from the save's own people.
  */
 import { yearLabel } from '@shared/classes'
-import { dormSentence } from '@shared/dorms'
+import { homeOf, homeSentence } from '@shared/homes'
 import { jobDefOf } from '@shared/jobs'
 import { npcBestFriendOf, type NpcRelationshipMap } from '@shared/npcRelationships'
 import { affectionFor } from '@shared/relationship'
@@ -354,12 +354,13 @@ function characterParagraphs(
     if (!info) continue
     const employer =
       info.job && (info.job.startsOn ?? 0) <= date ? jobDefOf(info.job.jobId)?.employer : undefined
+    const home = homeOf({ charInfo }, character.charId)
     const affection = affectionFor(info, date, character)
     const reader = readerStandingLine(character.firstName, info.flags, affection)
     lines.push(
       `${fullNameOf(character)} is a ${yearLabel(info.year).toLowerCase()} majoring in ${info.major}.` +
         appearanceSentence(character) +
-        dormSentence(info.dorm, character.gender) +
+        (home ? homeSentence(home, character.gender) : '') +
         `${employer ? ` ${pronounsOf(character.gender).Subject} works part-time at ${employer}.` : ''}` +
         ` ${character.personality} ${absentNote(character)}` +
         standingSentences(character, relations) +

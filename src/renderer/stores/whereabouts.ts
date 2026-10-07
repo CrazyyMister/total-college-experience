@@ -1,10 +1,11 @@
+import { FALLBACK_DORM } from '@shared/dorms'
 import {
-  dormGroupBlurb,
-  dormGroupLabel,
-  dormIcon,
-  FALLBACK_DORM,
-  type DormId
-} from '@shared/dorms'
+  homeGroupBlurb,
+  homeGroupLabel,
+  homeIcon,
+  homeOf,
+  type HomeId
+} from '@shared/homes'
 import { jobDefOf, shiftSlotOf } from '@shared/jobs'
 import {
   ELYSIUM_LOCATION,
@@ -23,7 +24,7 @@ import {
   charClassNow,
   charHiddenLocationNow,
   charJobNow,
-  charRoomDormNow,
+  charRoomHomeNow,
   charStandingHauntAt
 } from './timetable'
 
@@ -79,7 +80,7 @@ type Section = Pick<
 >
 
 /** The one place a dorm becomes a section key. */
-function dormPlaceKey(dorm: DormId): string {
+function dormPlaceKey(dorm: HomeId): string {
   return dorm === 'elysium' ? 'dorm:elysium' : 'dorm:lowrise'
 }
 
@@ -97,13 +98,13 @@ const PLACE_ORDER: readonly string[] = [
   UNKNOWN_PLACE_KEY
 ]
 
-/** The section a room in `dorm` files under — **building, not occupant**. */
-function roomSection(dorm: DormId): Section {
+/** The section a room in `home` files under — **building, not occupant**. */
+function roomSection(home: HomeId): Section {
   return {
-    placeKey: dormPlaceKey(dorm),
-    placeLabel: dormGroupLabel(dorm),
-    placeIcon: dormIcon(dorm),
-    placeBlurb: dormGroupBlurb(dorm),
+    placeKey: dormPlaceKey(home),
+    placeLabel: homeGroupLabel(home),
+    placeIcon: homeIcon(home),
+    placeBlurb: homeGroupBlurb(home),
     onCampus: true
   }
 }
@@ -121,9 +122,11 @@ function placeSection(id: string): Section {
   }
 }
 
-/** The dorm recorded for `charId`. */
-function dormOf(charId: string): DormId {
-  return useGameStore.getState().charInfo[charId].dorm
+/** The home recorded for `charId`; every character the map places has one. */
+function homeOfChar(charId: string): HomeId {
+  const home = homeOf(useGameStore.getState(), charId)
+  if (home === undefined) throw new Error(`No home recorded for ${charId}`)
+  return home
 }
 
 /** The told route: where she actually is, obligations included. */
@@ -184,7 +187,7 @@ function toldWhereabouts(charId: string, date: number, time: TimeSlot): Whereabo
       ...base,
       kind: 'room',
       location: null,
-      ...roomSection(charRoomDormNow(charId, date, time) ?? dormOf(charId))
+      ...roomSection(charRoomHomeNow(charId, date, time) ?? homeOfChar(charId))
     }
   }
   return { ...base, kind: 'place', location, ...placeSection(location) }
@@ -195,7 +198,7 @@ function rememberedWhereabouts(charId: string, location: string): Whereabouts {
   const base = { charId, source: 'remembered' as const }
   // A week is never dealt somebody else's room, so this is always her own.
   if (location === ROOM_LOCATION) {
-    return { ...base, kind: 'room', location: null, ...roomSection(dormOf(charId)) }
+    return { ...base, kind: 'room', location: null, ...roomSection(homeOfChar(charId)) }
   }
   return { ...base, kind: 'place', location, ...placeSection(location) }
 }

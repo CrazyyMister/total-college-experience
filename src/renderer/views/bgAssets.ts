@@ -1,4 +1,5 @@
 import { pairBackgrounds } from '@shared/backgroundSets'
+import { homeOf, homeRoomBg, READER, STARTING_HOME, type HomeSource } from '@shared/homes'
 import type { BackgroundSets, SaveSummary } from '@shared/types'
 
 /**
@@ -62,8 +63,13 @@ export function bgKindOf(base: string): 'interior' | 'exterior' | null {
   return BG_KIND_BY_BASE[base] ?? null
 }
 
-/** What the background layer falls back to between scenes — the reader's own dorm. */
-export const SLOT_BG = 'lowrise_dorm_room'
+/**
+ * What the background layer falls back to between scenes — the reader's own room. A save's card
+ * carries no source to read it from and draws the room he starts in.
+ */
+export function readerRoomBg(source?: HomeSource): string {
+  return homeRoomBg(source ? homeOf(source, READER) : STARTING_HOME)
+}
 
 /**
  * Bundled URL for a background base name at the current slot, or null if absent. A wet slot
@@ -90,5 +96,5 @@ export function bgThumbUrl(base: string, suffix: 'day' | 'night'): string | null
 export function saveThumbUrl(summary: SaveSummary): string | null {
   if (summary.thumbnail) return `data:image/jpeg;base64,${summary.thumbnail}`
   const half = summary.graduationSeen || summary.time === 1 ? 'night' : 'day'
-  return bgThumbUrl(summary.bg ?? SLOT_BG, half) ?? bgThumbUrl(SLOT_BG, half)
+  return bgThumbUrl(summary.bg ?? readerRoomBg(), half) ?? bgThumbUrl(readerRoomBg(), half)
 }

@@ -15,6 +15,7 @@ import {
   type TimeSlot
 } from '@shared/types'
 import type { Weather } from '@shared/weather'
+import { homeRoomWords, type HomeId } from '@shared/homes'
 import { seasonLine } from './gameDate'
 import type { LoreEntry } from './lorebook'
 import { examLookaheadLine } from './occasions'
@@ -106,6 +107,8 @@ export type IntroGossip =
 
 /** Everything the builder reads; assembled by the loop, which owns the store. */
 export interface SlotIntroInput {
+  /** Where the reader lives, for the room the narration opens in. */
+  readerHome: HomeId
   /** The cloud-LLM cache key — the playthrough, exactly as the scene calls use it. */
   playthroughId: string
   /** Today, for weighting the askers' memories. */
@@ -525,8 +528,8 @@ export function buildSlotIntroPrompt(
     'Continue where the OPENING LINE left off with three to five short lines of narration. Don\'t include the OPENING LINE in your response. Each line is one entry in "lines".',
     // The three beats, named: without them the call writes a to-do list.
     waking
-      ? 'Open on the reader waking up in his Lowrise dorm room, describing how he feels and the sounds and sights around him.'
-      : 'Open on the day winding down around the reader in his Lowrise dorm room, describing how he feels and the sounds and sights around him.',
+      ? `Open on the reader waking up in his ${homeRoomWords(input.readerHome)}, describing how he feels and the sounds and sights around him.`
+      : `Open on the day winding down around the reader in his ${homeRoomWords(input.readerHome)}, describing how he feels and the sounds and sights around him.`,
     "Then say how campus feels right now. Take into account how far we are in the semester and what's going on in the city and on campus.",
     input.recent.length > 0
       ? 'Also keep in mind what happened recently and how it is making the reader feel right now.'

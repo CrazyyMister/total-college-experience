@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState, type JSX } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
+import { homeOf, READER } from '@shared/homes'
 import { READER_SPEAKER } from '@shared/types'
 import { CheckField } from '../components/CheckField'
 import { ConfirmModal } from '../components/ConfirmModal'
@@ -41,6 +42,7 @@ export function ChatLogModal({ theme, onClose }: ChatLogModalProps): JSX.Element
   const date = useGameStore((s) => s.date)
   const time = useGameStore((s) => s.time)
   const graduationSeen = useGameStore((s) => s.graduationSeen)
+  const readerHome = useGameStore((s) => homeOf(s, READER))
   const sceneEnding = useGameStore((s) => s.sceneEnding)
   const offer = useGameStore(interjectOfferOf)
   const sceneActive = useGameStore(sceneActiveOf)
@@ -72,7 +74,7 @@ export function ChatLogModal({ theme, onClose }: ChatLogModalProps): JSX.Element
   const visible = menu
     ? farewellLog.length > 0
       ? farewellLog
-      : graduationScrollLines(seniorNames())
+      : graduationScrollLines(seniorNames(), readerHome)
     : sceneLog.slice(start)
 
   /**

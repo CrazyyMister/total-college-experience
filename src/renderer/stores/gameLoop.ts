@@ -1,6 +1,7 @@
 import { breakthroughReady, breakthroughsOfTurn } from '@shared/breakthrough'
 import { checkFacts } from '@shared/facts'
-import { GAME_OVER_SCENES, gameOverReasonOf } from '@shared/gameOver'
+import { gameOverLines, gameOverReasonOf } from '@shared/gameOver'
+import { homeOf, READER } from '@shared/homes'
 import { earnLine, spendLine, spentOf } from '@shared/money'
 import {
   globalSlotOf,
@@ -342,7 +343,7 @@ async function beginSlot(): Promise<void> {
     state.setWaitingForLine(false)
     state.setAwaitingInput(false)
     state.appendPendingLines(
-      GAME_OVER_SCENES[gameOver].lines.map((text) => ({ speaker: '', text }))
+      gameOverLines(gameOver, homeOf(state, READER)).map((text) => ({ speaker: '', text }))
     )
     advance()
     // Every path out of a slot opening owes the reveal: the boundary raises no cover for
@@ -359,7 +360,7 @@ async function beginSlot(): Promise<void> {
     // goodbye; outside the branch below because a reload lands here too.
     armEpilogue()
     // Queued only: `graduationSeen` is raised where the scroll is read.
-    if (!state.graduationSeen) state.appendPendingLines(graduationScrollLines(seniorNames()))
+    if (!state.graduationSeen) state.appendPendingLines(graduationScrollLines(seniorNames(), homeOf(state, READER)))
     advance()
     // The curtain announces the morning like any other and peels back off the scroll's first
     // line, which `advance` has already put up.
@@ -660,7 +661,9 @@ function endEpilogue(reason: 'gameComplete' | 'endingDebt'): void {
   game.setWaitingForLine(false)
   game.setAwaitingInput(false)
   game.setBusy(false)
-  game.appendPendingLines(GAME_OVER_SCENES[reason].lines.map((text) => ({ speaker: '', text })))
+  game.appendPendingLines(
+    gameOverLines(reason, homeOf(game, READER)).map((text) => ({ speaker: '', text }))
+  )
   advance()
 }
 
@@ -894,6 +897,7 @@ async function fetchSlotIntro(
       playthroughId: game.playthroughId ?? 'unsaved',
       date,
       time,
+      readerHome: homeOf(game, READER),
       stats: game.stats,
       ex: game.ex,
       opening,

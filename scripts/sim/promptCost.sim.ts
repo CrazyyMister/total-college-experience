@@ -16,6 +16,7 @@ vi.hoisted(() => {
   ;(globalThis as { window?: unknown }).window = { api: bridge('api') }
 })
 import { readCharacterRecord } from '@shared/characterRules'
+import { STARTING_HOME } from '@shared/homes'
 import { leftTheReader, MEMORY_CAP } from '@shared/relationship'
 import {
   charKeyOf,
@@ -498,6 +499,7 @@ function measureIntro(
     playthroughId: 'measure',
     date: game.date,
     time: game.time,
+    readerHome: STARTING_HOME,
     stats: game.stats,
     opening: 'You open your eyes.',
     lessNsfwText: false,

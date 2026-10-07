@@ -1,5 +1,6 @@
 import { describeReaderToPlayer, statsMaxed, type PlayerStats } from '@shared/playerStats'
 import type { Character, SceneLine, TimeSlot } from '@shared/types'
+import { homeRoomBg, lowriseNumberOf, STARTING_HOME } from '@shared/homes'
 import { pronounsOf } from '@shared/pronouns'
 import { formatDatePart } from './gameDate'
 
@@ -62,8 +63,8 @@ export function introScrollLines(stats: PlayerStats, date: number): SceneLine[] 
       text: `Everyone around you is someone who also won the lottery draw to get in here, and they're all moving in one eager wave towards the dorms to unpack.`
     },
     {
-      bg: 'lowrise_dorm_room',
-      text: `You find your room. Located in number 4 out of the five Lowrise buildings, you slide the glass door open into a spacious single-occupancy unit that overlooks a courtyard garden.`
+      bg: homeRoomBg(STARTING_HOME),
+      text: `You find your room. Located in number ${lowriseNumberOf(STARTING_HOME)} out of the five Lowrise buildings, you slide the glass door open into a spacious single-occupancy unit that overlooks a courtyard garden.`
     },
     {
       text: `Your bags have already been delivered. As you see your future classmates milling about the campus, you start to feel pretty pumped.`

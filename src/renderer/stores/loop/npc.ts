@@ -1,5 +1,5 @@
 import { studentsOf } from '@shared/classes'
-import { dormBuildingOf } from '@shared/dorms'
+import { homeBuildingOf, homeOf } from '@shared/homes'
 import {
   isLocationOpen,
   LOCATIONS,
@@ -165,7 +165,7 @@ export function rollSlotEncounterGroups(): NpcEncounterGroup[] {
       busy: charUnavailableNow(charId, game.date, game.time),
       location: charHiddenLocationNow(charId, game.date, game.time),
       haunt: charStandingHauntAt(charId, game.date, game.time)?.location ?? null,
-      building: dormBuildingOf(game.charInfo[charId]?.dorm),
+      building: homeBuildingOf(homeOf(game, charId)),
       spokenFor: spokenFor.has(charId)
     }
   }

@@ -1,7 +1,7 @@
 import { BREAKTHROUGH_MEMORY_TYPE } from '@shared/breakthrough'
 import { romancesReader, SUBJECT_TAGS } from '@shared/characterRules'
 import { slotFullLabel, yearLabel } from '@shared/classes'
-import { dormClause } from '@shared/dorms'
+import { homeClause, homeOf, type HomeId } from '@shared/homes'
 import { EMOTIONS } from '@shared/emotions'
 import { isStockOutfitSet, outfitTagsFor, spriteRefsFor, STOCK_OUTFIT_SETS } from '@shared/outfits'
 import { wearsWinter } from '@shared/season'
@@ -531,7 +531,7 @@ function castBlock(cast: readonly Character[], state: PromptState): string[] {
     lines.push('', `${key} — ${fullNameOf(character)}.`)
 
     if (info?.major) {
-      lines.push(yearMajorLine(info, character.gender))
+      lines.push(yearMajorLine(info, character.gender, homeOf(state, character.charId)))
     }
 
     // Appearance and main outfit as their booru tags.
@@ -741,8 +741,8 @@ export function spaced(lines: readonly string[]): string[] {
 }
 
 /** Her year and major, with the dorm clause where she has one. */
-export function yearMajorLine(info: CharInfo, gender: Gender): string {
-  return `Year: ${yearLabel(info.year)} | Major: ${info.major}.${dormClause(info.dorm, gender)}`
+export function yearMajorLine(info: CharInfo, gender: Gender, home: HomeId | undefined): string {
+  return `Year: ${yearLabel(info.year)} | Major: ${info.major}.${home ? homeClause(home, gender) : ''}`
 }
 
 /** Everything written about who a character *is*, shared by the cast block and the phone. */

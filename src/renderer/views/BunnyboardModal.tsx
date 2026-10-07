@@ -33,6 +33,7 @@ import {
   READER_POST_MAX,
   readerHandle
 } from '@shared/feedReplies'
+import { readerHolding, STARTING_HOME } from '@shared/homes'
 import type { NpcFriendship } from '@shared/npcRelationships'
 import { gpaOf, gradedCourses } from '@shared/academics'
 import { globalSlotOf, jobDefForChat, shiftSlotOf } from '@shared/jobs'
@@ -1822,7 +1823,7 @@ function ProfilePage(): JSX.Element {
             multiline
             rows={3}
             placeholder="Optional. Can be left blank."
-            hint="This is put in every prompt so try to keep it short and sweet. Use third-person past tense and continue this paragraph: The reader is a freshman named <Name>, a male who has a single dorm in Lowrise 4. The reader is <description based on current stats>. The reader is..."
+            hint={`This is put in every prompt so try to keep it short and sweet. Use third-person past tense and continue this paragraph: The reader is a freshman named <Name>, a male who has ${readerHolding(STARTING_HOME)}. The reader is <description based on current stats>. The reader is...`}
           />
         </div>
 

@@ -3,6 +3,7 @@ import { acedExamsLine, GRADES_BAD_LINE, GRADES_GOOD_LINE } from '@shared/academ
 import { andList } from '@shared/sentences'
 import { readerStandingOf, type ReaderStanding } from '@shared/relationship'
 import { exOriginForReader } from '@shared/exGirlfriend'
+import { homeOf, READER, readerHolding, STARTING_HOME, type HomeId } from '@shared/homes'
 import type { CharInfo, Character, ClassEntry, ClassRecord, ExChoice, Occasion } from '@shared/types'
 import { handedBackAcedCount } from './classProgress'
 import { formatRememberedGameDate, formatShortGameDate } from './gameDate'
@@ -87,11 +88,13 @@ export function readerText(
     exOrigin?: string
     // The course he picked at New Game, by the list's name.
     course?: string
+    // Where he lives; with none given, where he starts.
+    home?: HomeId
   } = {}
 ): string {
   const bio = bioLine(reputation.bio ?? '')
   return [
-    `The reader is a freshman named ${firstName} ${lastName}, a male who has a single dorm in Lowrise 4.`,
+    `The reader is a freshman named ${firstName} ${lastName}, a male who has ${readerHolding(reputation.home ?? STARTING_HOME)}.`,
     ...(reputation.course ? [`He majors in ${reputation.course}.`] : []),
     describePlayer(stats),
     ...(bio ? [bio] : []),
@@ -154,6 +157,7 @@ export function readerBlockOf(
     standing: view.gradesStanding,
     ...(ex && exCharacter ? { exOrigin: exOriginForReader(exCharacter, ex) } : {}),
     ...(view.playerCourse ? { course: view.playerCourse } : {}),
+    home: homeOf(view, READER),
     ...readerStandingOf(view.chars, override?.charInfo ?? view.charInfo, firstNamesOf(view))
   })
 }

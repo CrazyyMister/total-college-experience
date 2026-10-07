@@ -15,7 +15,7 @@ import type { Conversation, Position, RendererSettings } from '@shared/types'
 import { slotHalf, weekendSaturdayOf } from '../prompts/gameDate'
 import { isEpilogueNight } from '../prompts/graduation'
 import { slotWeather } from '../prompts/weather'
-import { SLOT_BG, bgKindOf } from '../views/bgAssets'
+import { bgKindOf, readerRoomBg } from '../views/bgAssets'
 import { heldScreenTheme } from '../views/clockTheme'
 import * as engine from './audioEngine'
 import { AUDIO_CHANNELS } from './audioEngine'
@@ -208,7 +208,7 @@ function gameFactsOf(): NonNullable<SoundFacts['game']> {
   const game = useGameStore.getState()
 
   const inScene = game.currentSceneTranscript.length > 0 || game.sceneSummary !== null
-  const base = game.bg ?? SLOT_BG
+  const base = game.bg ?? readerRoomBg(game)
   const shown = displaySlotsOf(game.slots, game.stageOverride)
   const cgCharId = shown.find(
     (charId): charId is string =>

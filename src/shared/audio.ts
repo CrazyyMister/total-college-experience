@@ -1,3 +1,4 @@
+import { HOME_ROOM_BGS } from './homes'
 import type { Position } from './types'
 import type { Weather } from './weather'
 
@@ -319,7 +320,7 @@ export type BackgroundKind = 'interior' | 'exterior'
 
 /** Backgrounds that play nothing: private rooms, where a room tone with a murmur in it would lie. */
 const SILENT_BACKGROUNDS: readonly string[] = [
-  'lowrise_dorm_room',
+  ...HOME_ROOM_BGS,
   'love_hotel',
   'bathroom',
   'kitchen',

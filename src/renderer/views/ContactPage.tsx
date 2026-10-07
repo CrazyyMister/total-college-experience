@@ -9,7 +9,7 @@ import {
   METER_MAX
 } from '@shared/breakthrough'
 import { slotPartsOf, yearLabel } from '@shared/classes'
-import { dormLabel } from '@shared/dorms'
+import { homeLabel, homeOf } from '@shared/homes'
 import { jobDefOf, WEEK_DAY_HEADERS } from '@shared/jobs'
 import { OUTFIT_SET_LABELS, spriteRef, STOCK_OUTFIT_SETS } from '@shared/outfits'
 import { npcEnemiesOf, npcFriendsOf, pairKeyOf } from '@shared/npcRelationships'
@@ -151,7 +151,8 @@ export function ContactPage({
     ...made.map((entry) => ({ kind: 'made' as const, ...entry, date: entry.pair.date, time: entry.pair.time })),
     ...dated.map((entry) => ({ kind: 'dated' as const, ...entry, date: entry.moment.date, time: entry.moment.time }))
   ].sort(newestFirst)
-  const dorm = info ? dormLabel(info.dorm) : ''
+  const home = useGameStore((s) => homeOf(s, charId))
+  const dorm = info && home ? homeLabel(home) : ''
   const affection = affectionFor(info, date, character)
   const tag = relationshipTagOf(flags, affection)
   // Each reveal shows on its persisted flag OR the live condition.

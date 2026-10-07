@@ -1,4 +1,4 @@
-import { dormBuildingOf } from '@shared/dorms'
+import { homeBuildingOf } from '@shared/homes'
 import { affectionFor } from '@shared/relationship'
 import { shuffle } from '@shared/shuffle'
 import { PORTRAIT_SLOTS, useGameStore } from '../gameStore'
@@ -7,7 +7,7 @@ import {
   charHiddenLocationNow,
   charJobNow,
   charOverlayGroupNow,
-  charRoomDormNow,
+  charRoomHomeNow,
   charStandingHauntAt,
   charUnavailableNow
 } from '../timetable'
@@ -42,7 +42,7 @@ function freeCharacters(location?: string | null): string[] {
  * scene**: only the paths, porches and shared kitchens outside it match.
  */
 function atRoomBuilding(charId: string, location: string | null | undefined): boolean {
-  const building = dormBuildingOf(charRoomDormNow(charId))
+  const building = homeBuildingOf(charRoomHomeNow(charId))
   if (building === null) return false
   return location === (building === 'elysium' ? ELYSIUM_LOCATION : LOWRISE_LOCATION)
 }

@@ -1,6 +1,6 @@
 import type { Haunt, ShiftSlot, TimeSlot } from '@shared/types'
 import type { NpcGroup } from '@shared/npcRelationships'
-import type { DormId } from '@shared/dorms'
+import { homeOf, type HomeId } from '@shared/homes'
 import { shiftSlotOf } from '@shared/jobs'
 import { ROOM_LOCATION } from '@shared/locations'
 import { classSlotOf, hauntClosedOn, jobClosedOn } from '../prompts/occasions'
@@ -110,18 +110,18 @@ export function charOverlayGroupNow(
 }
 
 /**
- * The dorm of the room `charId` is spending this slot in: the host's, when an overlay group
+ * The home of the room `charId` is spending this slot in: the host's, when an overlay group
  * pulled her into somebody else's room, otherwise her own. Only meaningful on a slot whose
  * hidden location is `'room'`.
  */
-export function charRoomDormNow(
+export function charRoomHomeNow(
   charId: string,
   date?: number,
   time?: TimeSlot
-): DormId | undefined {
+): HomeId | undefined {
   const group = charOverlayGroupNow(charId, date, time)
   const host = group?.location === ROOM_LOCATION && group.host ? group.host : charId
-  return useGameStore.getState().charInfo[host]?.dorm
+  return homeOf(useGameStore.getState(), host)
 }
 
 /**

@@ -4,6 +4,7 @@
  * epilogue's own losing end is a button press the loop tests for itself.
  */
 
+import { homeDoorWords, type HomeId } from './homes'
 import { isGameOver } from './money'
 
 /** Every way a playthrough can stop: the good one, and the one the epilogue loses to, included. */
@@ -11,7 +12,10 @@ export type GameOverReason = 'debt' | 'expulsion' | 'gameComplete' | 'endingDebt
 
 /** One ending: what plays, and what the modal at the end of it says. */
 export interface GameOverScene {
-  /** Narrator lines, played through the ordinary queue over a black screen. */
+  /**
+   * Narrator lines, played through the ordinary queue over a black screen. `{door}` stands for
+   * the door of wherever the reader lives ({@link gameOverLines}).
+   */
   lines: readonly string[]
   title: string
   message: string
@@ -20,7 +24,7 @@ export interface GameOverScene {
 export const GAME_OVER_SCENES: Record<GameOverReason, GameOverScene> = {
   debt: {
     lines: [
-      'You run into them outside the Lowrise door. Or rather, they run into you.',
+      'You run into them outside {door}. Or rather, they run into you.',
       'They\'re dressed in expensive suits and holding official looking papers. You remember them from the loan office.',
       'They calmly explain that you have a debt to pay and that your plans are off until they\'re settled.',
       'You brush them off, but find out quickly that your enrollment has been rescinded and terrible rumors are spreading about you on campus.',
@@ -59,7 +63,7 @@ export const GAME_OVER_SCENES: Record<GameOverReason, GameOverScene> = {
   },
   endingDebt: {
     lines: [
-      'You run into them outside the Lowrise door. Or rather, they run into you.',
+      'You run into them outside {door}. Or rather, they run into you.',
       'They\'re dressed in expensive suits and holding official looking papers. You remember them from the loan office.',
       'They calmly explain that you have a debt to pay and that you\'re not going home until they\'re settled.',
       'You brush them off, but find out quickly that your enrollment has been rescinded and terrible rumors are spreading about you online.',
@@ -70,6 +74,11 @@ export const GAME_OVER_SCENES: Record<GameOverReason, GameOverScene> = {
     message:
       'Your university life is over. Your debt caught up with you at the very last moment. You can load an earlier save from the main menu.'
   }
+}
+
+/** The lines an ending plays, with the door of the reader's home in them. */
+export function gameOverLines(reason: GameOverReason, home: HomeId): string[] {
+  return GAME_OVER_SCENES[reason].lines.map((line) => line.replace('{door}', homeDoorWords(home)))
 }
 
 /** Which *losing* ending, if any, applies right now — the one place those conditions are tested. */

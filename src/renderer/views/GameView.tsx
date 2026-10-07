@@ -154,7 +154,7 @@ import { ShopModal } from './ShopModal'
 import { BgModal } from './BgModal'
 import mapUrl from '../../../assets/vu_map.png'
 import mapNightUrl from '../../../assets/vu_map_night.png'
-import { bgThumbUrl, bgUrl, SLOT_BG } from './bgAssets'
+import { bgThumbUrl, bgUrl, readerRoomBg } from './bgAssets'
 import { screenTheme } from './clockTheme'
 import { useWarmedImages } from './imagePreload'
 import { accumulateNotch, wheelNotches, type WheelTravel } from './wheel'
@@ -769,7 +769,7 @@ export function GameView(): JSX.Element {
   const cg = cgCharId ? { charId: cgCharId, position: emotions[cgCharId] as Position } : null
 
   // Room bg id → owner, derived from each character's current name; a save naming a
-  // since-renamed character misses and falls back to `SLOT_BG` below.
+  // since-renamed character misses and falls back to `readerRoomBg` below.
   const roomBgToCharId = useMemo(() => {
     const map: Record<string, string> = {}
     for (const character of Object.values(characters)) map[roomBgIdOf(character)] = character.charId
@@ -818,7 +818,8 @@ export function GameView(): JSX.Element {
     ? null
     : roomCharId
       ? roomUrl(roomCharId, half, roomVersion)
-      : (bgUrl(shownBg ?? SLOT_BG, half, wet) ?? bgUrl(SLOT_BG, half, wet))
+      : (bgUrl(shownBg ?? readerRoomBg({ charInfo }), half, wet) ??
+        bgUrl(readerRoomBg({ charInfo }), half, wet))
   // Which picture the stage is showing, which the URL showing it is not: a character's room
   // arrives under a URL of its own once her images have been read, and that is not a change
   // of background.

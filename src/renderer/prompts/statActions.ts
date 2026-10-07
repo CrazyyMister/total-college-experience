@@ -1,8 +1,10 @@
+import { homeSharedPlaces, type HomeId } from '@shared/homes'
 import type { StatKey } from '@shared/playerStats'
 
 /**
  * The stat-raising actions the slot-opening row suggests when the reader has nothing on.
- * Pure data, sent through the classifier as though he had typed it.
+ * Pure data, sent through the classifier as though he had typed it. `{courtyard}`, `{kitchen}`
+ * and `{lounge}` stand for the shared spaces of wherever he lives ({@link statActionsFor}).
  */
 export const STAT_ACTIONS: Record<StatKey, readonly string[]> = {
   brain: [
@@ -45,16 +47,16 @@ export const STAT_ACTIONS: Record<StatKey, readonly string[]> = {
     'Improve Body by protein-loading at the Eastern Buffet.',
     'Improve Body by playing Knock-out Boxing at the BTB Arcade.',
     'Improve Body by playing basketball in a Palaestra gymnasium.',
-    'Improve Body by doing pushups in the Lowrise 4 courtyard.',
+    'Improve Body by doing pushups in {courtyard}.',
     'Improve Body by drinking a fresh protein smoothie blended at SpringMart.',
     "Improve Body by ordering the Lumberjack Platter at Bobby's Diner.",
   ],
   heart: [
     'Improve Heart by braving the open mic at the Stalestein.',
     'Improve Heart by trying to pick up girls at Club Apogee.',
-    'Improve Heart by volunteering to cook in the Lowrise 4 kitchen.',
+    'Improve Heart by volunteering to cook in {kitchen}.',
     'Improve Heart by joining co-op games at the Pino-Cola rec center.',
-    'Improve Heart by hanging out in the Lowrise 4 lounge.',
+    'Improve Heart by hanging out in {lounge}.',
     "Improve Heart by chatting up the waitresses at Bobby's Diner.",
     'Improve Heart by watching a rom-com movie at Future Cinema.',
     'Improve Heart by joining a party in Elysium Village.',
@@ -71,6 +73,17 @@ export const STAT_ACTIONS: Record<StatKey, readonly string[]> = {
     'Improve Heart by leaving a flower at Girl at the Window in the Veridan Museum.',
     'Improve Heart by singing in a Thorne Auditorium practice room.',
   ]
+}
+
+/** The sentences for `stat`, set in the shared spaces of the reader's home. */
+export function statActionsFor(stat: StatKey, home: HomeId): string[] {
+  const places = homeSharedPlaces(home)
+  return STAT_ACTIONS[stat].map((text) =>
+    text
+      .replace('{courtyard}', places.courtyard)
+      .replace('{kitchen}', places.kitchen)
+      .replace('{lounge}', places.lounge)
+  )
 }
 
 /** The grab bag id a stat's sentences are dealt from. */

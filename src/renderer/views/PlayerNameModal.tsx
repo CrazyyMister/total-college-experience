@@ -1,5 +1,6 @@
 import { useState, type JSX } from 'react'
 import { createPortal } from 'react-dom'
+import { readerHolding, STARTING_HOME } from '@shared/homes'
 import { motion } from 'motion/react'
 import {
   MAX_TIER,
@@ -161,7 +162,7 @@ export function PlayerNameModal({
               multiline
               rows={3}
               placeholder="Optional, can be left blank. You can change this at any time in-game."
-              hint="This is put in every prompt so try to keep it short and sweet. Use third-person past tense and continue this paragraph: The reader is a freshman named <Name>, a male who has a single dorm in Lowrise 4. The reader is <description based on selected stats>. The reader is..."
+              hint={`This is put in every prompt so try to keep it short and sweet. Use third-person past tense and continue this paragraph: The reader is a freshman named <Name>, a male who has ${readerHolding(STARTING_HOME)}. The reader is <description based on selected stats>. The reader is...`}
             />
             <div className="vu-who-stats">
               <span className="vu-field-label">Starting stats</span>

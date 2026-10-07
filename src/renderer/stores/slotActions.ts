@@ -4,7 +4,8 @@ import { LOWRISE_LOCATION } from '@shared/locations'
 import { statsLowestFirst, type StatKey } from '@shared/playerStats'
 import type { ClassEntry, Occasion } from '@shared/types'
 import { examOn } from '../prompts/classProgress'
-import { STAT_ACTIONS, statActionBag } from '../prompts/statActions'
+import { homeOf, READER } from '@shared/homes'
+import { statActionBag, statActionsFor } from '../prompts/statActions'
 import { useGameStore } from './gameStore'
 import { useGrabBagStore } from './grabBagStore'
 import type { Verdict } from './loop/classify'
@@ -137,7 +138,9 @@ function fillerText(stat: StatKey): string {
   }
   const cached = fillerTexts.texts[stat]
   if (cached !== undefined) return cached
-  const text = useGrabBagStore.getState().draw(statActionBag(stat), STAT_ACTIONS[stat])
+  const text = useGrabBagStore
+    .getState()
+    .draw(statActionBag(stat), statActionsFor(stat, homeOf(game, READER)))
   fillerTexts.texts[stat] = text
   return text
 }

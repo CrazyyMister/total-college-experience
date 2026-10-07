@@ -1,6 +1,7 @@
 import { affectionFor, dedupedMemoriesFor, emptyFlags } from '@shared/relationship'
 import { encountersOf, PHONE_ENCOUNTER_CAP } from '@shared/encounters'
 import { factsKnownBy, PHONE_FACT_CAP } from '@shared/facts'
+import { homeOf } from '@shared/homes'
 import { ROOM_LOCATION } from '@shared/locations'
 import type { NpcRelationshipMap } from '@shared/npcRelationships'
 import type { NpcRomanceMap } from '@shared/npcRomance'
@@ -412,7 +413,7 @@ export function buildTextingPrompt(
   const characterBlock = [
     'CHARACTER',
     `${name} ${character.lastName}.`,
-    ...(info?.major ? [yearMajorLine(info, character.gender)] : []),
+    ...(info?.major ? [yearMajorLine(info, character.gender, homeOf(state, character.charId))] : []),
     // The phone takes the one-character budget.
     ...profileLines(character, info?.flags ?? emptyFlags(), 1, state.ex),
     ...relationshipLines(

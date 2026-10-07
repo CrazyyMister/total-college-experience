@@ -5,11 +5,11 @@ import {
 } from '@shared/classifier'
 import { charKeyOf, fullNameOf, type AppError } from '@shared/types'
 import { jobDefOf } from '@shared/jobs'
-import type { DormId } from '@shared/dorms'
+import { homeBuildingOf, type HomeId } from '@shared/homes'
 import { locationDefOf, LOWRISE_LOCATION, ROOM_LOCATION } from '@shared/locations'
 import { useGameStore } from '../gameStore'
 import { createRetryGate } from '../retryGate'
-import { charHiddenLocationNow, charJobNow, charRoomDormNow, playerClassNow } from '../timetable'
+import { charHiddenLocationNow, charJobNow, charRoomHomeNow, playerClassNow } from '../timetable'
 import { classesNow, studentsHere } from './cast'
 import { playerProjectClasses } from './jobs'
 import { currentRun, runStale, LOOP_LLM_GROUP } from './state'
@@ -145,8 +145,8 @@ function occupiedLocations(): { id: string; blurb: string }[] {
     }
     const location = charHiddenLocationNow(charId)
     if (location === ROOM_LOCATION) {
-      const dorm = charRoomDormNow(charId)
-      if (dorm !== undefined && isLowrise(dorm)) add(LOWRISE_LOCATION)
+      const home = charRoomHomeNow(charId)
+      if (home !== undefined && isLowrise(home)) add(LOWRISE_LOCATION)
       continue
     }
     add(location)
@@ -158,9 +158,9 @@ function occupiedLocations(): { id: string; blurb: string }[] {
   })
 }
 
-/** Whether a dorm is one of the shared Lowrises rather than an Elysium townhouse. */
-function isLowrise(dorm: DormId): boolean {
-  return dorm !== 'elysium'
+/** Whether a home is one of the shared Lowrises rather than an Elysium townhouse. */
+function isLowrise(home: HomeId): boolean {
+  return homeBuildingOf(home) === 'lowrise'
 }
 
 /**

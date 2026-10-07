@@ -1,3 +1,4 @@
+import { homeRoomBg, type HomeId } from '@shared/homes'
 import type { Disposition } from '@shared/relationship'
 import { markedLine } from '@shared/statusMark'
 import type { Gender, SceneLine, TimeSlot } from '@shared/types'
@@ -60,10 +61,10 @@ function graduateList(names: readonly string[]): string {
  * The scripted graduation morning, one line per click — the arrival scroll's bookend, with `bg`
  * named only where the camera moves.
  */
-export function graduationScrollLines(seniors: readonly string[]): SceneLine[] {
+export function graduationScrollLines(seniors: readonly string[], home: HomeId): SceneLine[] {
   return [
     {
-      bg: 'lowrise_dorm_room',
+      bg: homeRoomBg(home),
       text: `${formatDatePart(GRADUATION_DATE)}. You wake up in an empty room, all of your stuff packed in neat little boxes.`
     },
     {
@@ -94,7 +95,7 @@ export function graduationScrollLines(seniors: readonly string[]): SceneLine[] {
       text: `You head home. With that, the semester is finally over. Some are leaving campus sooner, some later.`
     },
     {
-      bg: 'lowrise_dorm_room',
+      bg: homeRoomBg(home),
       text: `Over the next few days, you say your final goodbyes to your friends before heading home yourself.`
     }
   ].map((line) => ({ speaker: '', ...line }))

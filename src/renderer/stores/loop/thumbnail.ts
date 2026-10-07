@@ -16,7 +16,7 @@ import {
 import { roomBgIdOf, type SceneState } from '@shared/types'
 import { slotHalf } from '../../prompts/gameDate'
 import { isEpilogueNight } from '../../prompts/graduation'
-import { bgThumbUrl, SLOT_BG } from '../../views/bgAssets'
+import { bgThumbUrl, readerRoomBg } from '../../views/bgAssets'
 import { stageContextOf, useGameStore } from '../gameStore'
 import { displaySlotsOf, displaySpriteRef } from '../stageDisplay'
 import { stageOnLoad } from '../stageStep'
@@ -105,7 +105,8 @@ function backgroundLayer(base: string, half: RoomVariant): Promise<ImageBitmap |
   const characters = Object.values(useGameStore.getState().characters)
   const owner = characters.find((character) => roomBgIdOf(character) === base)
   if (owner) return characterLayer(owner.charId, roomRel(half), STAGE_THUMB_HEIGHT)
-  const url = bgThumbUrl(base, half) ?? bgThumbUrl(SLOT_BG, half)
+  const url =
+    bgThumbUrl(base, half) ?? bgThumbUrl(readerRoomBg(useGameStore.getState()), half)
   if (!url) return Promise.resolve(null)
   return layerOf(url, STAGE_THUMB_HEIGHT, () => bundledImage(url))
 }
@@ -179,7 +180,7 @@ export async function composeStageThumbnail(scene: SceneState): Promise<string |
   if (row.length === 0) return null
 
   try {
-    const bitmap = await backgroundLayer(bgOverride ?? stage.bg ?? SLOT_BG, half)
+    const bitmap = await backgroundLayer(bgOverride ?? stage.bg ?? readerRoomBg(game), half)
     if (runStale(run)) return null
     if (bitmap) drawCovering(ctx, bitmap)
   } catch (err) {
