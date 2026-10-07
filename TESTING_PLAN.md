@@ -174,6 +174,10 @@ You will need externally kept data for testing:
 - [ ] Start a New Game with 13 characters and another with 16 on the custom endpoint (OpenRouter) and verify the heights lineup holds all of them, the class and profile calls succeed and the registrar opens.
 - [ ] Leave the registrar of a game of 16 and resume it from Load Game; verify the registrar opens and the finished game holds all 16.
 - [ ] Load a save with twelve characters and verify nothing about the roster looks different from before.
+- [ ] In a game of sixteen, open F9 and press "Send the worst-case ledger request". Verify it reports the two requests accepted and that the tokens tally on the Bunnyboard Profile is the same as before the press.
+- [ ] Open F9 in a game of sixteen and verify "Roster counts" lists the posts, suspicions, crushes, couples and left-out haunts, and that "Left out of the week" lists, per character, what her week could not place.
+- [ ] Play two weeks of a game of sixteen with full class scenes, slot openings, texts and the boundary's memory question. Verify no name is swapped, nobody outside the cast speaks, no memory or fact is filed on the wrong person, and data/app.log has few [scene] unknown speaker or unknown character lines.
+- [ ] In a game of sixteen, open the map, the contact list and the Cast modal at 1280×720 and verify nothing is clipped and the lists scroll where they overflow.
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 
