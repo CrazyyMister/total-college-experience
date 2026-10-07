@@ -178,6 +178,8 @@ You will need externally kept data for testing:
 - [ ] Open F9 in a game of sixteen and verify "Roster counts" lists the posts, suspicions, crushes, couples and left-out haunts, and that "Left out of the week" lists, per character, what her week could not place.
 - [ ] Play two weeks of a game of sixteen with full class scenes, slot openings, texts and the boundary's memory question. Verify no name is swapped, nobody outside the cast speaks, no memory or fact is filed on the wrong person, and data/app.log has few [scene] unknown speaker or unknown character lines.
 - [ ] In a game of sixteen, open the map, the contact list and the Cast modal at 1280×720 and verify nothing is clipped and the lists scroll where they overflow.
+- [ ] Load a save from before March 16, play a scene, send a phone message and advance to the next period. Verify data/app.log's scene and phone requests carry "It is winter." in their NOW block and the period opening's WEATHER block starts with "It is winter.". Repeat with a save from after March 16 and "It is spring.".
+- [ ] Start a new game and verify the January 19 opening mentions only a few early flowers, not flowers everywhere.
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 
