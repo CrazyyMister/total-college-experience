@@ -210,7 +210,7 @@ export const LOCATIONS: readonly LocationDef[] = [
   },
   {
     id: 'palaestra_pool',
-    label: 'the Palaestra pool',
+    label: 'the swimming pool',
     blurb: "the Palaestra's indoor swimming pool, where the swim team trains",
     icon: '🏊',
     onCampus: true,
@@ -218,7 +218,7 @@ export const LOCATIONS: readonly LocationDef[] = [
   },
   {
     id: 'palaestra_court',
-    label: 'the Palaestra courts',
+    label: 'the indoor courts',
     blurb: "the Palaestra's indoor volleyball and basketball courts, where the volleyball and basketball teams train",
     icon: '🏐',
     onCampus: true,
