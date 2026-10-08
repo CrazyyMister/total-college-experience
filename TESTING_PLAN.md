@@ -187,6 +187,9 @@ You will need externally kept data for testing:
 - [ ] On the night of a swim meet, verify the map shows the free team members at the pool, press "Go to the … swim meet" and verify the scene has at most three of them, the coach and the other swimmers are never named, and the score said in the scene is the same after a reload.
 - [ ] Accept a swim team member's invitation to the meet by text, press Begin hangout, and verify the scene opens at the pool with the same score the button gives.
 - [ ] Skip a swim meet and play on. The next morning verify F9's Groups section lists the meet with a score, and that a team member mentions the result only after the meet's night.
+- [ ] Play a scene at the courts during a volleyball session, from the map, with a player who has a uniform and one who does not. Verify the first wears the uniform and the second her gym clothes, an outfit the model picks is not overridden, and the Cast modal does not list the uniform.
+- [ ] Play a scene at the pool during a swim team session in winter and verify the members wear their swimsuits, not their winter outfits.
+- [ ] In New Game setup, mark a woman on one team card and verify she is disabled on the other, and that each card's maximum discounts the women taken by the other.
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 
