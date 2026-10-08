@@ -88,6 +88,7 @@ import { encounterLines } from './encounters'
 import {
   groupEventLines,
   groupEventLore,
+  groupOfEvent,
   groupFigurantLine,
   groupNewsClause,
   groupsInPlay,
@@ -1525,6 +1526,14 @@ export function buildSoloPrompt(
     state.slotRumor
   )
 
+  // A group's event with nobody of the roster free is still the team's event: its result is told,
+  // and the coach and the team stay unnamed. A team's place without an event gets the second only.
+  const eventGroup = groupOfEvent(state.groupEvent)
+  const inPlay = groupsInPlay([], state.sceneLocation)
+  const figurant = groupFigurantLine(
+    eventGroup && !inPlay.includes(eventGroup) ? [eventGroup, ...inPlay] : inPlay
+  )
+
   const user = [
     // With no cast, `nowBlock` is the date and semester lines.
     ...nowBlock([], state),
@@ -1533,9 +1542,11 @@ export function buildSoloPrompt(
     reader,
     ...readerTeamLines(state.playerTeam),
     '',
+    ...groupEventLines(state.groupEvent, state),
+    ...(figurant ? [figurant, ''] : []),
     'YOUR TURN',
     'Solo mission, RITA! The reader is on their own for this one, so write it start to finish in one go.',
-    'Open by rewording what the reader decided to do in a fun narration, then play it out to the end. No other characters will show up.',
+    `Open by rewording what the reader decided to do in a fun narration, then play it out to the end. ${eventGroup ? 'No named characters will show up.' : 'No other characters will show up.'}`,
     'Keep it tight. This is a slice of their day, not an epic.',
     'DON\'T leave a decision point, a cliffhanger, or a question for the reader.',
     '',
@@ -1564,8 +1575,9 @@ export function buildSoloPrompt(
     // Constant, like the ledger's: nothing above the seam varies by save.
     cacheKey: 'solo',
     // Routable: an hour by himself has nobody in it to be written badly, which is what
-    // keeps every other scene call off the secondary model.
-    kind: 'solo'
+    // keeps every other scene call off the secondary model. A group's event has a result the
+    // code decided and the writer must not contradict, so it is never routed.
+    ...(eventGroup ? {} : { kind: 'solo' as const })
   }
 }
 

@@ -37,6 +37,12 @@ export function groupsInPlay(
   )
 }
 
+/** The group whose event or tryout an occasion id names, or `undefined` for any other id. */
+export function groupOfEvent(eventId: string | null | undefined): GroupDef | undefined {
+  if (!eventId) return undefined
+  return tryoutOf(eventId)?.group ?? groupEventOf(eventId)?.group
+}
+
 /**
  * The one line that keeps a team's coach and teammates nameless, or an empty string where no
  * group is in play. A defence in the prompt alone: nothing in the game finds an invented name.

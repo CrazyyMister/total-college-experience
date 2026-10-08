@@ -2313,7 +2313,9 @@ function claimTextLedger(date: number, time: TimeSlot): Promise<LedgerResponse |
 function resolveScene(): { deltas: PlayerStats; lines: StatusText[] } {
   return resolveStatDeltas(loopState.pendingLedgerResult?.stats, {
     // Not `closingCast`, which a resumed save has already cleared by this point.
-    solo: useGameStore.getState().cast.length === 0,
+    // A group's event is the team's hour, however many of them the roster has free.
+    solo:
+      useGameStore.getState().cast.length === 0 && useGameStore.getState().sceneGroupEvent === null,
     // The same fact the ledger's `STATS` section is dropped on.
     classScene: useGameStore.getState().sceneClass !== null,
     classOutcome: classOutcomeNow(),
