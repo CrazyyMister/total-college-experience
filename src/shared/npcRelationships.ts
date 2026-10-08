@@ -241,14 +241,18 @@ const UP_PERCENT = { sour: 65, warming: 60, close: 50 }
 /** What either of the two social traits is worth on top, in the same points. */
 const TRAIT_PERCENT = 10
 
+/** What training on the same team is worth on top, in the same points. */
+export const TEAM_PERCENT = 5
+
 /**
- * The odds an encounter between these two goes *well* — where they already stand, and what
- * the two social traits do to it.
+ * The odds an encounter between these two goes *well* — where they already stand, what the two
+ * social traits do to it, and `bonus` points for what the encounter itself is worth.
  */
 export function affinityUpChance(
   a: Character | undefined,
   b: Character | undefined,
-  affinity: number
+  affinity: number,
+  bonus = 0
 ): number {
   const base =
     affinity >= FRIENDS_AT
@@ -258,8 +262,8 @@ export function affinityUpChance(
         : UP_PERCENT.warming
   const disagreeable = hasTrait(a, 'Disagreeable') || hasTrait(b, 'Disagreeable')
   const goodNatured = hasTrait(a, 'Good-natured') || hasTrait(b, 'Good-natured')
-  if (disagreeable === goodNatured) return base / 100
-  return (base + (goodNatured ? TRAIT_PERCENT : -TRAIT_PERCENT)) / 100
+  if (disagreeable === goodNatured) return (base + bonus) / 100
+  return (base + bonus + (goodNatured ? TRAIT_PERCENT : -TRAIT_PERCENT)) / 100
 }
 
 /** One set of people who were together this slot, as the settle pass reads it. */
@@ -270,6 +274,8 @@ export interface NpcEncounterGroup {
   members: readonly string[]
   /** Whose room, when `ref` is `'room'`. */
   host?: string
+  /** The hour was a team's session, which tilts the pair toward getting on. */
+  team?: true
 }
 
 /** Everything {@link settleNpcPairs} folds over. Pure in, pure out. */
@@ -342,7 +348,9 @@ export function settleNpcPairs(
           continue
         }
 
-        const up = rand() < affinityUpChance(characters[a], characters[b], current.affinity)
+        const up =
+          rand() <
+          affinityUpChance(characters[a], characters[b], current.affinity, group.team ? TEAM_PERCENT : 0)
         next[key] = {
           affinity: clampAffinity(current.affinity + (up ? 1 : -1)),
           encounter: { ...encounter, positive: up }

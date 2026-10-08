@@ -1,4 +1,5 @@
 import { studentsOf } from '@shared/classes'
+import { groupAtPlace, GROUP_IDS, GROUPS } from '@shared/groups'
 import { homeBuildingOf, homeOf } from '@shared/homes'
 import {
   isLocationOpen,
@@ -81,6 +82,7 @@ export function rollNpcOverlayNow(
       // The standing haunt, not `charHiddenLocationNow`, which reads the overlay this call is
       // producing and would deal a replay a second evening.
       haunt: charStandingHauntAt(charId, date, time)?.location ?? null,
+      fixed: charStandingHauntAt(charId, date, time)?.kind === 'team',
       // Off campus takes her out of all three passes at once.
       busy: charUnavailableNow(charId, date, time),
       moodHomebound: isMoodHomebound(
@@ -155,6 +157,17 @@ export function rollSlotEncounterGroups(): NpcEncounterGroup[] {
         ...(group.host ? { host: group.host } : {})
       })
     }
+  }
+
+  // Who trained together: each team's members who are standing at its session.
+  for (const id of GROUP_IDS) {
+    const place = GROUPS[id].location
+    const members = game.chars.filter(
+      (charId) =>
+        charStandingHauntAt(charId, game.date, game.time)?.kind === 'team' &&
+        charHiddenLocationNow(charId, game.date, game.time) === place
+    )
+    if (members.length >= 2) groups.push({ kind: 'hangout', ref: place, members, team: true })
   }
 
   // Nobody is counted twice: the cast and everybody already grouped above are out of both rolls.
@@ -290,6 +303,7 @@ function runInSpots(): string[] {
     (def) =>
       def.onCampus === true &&
       def.id !== LOWRISE_LOCATION &&
+      groupAtPlace(def.id) === undefined &&
       !hauntClosedOn(def.id, 'fun', game.date, game.occasions)
   ).map((def) => def.id)
 }

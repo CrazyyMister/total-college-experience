@@ -1,4 +1,5 @@
 import { dormSpotLabel } from '@shared/dorms'
+import { groupAtPlace } from '@shared/groups'
 import { locationLabel, ROOM_LOCATION } from '@shared/locations'
 import {
   npcBestFriendOf,
@@ -178,6 +179,7 @@ export function hauntActivity(
   if (haunt.kind === 'study') return `studying at ${label}`
   if (haunt.kind === 'meal') return `having ${time === 1 ? 'dinner' : 'lunch'} at ${label}`
   if (haunt.kind === 'activity') return haunt.doing || null
+  if (haunt.kind === 'team') return `at ${groupAtPlace(location)?.practice ?? label}`
   return null
 }
 

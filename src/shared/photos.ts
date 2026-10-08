@@ -96,6 +96,7 @@ export const PHOTO_PLACES: Readonly<Record<string, PhotoPlace>> = {
   kendall_library: { tags: ['library', 'bookshelf', 'computer', 'indoors'] },
   lowrise_dorms: { tags: ['dormitory', 'lounge', 'couch', 'indoors'] },
   lumiere_fusion: { tags: ['restaurant', 'candle', 'wine_glass', 'indoors'], food: true },
+  palaestra_pool: { tags: ['pool', 'indoors'], outfit: 'swim' },
   palaestra_stadium: { tags: ['gym', 'indoors'], outfit: 'pe', mirror: true },
   pino_cola_lounge: { tags: ['lounge', 'table_tennis', 'couch', 'indoors'] },
   reserve_bank_cafe: { tags: ['cafe', 'laptop', 'indoors'], food: true },

@@ -48,6 +48,7 @@ import {
 } from './lorebook'
 import { encounterLines } from './encounters'
 import { factLines } from './facts'
+import { groupFigurantLine, groupsInPlay } from './groupPrompt'
 import { occasionLoreLines } from './occasions'
 import { objectSchema } from './schema'
 import { memoryLines, profileLines, scheduleLines, yearMajorLine } from './scenePrompt'
@@ -412,6 +413,9 @@ export function buildTextingPrompt(
     )
   )
 
+  // Her team's coach and the rest of it are never given names.
+  const figurant = groupFigurantLine(groupsInPlay([info?.groups]))
+
   const characterBlock = [
     'CHARACTER',
     `${name} ${character.lastName}.`,
@@ -457,7 +461,8 @@ export function buildTextingPrompt(
       Object.fromEntries([character, ...state.roster].map((other) => [other.charId, other])),
       state.charInfo
     ),
-    ...(romance.length > 0 ? ['', ...romance] : [])
+    ...(romance.length > 0 ? ['', ...romance] : []),
+    ...(figurant ? ['', figurant] : [])
   ]
 
   const user = [

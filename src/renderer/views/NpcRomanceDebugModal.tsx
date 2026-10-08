@@ -3,6 +3,9 @@ import { createPortal } from 'react-dom'
 import { motion } from 'motion/react'
 import { breakthroughMeterNow, lastBreakthroughUse, METER_MAX } from '@shared/breakthrough'
 import { factsKnownBy } from '@shared/facts'
+import { GROUP_IDS, GROUPS } from '@shared/groups'
+import { shiftSlotFullLabel } from '@shared/jobs'
+import { locationLabel } from '@shared/locations'
 import { pairKeyOf } from '@shared/npcRelationships'
 import {
   ENCOURAGED_DAYS,
@@ -104,6 +107,43 @@ function sectionsOf(): DebugSection[] {
     ]
   ]
 
+  const groupRows: DebugRow[] = GROUP_IDS.flatMap((id) => {
+    const agenda = game.groups[id]
+    if (!agenda) return []
+    const def = GROUPS[id]
+    const members = game.chars.filter((charId) => game.charInfo[charId]?.groups?.includes(id))
+    const slotsLabel = agenda.sessions.map(shiftSlotFullLabel).join(', ') || 'none'
+    const lost = agenda.leftOutSessions
+      ? ` · ${agenda.leftOutSessions} left out: too few members free`
+      : ''
+    return [
+      {
+        key: id,
+        who: def.name,
+        facts: `${members.length} members · sessions at ${locationLabel(def.location)}: ${slotsLabel}${lost}`
+      },
+      ...members.map((charId) => {
+        const info = game.charInfo[charId]
+        const kept = agenda.sessions.filter(
+          (slot) => !info?.schedule?.[slot] && !info?.job?.shifts.includes(slot)
+        )
+        const missed = agenda.sessions
+          .filter((slot) => !kept.includes(slot))
+          .map((slot) => `${shiftSlotFullLabel(slot)} (${info?.schedule?.[slot] ? 'class' : 'shift'})`)
+        return {
+          key: `${id}:${charId}`,
+          who: name(charId),
+          facts: `${kept.length} of ${agenda.sessions.length} sessions${
+            missed.length > 0 ? ` · misses ${missed.join(', ')}` : ''
+          }`
+        }
+      })
+    ]
+  })
+  if (groupRows.length === 0) {
+    groupRows.push({ key: 'none', who: 'No groups', facts: 'This game formed none.' })
+  }
+
   return [
     {
       title: 'Roster counts',
@@ -136,6 +176,11 @@ function sectionsOf(): DebugSection[] {
         : leftOutRows.length > 0
           ? leftOutRows
           : [{ key: 'none', who: 'Nothing left out', facts: 'The deal placed every haunt and shift.' }]
+    },
+    {
+      title: 'Groups',
+      wide: true,
+      rows: groupRows
     },
     {
       title: 'Facts',

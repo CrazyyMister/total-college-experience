@@ -2,7 +2,13 @@ import { readdirSync, readFileSync } from 'fs'
 import { resolve } from 'path'
 import { it } from 'vitest'
 import { readCharacterRecord } from '@shared/characterRules'
-import { rollInitialNpcRelationships, settleNpcPairs } from '@shared/npcRelationships'
+import { dealGroups, GROUPS } from '@shared/groups'
+import {
+  areNpcFriends,
+  pairKeyOf,
+  rollInitialNpcRelationships,
+  settleNpcPairs
+} from '@shared/npcRelationships'
 import {
   emptyNpcRomance,
   settleNpcRomance,
@@ -44,6 +50,8 @@ interface Scenario {
   identities: { gender: Gender; attractedTo: Gender }[]
   /** Women of the shipped cast added to the roster, in memory only. */
   extra?: number
+  /** A swim team of this many women is formed, as New Game would, before the semester. */
+  team?: number
 }
 
 const man = (attractedTo: Gender) => ({ gender: 'man' as const, attractedTo })
@@ -85,6 +93,13 @@ const SCENARIOS: Scenario[] = [
     name: 'O mesmo com 16: + 4 mulheres atraídas por homens',
     identities: EIGHT_MEN,
     extra: EXTRA_WOMEN
+  },
+  { name: 'Elenco como está + time de natação (5)', identities: [], team: 5 },
+  {
+    name: 'O mesmo com 16 e 4 homens: + time de natação (5)',
+    identities: FOUR_MEN,
+    extra: EXTRA_WOMEN,
+    team: 5
   }
 ]
 
@@ -177,6 +192,51 @@ interface SemesterResult extends NpcRomanceTally {
   couplesAtEnd: number
   mostCouples: number
   firstCoupleDay: number | null
+  /** With a team: its pairs' mean affinity, everybody else's, and how many of its pairs are friends. */
+  teamAffinity: number
+  otherAffinity: number
+  teamFriends: number
+  teamPairs: number
+}
+
+/**
+ * Forms the scenario's swim team the way New Game does and writes it where the game reads it:
+ * her place on the team on her profile, and the sessions in the weeks of those not in class or
+ * on shift. Returns the team's members.
+ */
+function formTeam(
+  record: PlaythroughRecord,
+  save: GameSave,
+  characters: Record<string, Character>,
+  count: number
+): string[] {
+  const busy = Object.fromEntries(
+    record.chars.map((charId) => [
+      charId,
+      new Set<number>([
+        ...Object.keys(record.profiles[charId].schedule).map(Number),
+        ...(save.charInfo[charId]?.job?.shifts ?? [])
+      ])
+    ])
+  )
+  const deal = dealGroups({
+    choice: { swimming: { count, picked: [] } },
+    roster: record.chars.map((charId) => ({ charId, gender: characters[charId].gender })),
+    busy,
+    playerClassSlots: new Set(),
+    seed: 'sim'
+  })
+  const members = deal.members.swimming ?? []
+  for (const charId of members) {
+    const profile = record.profiles[charId]
+    profile.groups = ['swimming']
+    const week = { ...(profile.hiddenSchedule ?? {}) }
+    for (const slot of deal.agendas.swimming?.sessions ?? []) {
+      if (!busy[charId].has(slot)) week[slot] = { location: GROUPS.swimming.location, kind: 'team' }
+    }
+    profile.hiddenSchedule = week
+  }
+  return members
 }
 
 function playSemester(scenario: Scenario): SemesterResult {
@@ -186,6 +246,7 @@ function playSemester(scenario: Scenario): SemesterResult {
     const identity = scenario.identities[i]
     if (identity) characters[charId] = { ...characters[charId], ...identity }
   })
+  const team = scenario.team ? formTeam(record, save, characters, scenario.team) : []
 
   const game = useGameStore.getState()
   game.loadSave({ ...save, playthroughId: 'sim', saveId: 'sim' }, record, characters)
@@ -210,7 +271,11 @@ function playSemester(scenario: Scenario): SemesterResult {
     breakups: 0,
     couplesAtEnd: 0,
     mostCouples: 0,
-    firstCoupleDay: null
+    firstCoupleDay: null,
+    teamAffinity: 0,
+    otherAffinity: 0,
+    teamFriends: 0,
+    teamPairs: 0
   }
   let romance: NpcRomanceMap = emptyNpcRomance()
 
@@ -250,6 +315,27 @@ function playSemester(scenario: Scenario): SemesterResult {
     }
   }
   result.couplesAtEnd = Object.keys(romance.couples).length
+
+  if (team.length > 0) {
+    const final = useGameStore.getState().npcRelationships
+    const sums = { team: 0, other: 0, otherPairs: 0 }
+    for (let i = 0; i < record.chars.length; i++) {
+      for (let j = i + 1; j < record.chars.length; j++) {
+        const [a, b] = [record.chars[i], record.chars[j]]
+        const affinity = final[pairKeyOf(a, b)]?.affinity ?? 0
+        if (team.includes(a) && team.includes(b)) {
+          sums.team += affinity
+          result.teamPairs += 1
+          if (areNpcFriends(final, a, b)) result.teamFriends += 1
+        } else {
+          sums.other += affinity
+          sums.otherPairs += 1
+        }
+      }
+    }
+    result.teamAffinity = result.teamPairs > 0 ? sums.team / result.teamPairs : 0
+    result.otherAffinity = sums.otherPairs > 0 ? sums.other / sums.otherPairs : 0
+  }
   return result
 }
 
@@ -274,9 +360,15 @@ it(
         `  paixões ${of('crushes')} · declarações ${of('declarations')} · aceitas ${of('accepted')} · recusadas ${of('rejected')}`,
         `  brigas ${of('fights')} · términos ${of('breakups')} · casais no fim ${of('couplesAtEnd')} · máximo simultâneo ${of('mostCouples')}`,
         `  casais que terminaram: ${formed === 0 ? '—' : `${Math.round((ended / formed) * 100)}%`}` +
-          ` · primeiro casal no dia ${average(firsts)} (em ${firsts.length} de ${RUNS} semestres)`,
-        ''
+          ` · primeiro casal no dia ${average(firsts)} (em ${firsts.length} de ${RUNS} semestres)`
       )
+      if (scenario.team) {
+        lines.push(
+          `  time: afinidade média entre colegas ${of('teamAffinity')} contra ${of('otherAffinity')} nos demais pares` +
+            ` · colegas amigas no fim ${of('teamFriends')} de ${of('teamPairs')}`
+        )
+      }
+      lines.push('')
     }
     process.stdout.write(lines.join('\n') + '\n')
   },

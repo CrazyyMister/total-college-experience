@@ -45,6 +45,13 @@
   align-self: flex-start;
 }
 
+/* The roster's people a team may take, one tick-box to a line under the count. */
+.vu-gamesetup-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 /* The foot of the column fades into the screen's ground, not into a panel's surface. */
 .vu-gamesetup .vu-scroll-fade {
   background: linear-gradient(transparent, var(--vu-ground));

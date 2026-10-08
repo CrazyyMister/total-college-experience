@@ -13,6 +13,7 @@ import {
 } from '@shared/types'
 import { factSentence } from './facts'
 import { objectSchema } from './schema'
+import { groupFigurantLine, groupsInPlay } from './groupPrompt'
 import { ledgerPersonaFor, ledgerTranscriptOf, type PromptState } from './scenePrompt'
 import { transcriptStubs } from './schedulePrompt'
 
@@ -119,6 +120,14 @@ export function buildFactsPrompt(
     ''
   ].join('\n')
 
+  // A team's coach and teammates are never somebody a fact is about.
+  const figurant = groupFigurantLine(
+    groupsInPlay(
+      cast.map((c) => state.charInfo[c.charId]?.groups),
+      state.sceneLocation
+    )
+  )
+
   const rest = [
     'READER',
     reader,
@@ -135,6 +144,7 @@ export function buildFactsPrompt(
       ]
     }),
     '',
+    ...(figurant ? [figurant, ''] : []),
     ...(here.length > 0
       ? [
           'KNOWN FACTS',

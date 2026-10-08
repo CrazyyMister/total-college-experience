@@ -15,6 +15,8 @@ export interface OverlayCharInput {
   haunt: string | null
   /** In class or on shift: she is not part of any of this. */
   busy: boolean
+  /** Her haunt is a team's session, which nobody is pulled along to and she hosts nobody at. */
+  fixed?: boolean
   /** One of the days she stays in — home, and out of every pass. */
   moodHomebound: boolean
   /**
@@ -76,7 +78,7 @@ export function rollNpcOverlay(
 
   // 1. Friends pull each other into where they were already going; a room counts.
   for (const host of shuffle(charIds, rand)) {
-    if (!eligible(host) || grouped.has(host)) continue
+    if (!eligible(host) || grouped.has(host) || chars[host].fixed) continue
     const haunt = chars[host].haunt
     if (haunt === null) continue
 

@@ -5,7 +5,21 @@ import { EMOTIONS } from '@shared/emotions'
 import { DEFAULT_PLAYER_STATS, type PlayerStats } from '@shared/playerStats'
 import { STARTING_MONEY } from '@shared/money'
 import { emptyTallies } from '@shared/tallies'
-import { jobDefOf, placeNpcShifts, rollFreshmanJobStart, rollJobClosures } from '@shared/jobs'
+import {
+  jobDefOf,
+  placeNpcShifts,
+  rollFreshmanJobStart,
+  rollJobClosures,
+  shiftSlotFullLabel
+} from '@shared/jobs'
+import {
+  dealGroups,
+  eligibleFor,
+  GROUP_IDS,
+  GROUPS,
+  type GroupId,
+  type TeamsChoice
+} from '@shared/groups'
 import { rollSemesterWeather } from '@shared/weather'
 import { courseOf } from '@shared/courses'
 import { canBeEx, exSeedOf } from '@shared/exGirlfriend'
@@ -99,7 +113,7 @@ import {
 } from './motion'
 import { BackIcon, ChevronIcon, CloseIcon, DiceIcon } from './screenIcons'
 import { LoadCharacterModal } from './LoadCharacterModal'
-import { NewGameSetup } from './NewGameSetup'
+import { NewGameSetup, type TeamOffer } from './NewGameSetup'
 import { PlayerNameModal } from './PlayerNameModal'
 import '../vu_styles/NewGame.css'
 
@@ -206,6 +220,9 @@ export function NewGameView(): JSX.Element {
   const [courseChoice, setCourseChoice] = useState<string>(
     courseOf(resumed?.enrollment.playerCourse) ?? ''
   )
+  // The teams he asked for: how many of the roster, and whom by name; the rest are drawn at
+  // Finalize. Carried by the enrollment, so a reopened registrar still has them.
+  const [teamsChoice, setTeamsChoice] = useState<TeamsChoice>(resumed?.enrollment.teams ?? {})
   // The generated catalog, held between Start Game and Finalize and seeded from the enrollment
   // where the registrar is being reopened; why `classSelect` routes back to this component.
   const [schedules, setSchedules] = useState<ScheduleResult | null>(
@@ -423,6 +440,36 @@ export function NewGameView(): JSX.Element {
   }, [exChoice, roster])
   const exCharacter = activeEx ? roster.find((c) => c.charId === activeEx.charId) : undefined
 
+  // A team is offered while the roster has enough of the right people for it, with the picks
+  // that are still on the roster.
+  const teamOffers = useMemo<TeamOffer[]>(
+    () =>
+      GROUP_IDS.flatMap((id) => {
+        const def = GROUPS[id]
+        const eligible = eligibleFor(def, roster)
+        if (eligible.length < def.minMembers) return []
+        const held = teamsChoice[id]
+        return [
+          {
+            id,
+            title: def.title,
+            hint: `The women of the roster who swim for ${def.name}. Tick the ones you want; the rest are drawn.`,
+            candidates: eligible.flatMap((charId) => {
+              const character = roster.find((c) => c.charId === charId)
+              return character ? [{ charId, label: `${character.firstName} ${character.lastName}` }] : []
+            }),
+            min: def.minMembers,
+            max: Math.min(def.maxMembers, eligible.length),
+            choice: {
+              count: Math.min(held?.count ?? 0, def.maxMembers, eligible.length),
+              picked: (held?.picked ?? []).filter((charId) => eligible.includes(charId))
+            }
+          }
+        ]
+      }),
+    [roster, teamsChoice]
+  )
+
   // The two gates. Both go dead and say nothing: the roster beside them is what the
   // player would be reading either way. The foot's button is the step's one answer: on to the
   // setup once the roster is full, and the start from there.
@@ -575,7 +622,8 @@ export function NewGameView(): JSX.Element {
       ...(bio ? { bio } : {}),
       ...(tokensGenerated > 0 ? { tokensGenerated } : {}),
       ...(activeEx ? { ex: activeEx } : {}),
-      ...(courseChoice ? { playerCourse: courseChoice } : {})
+      ...(courseChoice ? { playerCourse: courseChoice } : {}),
+      ...(Object.values(teamsChoice).some((team) => team.count > 0) ? { teams: teamsChoice } : {})
     })
     if (!written.ok) {
       showError(written.error)
@@ -733,6 +781,35 @@ export function NewGameView(): JSX.Element {
       }
     }
 
+    // The teams: who is on each, and when each meets. After the shifts, since a member's class or
+    // shift is what keeps her from a session, and after the reader's timetable, since a session
+    // never lands on one of his classes.
+    const groupDeal = dealGroups({
+      choice: teamsChoice,
+      roster: roster.map((c) => ({ charId: c.charId, gender: c.gender })),
+      busy: Object.fromEntries(
+        roster.map((c) => [
+          c.charId,
+          new Set<number>([
+            ...Object.keys(perChar[c.charId]?.schedule ?? {}).map(Number),
+            ...(charJobs[c.charId]?.shifts ?? [])
+          ])
+        ])
+      ),
+      playerClassSlots: new Set(Object.keys(playerSchedule).map(Number)),
+      seed: playthroughId ?? 'new-game'
+    })
+    const memberOf = (charId: string): GroupId[] =>
+      GROUP_IDS.filter((id) => groupDeal.members[id]?.includes(charId))
+    for (const id of GROUP_IDS) {
+      const agenda = groupDeal.agendas[id]
+      if (!agenda) continue
+      const lost = agenda.leftOutSessions ? `; ${agenda.leftOutSessions} left out (too few free)` : ''
+      console.log(
+        `[groups] ${id}: ${groupDeal.members[id]?.length ?? 0} members, sessions ${agenda.sessions.map(shiftSlotFullLabel).join(', ') || 'none'}${lost}.`
+      )
+    }
+
     // Last of the three scheduling passes, since it deals around both the others.
     const deal = buildHiddenSchedules(
       Object.fromEntries(
@@ -746,7 +823,14 @@ export function NewGameView(): JSX.Element {
           }
           return [[c.charId, input] as const]
         })
-      )
+      ),
+      GROUP_IDS.flatMap((id) => {
+        const agenda = groupDeal.agendas[id]
+        const members = groupDeal.members[id]
+        return agenda && members
+          ? [{ location: GROUPS[id].location, members, slots: agenda.sessions }]
+          : []
+      })
     )
 
     const hiddenSchedules = deal.weeks
@@ -817,7 +901,8 @@ export function NewGameView(): JSX.Element {
             // Written for everybody; whether she goes is March's to decide.
             ...(springBreakPlans[c.charId]
               ? { springBreakPlans: springBreakPlans[c.charId] }
-              : {})
+              : {}),
+            ...(memberOf(c.charId).length > 0 ? { groups: memberOf(c.charId) } : {})
           }
         ]
       })
@@ -837,6 +922,7 @@ export function NewGameView(): JSX.Element {
         jobClosures,
         weather,
         profiles,
+        ...(Object.keys(groupDeal.agendas).length > 0 ? { groups: groupDeal.agendas } : {}),
         ...(exSeed && activeEx ? { ex: activeEx } : {}),
         ...(courseChoice ? { playerCourse: courseChoice } : {})
       },
@@ -1147,9 +1233,11 @@ export function NewGameView(): JSX.Element {
               exOffered={activeEx !== null || roster.some(canBeEx)}
               exLabel={exCharacter ? `Ex: ${exCharacter.firstName}` : 'Add an ex'}
               course={courseChoice}
+              teams={teamOffers}
               dead={exDead}
               onOpenEx={() => setChoosingEx(true)}
               onCourse={setCourseChoice}
+              onTeam={(id, choice) => setTeamsChoice((held) => ({ ...held, [id]: choice }))}
             />
           </motion.div>
         )}

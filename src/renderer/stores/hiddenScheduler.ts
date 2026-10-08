@@ -29,6 +29,13 @@ export interface HiddenScheduleInput extends HiddenScheduleAssignment {
 /** Keyed by charId, each a sparse `ShiftSlot` → the haunt she keeps in it. */
 export type HiddenScheduleResult = Record<string, Record<number, Haunt>>
 
+/** A group's sessions, held for all its members before anybody's own haunts are dealt. */
+export interface GroupReservation {
+  location: string
+  members: readonly string[]
+  slots: readonly ShiftSlot[]
+}
+
 /** One deal: every character's week, and what each week could not place, both keyed by charId. */
 export interface HiddenScheduleDeal {
   weeks: HiddenScheduleResult
@@ -58,9 +65,13 @@ export function leftOutLine(entry: LeftOutEntry): string {
 /**
  * One deal. `inputs` is keyed by charId; the order served is shuffled per pass. A place takes as
  * many characters in a slot as its capacity allows, and whatever a character's week could not
- * place comes back beside it with the reason.
+ * place comes back beside it with the reason. A group's sessions come first: the place is its
+ * alone for the slot, and a member with a class or a shift then keeps that and misses the session.
  */
-export function buildHiddenSchedules(inputs: Record<string, HiddenScheduleInput>): HiddenScheduleDeal {
+export function buildHiddenSchedules(
+  inputs: Record<string, HiddenScheduleInput>,
+  reservations: readonly GroupReservation[] = []
+): HiddenScheduleDeal {
   const charIds = Object.keys(inputs)
   const result: HiddenScheduleResult = {}
   const leftOut: Record<string, LeftOutEntry[]> = {}
@@ -76,7 +87,10 @@ export function buildHiddenSchedules(inputs: Record<string, HiddenScheduleInput>
     held.set(location, (held.get(location) ?? 0) + 1)
     occupancy.set(slot, held)
   }
+  /** The places a group's session holds whole, as `slot:location`. */
+  const reserved = new Set<string>()
   const isFree = (slot: number, location: string): boolean =>
+    !reserved.has(`${slot}:${location}`) &&
     (occupancy.get(slot)?.get(location) ?? 0) < locationCapacity(location)
 
   for (const charId of charIds) {
@@ -116,6 +130,18 @@ export function buildHiddenSchedules(inputs: Record<string, HiddenScheduleInput>
     const slot = shuffle(pool)[0] as ShiftSlot
     result[charId][slot] = haunt
     if (exclusive) occupy(slot, haunt.location)
+  }
+
+  // A group's sessions before every individual haunt, so no member's own week can take the
+  // period or the place. Whoever is in class or on shift then is not asked to come.
+  for (const reservation of reservations) {
+    for (const slot of reservation.slots) {
+      reserved.add(`${slot}:${reservation.location}`)
+      for (const charId of reservation.members) {
+        if (!result[charId] || busySlots(charId).has(slot)) continue
+        result[charId][slot] = { location: reservation.location, kind: 'team' }
+      }
+    }
   }
 
   // Passes in priority order: fun, study, activity, the meal out, groceries, then nights in

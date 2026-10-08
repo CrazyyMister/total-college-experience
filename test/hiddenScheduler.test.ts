@@ -278,3 +278,41 @@ describe('buildHiddenSchedules capacity and what it leaves out', () => {
     for (const id of Object.keys(deal.leftOut)) expect(deal.leftOut[id]).toEqual([])
   })
 })
+
+describe('buildHiddenSchedules with the sessions of a team', () => {
+  const POOL = 'palaestra_pool'
+  const team = ['c0', 'c1', 'c2', 'c3']
+  const sessions: ShiftSlot[] = [10, 12]
+
+  /** Everyone's own activity is the pool, so the deal would put the rest of them there if it could. */
+  function poolInputs(over: Record<string, Partial<HiddenScheduleInput>> = {}) {
+    const all = inputs(over)
+    for (const input of Object.values(all)) input.activity = { location: POOL, doing: 'swimming laps' }
+    return all
+  }
+
+  it('holds the place for the team alone, and the team there together', () => {
+    for (let run = 0; run < RUNS; run++) {
+      const deal = dealWeeks(poolInputs(), [{ location: POOL, members: team, slots: sessions }])
+      for (const slot of sessions) {
+        for (const charId of team) {
+          expect(deal.weeks[charId][slot], `${charId} ${slot}`).toEqual({ location: POOL, kind: 'team' })
+        }
+        for (const charId of ['c4', 'c5']) {
+          expect(deal.weeks[charId][slot]?.location, `${charId} ${slot}`).not.toBe(POOL)
+        }
+      }
+    }
+  })
+
+  it('leaves a member with a class or a shift in that period out of the session', () => {
+    const schedule: Record<number, string> = { 0: 'BIO 210' }
+    const result = dealWeeks(poolInputs({ c0: { schedule } }), [
+      { location: POOL, members: team, slots: [0, 12] }
+    ]).weeks
+    expect(result.c0[0]).toBeUndefined()
+    expect(result.c0[12]?.kind).toBe('team')
+    expect(result.c1[0]?.kind).toBe('team')
+  })
+})
+

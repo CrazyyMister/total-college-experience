@@ -4,6 +4,7 @@
  * plus roster characters, built per call from the save's own people.
  */
 import { yearLabel } from '@shared/classes'
+import { groupSentence } from '@shared/groups'
 import { homeOf, homeSentence, type HomeId } from '@shared/homes'
 import { jobDefOf } from '@shared/jobs'
 import { npcBestFriendOf, type NpcRelationshipMap } from '@shared/npcRelationships'
@@ -73,8 +74,18 @@ export const LOREBOOK: readonly LoreEntry[] = [
   },
   {
     id: 'palaestra_stadium',
-    keys: ['Palaestra', 'stadium', 'track and field', 'the track', 'gym', 'gymnasium', 'tennis', 'pool'],
-    text: `Palaestra Stadium is a gigantic athletics complex consisting not just of its namesake, but of several indoor gymnasiums, a pool, tennis courts, real-grass turfs, and a rooftop running track. bg for tennis/soccer courts: outdoor_fitness. bg for volleyball/badminton/basketball: gymnasium.`
+    keys: ['Palaestra', 'stadium', 'track and field', 'the track', 'gym', 'gymnasium', 'tennis'],
+    text: `Palaestra Stadium is a gigantic athletics complex consisting not just of its namesake, but of several indoor gymnasiums, tennis courts, real-grass turfs, and a rooftop running track. bg for tennis/soccer courts: outdoor_fitness. bg for volleyball/badminton/basketball: gymnasium.`
+  },
+  {
+    id: 'palaestra_pool',
+    keys: ['pool', 'swimming pool', 'natatorium', 'swim practice', 'swim meet'],
+    text: `The Palaestra pool is the indoor swimming pool inside the Palaestra athletics complex: a long lap pool with a diving end, bleachers along one wall, and the sharp smell of chlorine. The Venus Jackrabbits swim team trains and hosts its meets here. bg for the pool: pool.`
+  },
+  {
+    id: 'venus_jackrabbits',
+    keys: ['Jackrabbits', 'Venus Jackrabbits', 'swim team', 'swimming team', 'varsity'],
+    text: `The Venus Jackrabbits are the university's varsity teams, and the hare is their mascot, a sportier cousin of the university's bunny; their colors are wine and pink. Every team plays its season in the spring semester. The swim team trains at the Palaestra pool.`
   },
   {
     id: 'elysium_village',
@@ -365,6 +376,7 @@ function characterParagraphs(
       `${fullNameOf(character)} is a ${yearLabel(info.year).toLowerCase()} majoring in ${info.major}.` +
         appearanceSentence(character) +
         (home ? homeSentence(home, character.gender) : '') +
+        groupSentence(info.groups, character.gender) +
         `${employer ? ` ${pronounsOf(character.gender).Subject} works part-time at ${employer}.` : ''}` +
         ` ${character.personality} ${absentNote(character)}` +
         standingSentences(character, relations) +

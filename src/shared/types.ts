@@ -13,6 +13,7 @@ import type { GossipPost, GossipTopic, NpcGossip } from './npcRomanceGossip'
 import type { PromptKind } from './promptKinds'
 import type { RumorPassOutcome } from './rumors'
 import type { DormId } from './dorms'
+import type { GroupId, GroupsRecord, TeamsChoice } from './groups'
 import type { HomeId } from './homes'
 import type { AudioGroup } from './audio'
 import type { ComfyGpu } from './setupManifest'
@@ -722,7 +723,7 @@ export interface CharJob {
 export type CrushHint = { stat: StatKey; tier: StatTier } | { met: true }
 
 /** What a standing haunt is for: the menu it was dealt from. */
-export type HauntKind = 'fun' | 'study' | 'activity' | 'meal' | 'grocery' | 'room'
+export type HauntKind = 'fun' | 'study' | 'activity' | 'meal' | 'grocery' | 'room' | 'team'
 
 /** Why the weekly deal could not place something: no free period of hers, the place shut in all of them, or the place full in all of them. */
 export type LeftOutReason = 'busy' | 'closed' | 'full' | 'no_shift' | 'short_shifts' | 'nowhere'
@@ -772,6 +773,8 @@ export interface CharProfile extends CharSchedule {
   handle?: string
   /** What she does with spring break, one short phrase. */
   springBreakPlans?: string
+  /** The groups she belongs to, settled at New Game; absent for a girl on no team. */
+  groups?: GroupId[]
 }
 
 /** The half a playthrough accumulates — what every save file carries about her. */
@@ -1902,6 +1905,8 @@ export interface PlaythroughRecord {
   ex?: ExChoice
   /** The course he majors in, by its exact name on the shared list, where New Game picked one. */
   playerCourse?: string
+  /** When each group meets, keyed by group id; absent where New Game formed no group. */
+  groups?: GroupsRecord
 }
 
 /** The record as New Game hands it over; `saveService` stamps the version. */
@@ -1992,6 +1997,8 @@ export type EnrollmentDraft = QuickstartBundle & {
   ex?: ExChoice
   /** The course New Game picked, carried onto the record at Finalize. */
   playerCourse?: string
+  /** The teams New Game asked for, drawn and dealt at Finalize. */
+  teams?: TeamsChoice
 }
 
 /**

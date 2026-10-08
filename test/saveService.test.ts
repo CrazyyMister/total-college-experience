@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, readdir, rm, utimes, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { AUTOSAVE_ID, MAX_SLOT_SAVES, type SaveDraft } from '@shared/types'
+import { AUTOSAVE_ID, MAX_SLOT_SAVES, type CharProfile, type SaveDraft } from '@shared/types'
 import { useGameStore } from '../src/renderer/stores/gameStore'
 import { exSeedOf } from '@shared/exGirlfriend'
 import { character, charInfo, enrollment, lcg, record } from './fixtures'
@@ -237,6 +237,41 @@ describe('a playthrough with a course', () => {
       playerCourse: 'Music'
     })
     expect((await saveService.readEnrollment(without.playthroughId)).playerCourse).toBeUndefined()
+  })
+})
+
+describe('a playthrough with a team', () => {
+  it('reads back the record’s agenda and her place on the team, and an older record as none', async () => {
+    const profile: CharProfile = {
+      year: 2,
+      dorm: 'lowrise_1',
+      major: 'Music',
+      schedule: {},
+      groups: ['swimming']
+    }
+    const withTeam = await saveService.createPlaythrough(
+      record({
+        chars: ['a'],
+        profiles: { a: { ...profile } },
+        groups: { swimming: { sessions: [10, 12], leftOutSessions: 1 } }
+      }),
+      draft()
+    )
+    const read = await saveService.readSave(withTeam.save.playthroughId, withTeam.save.saveId)
+    expect(read.record.groups).toEqual({ swimming: { sessions: [10, 12], leftOutSessions: 1 } })
+    expect(read.record.profiles.a.groups).toEqual(['swimming'])
+
+    const older = await saveService.createPlaythrough(record(), draft())
+    const readOlder = await saveService.readSave(older.save.playthroughId, older.save.saveId)
+    expect(readOlder.record.groups).toBeUndefined()
+  })
+
+  it('reads an enrollment with the teams it asked for, and one without', async () => {
+    const teams = { swimming: { count: 4, picked: ['a'] } }
+    const withTeams = await saveService.writeEnrollment(enrollment({ teams }))
+    const without = await saveService.writeEnrollment(enrollment())
+    await expect(saveService.readEnrollment(withTeams.playthroughId)).resolves.toMatchObject({ teams })
+    expect((await saveService.readEnrollment(without.playthroughId)).teams).toBeUndefined()
   })
 })
 

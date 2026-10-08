@@ -56,6 +56,7 @@ import {
   type ReaderTallies
 } from '@shared/tallies'
 import { FALLBACK_DORM } from '@shared/dorms'
+import type { GroupsRecord } from '@shared/groups'
 import { withHomeMove, type HomeId } from '@shared/homes'
 import {
   giftMemoryCapFor,
@@ -295,6 +296,8 @@ interface GameStoreState {
   ex: ExChoice | null
   /** The course he picked at New Game, read off the record; null where he picked none. */
   playerCourse: string | null
+  /** When each group meets, from the playthrough's record. */
+  groups: GroupsRecord
   /** What the reader has bought and not yet given away. Persisted. */
   inventory: OwnedItem[]
   /** What each of his classes has accumulated, keyed by class code. Persisted. */
@@ -1126,7 +1129,8 @@ const PROFILE_KEYS: Record<keyof CharProfile, true> = {
   leftOut: true,
   moodCycleOffset: true,
   handle: true,
-  springBreakPlans: true
+  springBreakPlans: true,
+  groups: true
 }
 
 /** The half of one entry a save file carries: everything the record already holds, dropped. */
@@ -1399,6 +1403,7 @@ const initialState = {
   weather: [] as Weather[],
   ex: null as ExChoice | null,
   playerCourse: null as string | null,
+  groups: {} as GroupsRecord,
   inventory: [] as OwnedItem[],
   classRecords: {} as Record<string, ClassRecord>,
   gradesStanding: null as 'good' | 'bad' | null,
@@ -1530,6 +1535,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       weather: record.weather,
       ex: exOf(record.ex, characters, record.chars),
       playerCourse: courseOf(record.playerCourse),
+      groups: record.groups ?? {},
       inventory: save.inventory,
       classRecords: save.classRecords,
       gradesStanding: save.gradesStanding,

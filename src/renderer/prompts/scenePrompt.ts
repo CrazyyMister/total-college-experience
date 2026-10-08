@@ -1,6 +1,7 @@
 import { BREAKTHROUGH_MEMORY_TYPE } from '@shared/breakthrough'
 import { romancesReader, SUBJECT_TAGS } from '@shared/characterRules'
 import { slotFullLabel, yearLabel } from '@shared/classes'
+import { groupClause } from '@shared/groups'
 import { homeClause, homeOf, type HomeId } from '@shared/homes'
 import { EMOTIONS } from '@shared/emotions'
 import { isStockOutfitSet, outfitTagsFor, spriteRefsFor, STOCK_OUTFIT_SETS } from '@shared/outfits'
@@ -84,6 +85,7 @@ import {
 } from './lorebook'
 import { farewellNowLines, graduationCastLines } from './graduation'
 import { encounterLines } from './encounters'
+import { groupFigurantLine, groupsInPlay } from './groupPrompt'
 import { factLines } from './facts'
 import { moodLine } from './moods'
 import { springBreakLines } from './springBreak'
@@ -744,7 +746,7 @@ export function spaced(lines: readonly string[]): string[] {
 
 /** Her year and major, with the dorm clause where she has one. */
 export function yearMajorLine(info: CharInfo, gender: Gender, home: HomeId | undefined): string {
-  return `Year: ${yearLabel(info.year)} | Major: ${info.major}.${home ? homeClause(home, gender) : ''}`
+  return `Year: ${yearLabel(info.year)} | Major: ${info.major}.${home ? homeClause(home, gender) : ''}${groupClause(info.groups, gender)}`
 }
 
 /** Everything written about who a character *is*, shared by the cast block and the phone. */
@@ -1031,8 +1033,20 @@ function whoBlock(cast: readonly Character[], state: PromptState, reader: string
     ),
     '',
     ...castBlock(cast, state),
-    ''
+    '',
+    ...figurantLines(cast, state)
   ]
+}
+
+/** The line keeping a team's coach and teammates nameless, with its blank line, or nothing. */
+function figurantLines(cast: readonly Character[], state: PromptState): string[] {
+  const line = groupFigurantLine(
+    groupsInPlay(
+      cast.map((character) => state.charInfo[character.charId]?.groups),
+      state.sceneLocation
+    )
+  )
+  return line ? [line, ''] : []
 }
 
 /**

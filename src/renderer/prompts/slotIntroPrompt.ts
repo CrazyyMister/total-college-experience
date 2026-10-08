@@ -15,8 +15,10 @@ import {
   type TimeSlot
 } from '@shared/types'
 import type { Weather } from '@shared/weather'
+import type { GroupDef } from '@shared/groups'
 import { homeRoomWords, type HomeId } from '@shared/homes'
 import { seasonLine } from './gameDate'
+import { groupFigurantLine } from './groupPrompt'
 import type { LoreEntry } from './lorebook'
 import { examLookaheadLine } from './occasions'
 import { whereaboutsLine, type NpcCompanions } from './npcRelationship'
@@ -157,6 +159,8 @@ export interface SlotIntroInput {
    * friends `ambientLoreCharacters` picks out.
    */
   backgroundLore?: readonly string[]
+  /** The groups of whoever the prompt names, whose coach and teammates stay nameless. */
+  groups?: readonly GroupDef[]
   /** Who leaves campus for spring break, or null before the pick has run. */
   springBreakAway?: readonly string[] | null
   /**
@@ -498,6 +502,12 @@ function characterBlock(input: SlotIntroInput): string[] {
   ]
 }
 
+/** The line keeping a team's coach and teammates nameless, or no block at all. */
+function figurantBlock(input: SlotIntroInput): string[] {
+  const line = groupFigurantLine(input.groups ?? [])
+  return line ? [line] : []
+}
+
 /** Builds the slot-opening narration request. */
 export function buildSlotIntroPrompt(
   input: SlotIntroInput,
@@ -521,6 +531,7 @@ export function buildSlotIntroPrompt(
     ...spaced(askerBlock(input)),
     ...spaced(breakupBlock(input)),
     ...spaced(posterBlock(input)),
+    ...spaced(figurantBlock(input)),
     ...spaced(gossip),
     ...spaced(rumor),
     'YOUR TURN',

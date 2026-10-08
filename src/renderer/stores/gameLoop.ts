@@ -63,6 +63,7 @@ import {
   graduationScrollLines,
   isGraduationSlot
 } from '../prompts/graduation'
+import { groupsInPlay } from '../prompts/groupPrompt'
 import { occasionLeadUpLines, occasionsAt } from '../prompts/occasions'
 import { examOn, projectPeriodOf, workedOn } from '../prompts/classProgress'
 import {
@@ -860,8 +861,16 @@ async function fetchSlotIntro(
       const character = game.characters[charId]
       return character ? [character] : []
     })
+  const ambient = ambientLoreCharacters(absent, present, view.npcRelationships)
+  // The teams of whoever the opening names or the lorebook describes, so their coach and
+  // teammates stay unnamed.
+  const introGroups = groupsInPlay(
+    [...presentIds, ...ambient.map((character) => character.charId)].map(
+      (charId) => view.charInfo[charId]?.groups
+    )
+  )
   const backgroundLore = characterLoreForIds(
-    ambientLoreCharacters(absent, present, view.npcRelationships),
+    ambient,
     view.charInfo,
     view.homeMoves,
     date,
@@ -913,7 +922,8 @@ async function fetchSlotIntro(
       ...(rumorPlace ? { rumorPlace } : {}),
       ...(gossip ? { gossip } : {}),
       springBreakAway: game.springBreakAway,
-      ...(backgroundLore.length > 0 ? { backgroundLore } : {})
+      ...(backgroundLore.length > 0 ? { backgroundLore } : {}),
+      ...(introGroups.length > 0 ? { groups: introGroups } : {})
     },
     SETTING,
     reader(view)
