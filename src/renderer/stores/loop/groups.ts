@@ -7,10 +7,11 @@ import {
   type GroupResult
 } from '@shared/groups'
 import { shuffle } from '@shared/shuffle'
-import type { Occasion } from '@shared/types'
+import { wornSetOf } from '@shared/wardrobe'
+import type { Occasion, OutfitSet, TimeSlot } from '@shared/types'
 import { isMoodHomebound } from '../../prompts/moods'
 import { PORTRAIT_SLOTS, useGameStore, type SceneKind } from '../gameStore'
-import { charUnavailableNow, groupEventAt } from '../timetable'
+import { charTeamSessionNow, charUnavailableNow, groupEventAt } from '../timetable'
 import type { Verdict } from './classify'
 import { resolveLocationId } from './casting'
 
@@ -26,6 +27,38 @@ const EVENT_ACTION = 'group:'
 export function groupMembersOf(groupId: GroupId): string[] {
   const game = useGameStore.getState()
   return game.chars.filter((charId) => game.charInfo[charId]?.groups?.includes(groupId))
+}
+
+/**
+ * The set her team puts her in for a scene set at `sceneLocation`, or null: she is in her
+ * team's session now and the scene is at the session's place. A scene somewhere else, or one
+ * with no place, is not her team's, whoever she is.
+ */
+export function teamSetInScene(
+  charId: string,
+  sceneLocation: string | null | undefined,
+  date?: number,
+  time?: TimeSlot
+): OutfitSet | null {
+  const group = charTeamSessionNow(charId, date, time)
+  if (!group || resolveLocationId(sceneLocation) !== group.location) return null
+  return group.sessionSet
+}
+
+/**
+ * What stands in place of her usual clothes in a photo taken at `place` on a half-day: her
+ * team's set when the photo is taken at her session's place while she is in the session, else
+ * what she would wear anyway.
+ */
+export function photoWornSet(
+  charId: string,
+  place: string,
+  date: number,
+  time: TimeSlot
+): OutfitSet | null {
+  const group = charTeamSessionNow(charId, date, time)
+  const team = group && group.location === place ? group.sessionSet : null
+  return wornSetOf(date, useGameStore.getState().outfitReady[charId], team)
 }
 
 /** Whether a member could be at a half-day: not in class, on shift, away, or staying in. */

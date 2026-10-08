@@ -20,7 +20,14 @@ import {
   useSpriteVersion
 } from '../stores/characterStore'
 import { noNsfwImagesOf, useSettingsStore } from '../stores/settingsStore'
-import { behaviorFieldsFor, shownWardrobes, TAG_FIELDS, WINTER_FIELD } from './characterFields'
+import {
+  behaviorFieldsFor,
+  shownWardrobes,
+  TAG_FIELDS,
+  UNIFORM_FIELD,
+  WINTER_FIELD,
+  wardrobesClass
+} from './characterFields'
 import { DuplicateIcon, FolderIcon } from './characterIcons'
 import { ImageGalleryModal } from './ImageGalleryModal'
 import {
@@ -141,8 +148,11 @@ export function CharacterModal({
     const status = set === null ? expressions : outfits?.[set]
     return EMOTIONS.filter((emotion) => status?.[emotion]).length
   }
-  /** The winter column is laid out for a character who has tags for it or sprites of it. */
-  const winterShown = (character.winterOutfit?.length ?? 0) > 0 || wardrobeDone('winter') > 0
+  /** The winter and uniform columns are laid out for a character who has tags or sprites for them. */
+  const shown = {
+    winter: (character.winterOutfit?.length ?? 0) > 0 || wardrobeDone('winter') > 0,
+    uniform: (character.uniformOutfit?.length ?? 0) > 0 || wardrobeDone('uniform') > 0
+  }
   const cgsOnDisk = POSITIONS.filter((position) => cgs?.[position]).length
   const roomOnDisk = ROOM_VARIANTS.filter((variant) => rooms?.[variant]).length
 
@@ -175,10 +185,8 @@ export function CharacterModal({
           <TitleTab>Character</TitleTab>
 
           <div className="vu-edit-images">
-            <div
-              className={winterShown ? 'vu-edit-wardrobes vu-edit-wardrobes--five' : 'vu-edit-wardrobes'}
-            >
-              {shownWardrobes(winterShown).map(({ target, set, title }) => (
+            <div className={wardrobesClass(shown)}>
+              {shownWardrobes(shown).map(({ target, set, title }) => (
                 <WardrobeColumn
                   key={target}
                   charId={charId}
@@ -342,6 +350,9 @@ export function CharacterModal({
                     ))}
                     {(character.winterOutfit?.length ?? 0) > 0 && (
                       <Chips label={WINTER_FIELD.label} values={character.winterOutfit ?? []} />
+                    )}
+                    {(character.uniformOutfit?.length ?? 0) > 0 && (
+                      <Chips label={UNIFORM_FIELD.label} values={character.uniformOutfit ?? []} />
                     )}
                     <Chips
                       label="Additional negative prompts"

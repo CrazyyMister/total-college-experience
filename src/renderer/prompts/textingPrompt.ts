@@ -26,6 +26,7 @@ import {
   type Haunt,
   type JobState,
   type Occasion,
+  type OutfitSet,
   type ExChoice,
   type StructuredRequest,
   type TimeSlot
@@ -153,8 +154,8 @@ export interface TextingPromptState {
    * prompt says nothing of photos and the schema has no field for one.
    */
   photoOffer?: PhotoOffer | null
-  /** Whether she wears her winter set today, so a photo of her in her usual clothes shows it. */
-  wearsWinter?: boolean
+  /** What stands in place of her usual clothes in a photo of her now, so it shows the same. */
+  photoWorn?: OutfitSet | null
 }
 
 /** A text's line breaks folded to spaces, so a message stays one prompt line. */
@@ -331,10 +332,10 @@ function photoLines(
   name: string,
   offer: PhotoOffer | null | undefined,
   night: boolean,
-  winter: boolean
+  worn: OutfitSet | null
 ): string[] {
   if (!offer || offer.kinds.length === 0) return []
-  const outfit = photoOutfitAt(offer.place, winter)
+  const outfit = photoOutfitAt(offer.place, worn)
   const kinds = offer.kinds.map(
     (kind) => `- "${kind}": ${photoPhrase({ kind, place: offer.place, outfit, night })}`
   )
@@ -512,7 +513,7 @@ export function buildTextingPrompt(
       name,
       state.photoOffer,
       state.time === 1,
-      state.wearsWinter === true
+      state.photoWorn ?? null
     ),
     'BLOCKING',
     `Set "blocked" to true only if these texts have pushed ${name} to cut the reader off completely. ${p.Subject} is done, and blocks him on Bunnyboard as ${p.possessive} last text lands.`,

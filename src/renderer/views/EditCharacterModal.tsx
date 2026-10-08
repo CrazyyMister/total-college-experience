@@ -90,6 +90,8 @@ import {
   PREFERRED_STAT_OPTIONS,
   sheetPlaceholders,
   shownWardrobes,
+  UNIFORM_FIELD,
+  wardrobesClass,
   TAG_FIELDS,
   textList,
   TRAIT_OPTIONS,
@@ -206,6 +208,7 @@ interface Form {
   peOutfit: string[]
   swimOutfit: string[]
   winterOutfit: string[]
+  uniformOutfit: string[]
   negativeTags: string[]
   roomPrompt: string
   height: number
@@ -238,6 +241,7 @@ function formOf(character: Character): Form {
     peOutfit: [...character.peOutfit],
     swimOutfit: [...character.swimOutfit],
     winterOutfit: [...(character.winterOutfit ?? [])],
+    uniformOutfit: [...(character.uniformOutfit ?? [])],
     negativeTags: [...(character.negativeTags ?? [])],
     roomPrompt: character.roomPrompt,
     height: character.height,
@@ -382,6 +386,9 @@ export function EditCharacterModal({
   const winterTagged = (character.winterOutfit?.length ?? 0) > 0
   /** The winter column is laid out for a character who has tags for it or sprites of it. */
   const winterShown = winterTagged || wardrobeDone('winter') > 0
+  /** Likewise for the team uniform. */
+  const uniformTagged = (character.uniformOutfit?.length ?? 0) > 0
+  const uniformShown = uniformTagged || wardrobeDone('uniform') > 0
 
   /** This set's bucket in the run, if it has one — running or waiting its turn. */
   const taskOf = (target: SetTarget): RenderTask | undefined => liveTaskFor(progress, target)
@@ -460,6 +467,7 @@ export function EditCharacterModal({
       peOutfit: form.peOutfit,
       swimOutfit: form.swimOutfit,
       winterOutfit: form.winterOutfit,
+      uniformOutfit: form.uniformOutfit,
       height: form.height,
       negativeTags: form.negativeTags,
       roomPrompt: form.roomPrompt,
@@ -469,6 +477,7 @@ export function EditCharacterModal({
     // Absent and empty mean the same thing, so an empty list is left out of character.json.
     if (next.negativeTags?.length === 0) delete next.negativeTags
     if (next.winterOutfit?.length === 0) delete next.winterOutfit
+    if (next.uniformOutfit?.length === 0) delete next.uniformOutfit
     // Likewise absent and centre, so a voice nobody moved is left out too.
     if (next.voicePitch === 0) delete next.voicePitch
     return next
@@ -720,7 +729,8 @@ export function EditCharacterModal({
     // render of it is still going, whose Cancel stays reachable.
     const offered =
       (sfwWithholds(target, noNsfwImages, form.gender) && !taskOf(target)) ||
-      (target === 'winter' && !winterTagged)
+      (target === 'winter' && !winterTagged) ||
+      (target === 'uniform' && !uniformTagged)
         ? {}
         : {
             control: setControl,
@@ -828,8 +838,8 @@ export function EditCharacterModal({
           <TitleTab>Edit character</TitleTab>
 
           <div className="vu-edit-images">
-            <div className={winterShown ? 'vu-edit-wardrobes vu-edit-wardrobes--five' : 'vu-edit-wardrobes'}>
-              {shownWardrobes(winterShown).map(({ target, set, title }) => (
+            <div className={wardrobesClass({ winter: winterShown, uniform: uniformShown })}>
+              {shownWardrobes({ winter: winterShown, uniform: uniformShown }).map(({ target, set, title }) => (
                 <WardrobeColumn key={target} {...columnFor(target, set, title)} />
               ))}
             </div>
@@ -1262,6 +1272,17 @@ export function EditCharacterModal({
                         placeholder="Enter or comma to add a tag"
                       />
                       <span className="vu-field-hint">{WINTER_FIELD.hint}</span>
+                    </label>
+
+                    <label className="vu-field" htmlFor={UNIFORM_FIELD.id}>
+                      <span className="vu-field-label">{UNIFORM_FIELD.label}</span>
+                      <ChipListInput
+                        id={UNIFORM_FIELD.id}
+                        values={form.uniformOutfit}
+                        onChange={setField('uniformOutfit')}
+                        placeholder="Enter or comma to add a tag"
+                      />
+                      <span className="vu-field-hint">{UNIFORM_FIELD.hint}</span>
                     </label>
 
                     <label className="vu-field" htmlFor="edit-negative-tags">

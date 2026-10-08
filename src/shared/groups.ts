@@ -9,12 +9,12 @@ import { SHIFT_SLOTS } from './jobs'
 import { isLocationOpen, locationLabel } from './locations'
 import { pronounsOf } from './pronouns'
 import { shuffle } from './shuffle'
-import type { Gender, Occasion, ShiftSlot, TimeSlot } from './types'
+import type { Gender, Occasion, OutfitSet, ShiftSlot, TimeSlot } from './types'
 
-/** Every group there is. Only the swim team exists so far. */
-export type GroupId = 'swimming'
+/** Every group there is. The order is the order New Game draws their teams in. */
+export type GroupId = 'swimming' | 'volleyball'
 
-export const GROUP_IDS: readonly GroupId[] = ['swimming']
+export const GROUP_IDS: readonly GroupId[] = ['swimming', 'volleyball']
 
 /** A school the groups meet in the field. */
 export type SchoolId = 'port_calder' | 'veridan_state'
@@ -69,6 +69,10 @@ export interface GroupDef {
   nickname: string
   /** What its session is called in "at swim practice". */
   practice: string
+  /** What its members do for it, in "the women of the roster who swim for …". */
+  joins: string
+  /** The set a member wears while her scene is at her session's place, when it is rendered. */
+  sessionSet: OutfitSet
   /** The `LOCATIONS` id its sessions are held at. */
   location: string
   /** The gender of its members. */
@@ -78,8 +82,10 @@ export interface GroupDef {
   maxMembers: number
   /** What its event is called after the school, in the button and the title. */
   eventName: string
-  /** How many points an event hands out between the two sides. */
-  pointsTotal: number
+  /** What its event is called in the calendar's description of it. */
+  eventKind: string
+  /** How an event is scored: points shared out, or the sets of a match played to three. */
+  scoring: { kind: 'points'; total: number } | { kind: 'sets'; toWin: number }
   events: readonly GroupEventDef[]
 }
 
@@ -90,17 +96,42 @@ export const GROUPS: Readonly<Record<GroupId, GroupDef>> = {
     title: 'Swim team',
     nickname: 'the swim team',
     practice: 'swim practice',
+    joins: 'swim for',
+    sessionSet: 'swim',
     location: 'palaestra_pool',
     gender: 'woman',
     minMembers: 3,
     maxMembers: 5,
     eventName: 'swim meet',
-    pointsTotal: 300,
-    // Saturday nights: February 21 and April 11, then the nearest free Saturdays. The first meet
-    // keeps February 7 as its last resort, for a team too thin on the later Saturdays.
+    eventKind: 'dual meet',
+    scoring: { kind: 'points', total: 300 },
+    // Saturday nights: February 21 and April 11, then the nearest free Saturdays, then a Sunday
+    // night. The first meet keeps February 7 before its Sunday, for a team too thin on the later
+    // Saturdays; a team of three whose members work Saturday nights loses every Saturday.
     events: [
-      { id: 'swimming-meet-1', rival: 'port_calder', candidates: [33, 40, 19] },
-      { id: 'swimming-meet-2', rival: 'port_calder', candidates: [82, 89, 75] }
+      { id: 'swimming-meet-1', rival: 'port_calder', candidates: [33, 40, 19, 27] },
+      { id: 'swimming-meet-2', rival: 'port_calder', candidates: [82, 89, 75, 90] }
+    ]
+  },
+  volleyball: {
+    id: 'volleyball',
+    name: 'the Venus Jackrabbits volleyball team',
+    title: 'Volleyball team',
+    nickname: 'the volleyball team',
+    practice: 'volleyball practice',
+    joins: 'play volleyball for',
+    sessionSet: 'uniform',
+    location: 'palaestra_court',
+    gender: 'woman',
+    minMembers: 3,
+    maxMembers: 5,
+    eventName: 'volleyball match',
+    eventKind: 'match',
+    scoring: { kind: 'sets', toWin: 3 },
+    // Saturday nights from March 21 and April 25, then the nearest free ones, then a Sunday night.
+    events: [
+      { id: 'volleyball-match-1', rival: 'port_calder', candidates: [61, 68, 12, 20] },
+      { id: 'volleyball-match-2', rival: 'port_calder', candidates: [96, 89, 75, 83] }
     ]
   }
 }
@@ -138,6 +169,8 @@ export interface GroupAgenda {
   leftOutSessions?: number
   /** The events no candidate day could hold, when any could not. */
   leftOutEvents?: LeftOutEvent[]
+  /** Set on a team that was asked for and not formed: how many were asked, how many women were left. */
+  unformed?: { asked: number; left: number }
 }
 
 /** Why an event found no day. */
@@ -175,14 +208,16 @@ export function eligibleFor(
  * The members of one team: whoever the player picked who is eligible and free of other teams,
  * then the rest drawn from the others, up to the count asked for (kept between the group's
  * least and most). Nobody belongs to two teams, and the same seed draws the same team. A group
- * with too few people to take returns nobody.
+ * with too few people to take returns nobody. Those in `reserved` are another team's picks: the
+ * random fill never takes them.
  */
 export function drawMembers(
   def: GroupDef,
   eligible: readonly string[],
   choice: TeamChoice,
   taken: ReadonlySet<string>,
-  seed: string
+  seed: string,
+  reserved: ReadonlySet<string> = new Set()
 ): string[] {
   const pool = eligible.filter((charId) => !taken.has(charId))
   if (pool.length < def.minMembers) return []
@@ -198,6 +233,11 @@ export function drawMembers(
   }
   for (const charId of shuffle(pool, seededRand(seed))) {
     if (members.size >= want) break
+    if (!reserved.has(charId)) members.add(charId)
+  }
+  // Never short of the least a team needs for want of the reserved: they are taken last.
+  for (const charId of pool) {
+    if (members.size >= def.minMembers) break
     members.add(charId)
   }
   return eligible.filter((charId) => members.has(charId))
@@ -274,14 +314,19 @@ export function dealGroups(input: GroupDealInput): GroupDeal {
     const choice = input.choice[id]
     if (!choice || choice.count <= 0) continue
     const def = GROUPS[id]
-    const team = drawMembers(
-      def,
-      eligibleFor(def, input.roster),
-      choice,
-      taken,
-      `${input.seed}:${id}:members`
+    const eligible = eligibleFor(def, input.roster)
+    // What the other teams were asked for by hand stays theirs, whichever is drawn first.
+    const reserved = new Set(
+      GROUP_IDS.filter((other) => other !== id).flatMap((other) => input.choice[other]?.picked ?? [])
     )
-    if (team.length === 0) continue
+    const team = drawMembers(def, eligible, choice, taken, `${input.seed}:${id}:members`, reserved)
+    if (team.length === 0) {
+      agendas[id] = {
+        sessions: [],
+        unformed: { asked: choice.count, left: eligible.filter((charId) => !taken.has(charId)).length }
+      }
+      continue
+    }
     for (const charId of team) taken.add(charId)
     members[id] = team
     const sessions = groupSessionSlots({
@@ -350,13 +395,17 @@ export function winChance(strength: number): number {
 
 /**
  * How an event ends: won by the odds and the seed, and scored out of the group's points with the
- * winner on 52% to 64% of them. The same group, strength and seed always end it the same way.
+ * winner on 52% to 64% of them, or by the sets of a match played to three, the loser taking none,
+ * one or two of them. The same group, strength and seed always end it the same way.
  */
 export function gameResult(group: GroupDef, strength: number, seed: string): GroupResult {
   const rand = seededRand(seed)
   const won = rand() < winChance(strength)
-  const winner = Math.round(group.pointsTotal * (0.52 + rand() * 0.12))
-  const loser = group.pointsTotal - winner
+  const { scoring } = group
+  const winner =
+    scoring.kind === 'sets' ? scoring.toWin : Math.round(scoring.total * (0.52 + rand() * 0.12))
+  const loser =
+    scoring.kind === 'sets' ? Math.floor(rand() * scoring.toWin) : scoring.total - winner
   return won ? { won, home: winner, away: loser } : { won, home: loser, away: winner }
 }
 
@@ -390,7 +439,7 @@ function groupEventOccasion(group: GroupDef, event: GroupEventDef, date: number)
   return {
     id: event.id,
     title: groupEventTitle(group, school),
-    description: `${team} hosts ${school.name}'s ${school.nickname} in a dual meet at ${locationLabel(group.location)}.`,
+    description: `${team} hosts ${school.name}'s ${school.nickname} in a ${group.eventKind} at ${locationLabel(group.location)}.`,
     startDate: date,
     endDate: date,
     time: GROUP_EVENT_TIME,

@@ -115,6 +115,7 @@ import { useAssetStore } from '../stores/assetStore'
 import { useAudioStore } from '../stores/audioStore'
 import { useBunnyboardStore } from '../stores/bunnyboardStore'
 import { useGameStore } from '../stores/gameStore'
+import { teamSetInScene } from '../stores/loop/groups'
 import { forwardOpenOf, replyRowOfferOf, rewindOpenOf } from '../stores/loop/playback'
 import { displaySlotsOf, displaySpriteRef, wardrobeChanged } from '../stores/stageDisplay'
 import {
@@ -518,6 +519,7 @@ export function GameView(): JSX.Element {
   const bgOverride = useGameStore((s) => s.bgOverride)
   const outfitLock = useGameStore((s) => s.outfitLock)
   const outfitReady = useGameStore((s) => s.outfitReady)
+  const sceneLocation = useGameStore((s) => s.sceneLocation)
   const charKeyToId = useGameStore((s) => s.charKeyToId)
   const characters = useGameStore((s) => s.characters)
   const currentLine = useGameStore((s) => s.currentLine)
@@ -1667,7 +1669,8 @@ export function GameView(): JSX.Element {
               emotions[charId] ?? 'neutral',
               outfitLock[charId],
               outfitReady[charId],
-              date
+              date,
+              teamSetInScene(charId, sceneLocation, date, time)
             )
             return (
               <PortraitSlot
@@ -2110,7 +2113,8 @@ export function GameView(): JSX.Element {
                 statusModal.emotion,
                 undefined,
                 outfitReady[statusModal.charId],
-                date
+                date,
+                teamSetInScene(statusModal.charId, sceneLocation, date, time)
               )
             )}
             scale={characters[statusModal.charId]?.height ?? 1}

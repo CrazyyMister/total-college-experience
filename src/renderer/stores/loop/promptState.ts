@@ -42,6 +42,7 @@ import { useGrabBagStore } from '../grabBagStore'
 import { stageAsWritten } from '../sceneSanitizer'
 import { cancelAllTexts, expireHangoutInvitations } from '../textingLoop'
 import { presentCastOf } from './cast'
+import { teamSetInScene } from './groups'
 import { prefetchTextLedger } from './hooks'
 import { currentRun, runStale } from './state'
 
@@ -436,6 +437,12 @@ export function promptState(): PromptState {
     lessNsfwText: lessNsfwTextNow(),
     cgReady: game.cgReady,
     outfitReady: game.outfitReady,
+    teamSets: Object.fromEntries(
+      game.chars.flatMap((charId) => {
+        const set = teamSetInScene(charId, game.sceneLocation)
+        return set ? [[charId, set] as const] : []
+      })
+    ),
     roomReady: game.roomReady,
     textingSummaries,
     textedWith,

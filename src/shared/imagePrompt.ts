@@ -413,9 +413,9 @@ export function settleMessagePhoto(
   night: boolean,
   weather: Weather,
   seed: number,
-  winter = false
+  worn: OutfitSet | null = null
 ): MessagePhoto {
-  const outfit = photoOutfitAt(place, winter)
+  const outfit = photoOutfitAt(place, worn)
   const draft = photoDraft(character, { kind, outfit, place, night, weather })
   return { kind, seed, place, outfit, night, weather, prompts: buildPhotoPrompts(draft), draft }
 }

@@ -5,7 +5,7 @@ import { groupClause, type GroupResult } from '@shared/groups'
 import { homeClause, homeOf, type HomeId } from '@shared/homes'
 import { EMOTIONS } from '@shared/emotions'
 import { isStockOutfitSet, outfitTagsFor, spriteRefsFor, STOCK_OUTFIT_SETS } from '@shared/outfits'
-import { wearsWinter } from '@shared/season'
+import { wornSetOf } from '@shared/wardrobe'
 import { DEFAULT_PLAYER_STATS, STAT_KEYS, type PlayerStats } from '@shared/playerStats'
 import { fullDescriptionOf, kindSentenceOf, projectStandingLine } from '@shared/academics'
 import type { ClassKind, ProjectProgress } from '@shared/academics'
@@ -319,6 +319,11 @@ export interface PromptState {
    * slot, which the prompt never offers.
    */
   outfitReady: Record<string, OutfitSet[]>
+  /**
+   * The set each character's team puts her in while this scene is at the place of her team's
+   * session, by charId; absent for anybody whose scene is not her team's.
+   */
+  teamSets?: Record<string, OutfitSet>
   /** Which cast members have both room backgrounds on disk, by charId. */
   roomReady: Record<string, boolean>
   /**
@@ -561,11 +566,15 @@ function castBlock(cast: readonly Character[], state: PromptState): string[] {
     if (appearance.length > 0) {
       lines.push(`Appearance: ${appearance.join(', ')}`)
     }
-    // While she wears her winter set, that is her main outfit: the text must not contradict the sprite.
-    const winterTags = wearsWinter(state.date, state.outfitReady[character.charId])
-      ? outfitTagsFor(character, 'winter')
-      : []
-    const mainOutfit = wardrobeProse(winterTags.length > 0 ? winterTags : character.outfit)
+    // While she wears her team's set, her PE wear or her winter set, that is her main outfit: the
+    // text must not contradict the sprite.
+    const worn = wornSetOf(
+      state.date,
+      state.outfitReady[character.charId],
+      state.teamSets?.[character.charId] ?? null
+    )
+    const wornTags = worn ? outfitTagsFor(character, worn) : []
+    const mainOutfit = wardrobeProse(wornTags.length > 0 ? wornTags : character.outfit)
     if (mainOutfit) {
       lines.push(`Main Outfit: ${mainOutfit}`)
     }

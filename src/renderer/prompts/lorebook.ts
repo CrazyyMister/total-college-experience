@@ -75,7 +75,13 @@ export const LOREBOOK: readonly LoreEntry[] = [
   {
     id: 'palaestra_stadium',
     keys: ['Palaestra', 'stadium', 'track and field', 'the track', 'gym', 'gymnasium', 'tennis'],
-    text: `Palaestra Stadium is a gigantic athletics complex consisting not just of its namesake, but of several indoor gymnasiums, tennis courts, real-grass turfs, and a rooftop running track. bg for tennis/soccer courts: outdoor_fitness. bg for volleyball/badminton/basketball: gymnasium.`
+    text: `Palaestra Stadium is a gigantic athletics complex consisting not just of its namesake, but of several indoor gymnasiums, tennis courts, real-grass turfs, and a rooftop running track. bg for tennis/soccer courts: outdoor_fitness.`
+  },
+  {
+    id: 'palaestra_court',
+    // The first key is the one a scene set here is scanned by: it names no other Palaestra entry.
+    keys: ['indoor courts', 'volleyball', 'volleyball court', 'basketball', 'basketball court'],
+    text: `The Palaestra courts are the indoor courts inside the Palaestra athletics complex: a high-ceilinged hall with polished hardwood floors, volleyball nets that roll out and basketball hoops at either end, and bleachers along one wall. The Venus Jackrabbits volleyball team trains and hosts its matches here. bg for the courts (volleyball, basketball, badminton): gymnasium.`
   },
   {
     id: 'palaestra_pool',
@@ -84,8 +90,8 @@ export const LOREBOOK: readonly LoreEntry[] = [
   },
   {
     id: 'venus_jackrabbits',
-    keys: ['Jackrabbits', 'Venus Jackrabbits', 'swim team', 'swimming team', 'varsity'],
-    text: `The Venus Jackrabbits are the university's varsity teams, and the hare is their mascot, a sportier cousin of the university's bunny; their colors are wine and pink. Every team plays its season in the spring semester. The swim team trains at the Palaestra pool.`
+    keys: ['Jackrabbits', 'Venus Jackrabbits', 'swim team', 'swimming team', 'volleyball team', 'varsity'],
+    text: `The Venus Jackrabbits are the university's varsity teams, and the hare is their mascot, a sportier cousin of the university's bunny; their colors are wine and pink. Every team plays its season in the spring semester. The swim team trains at the Palaestra pool and the volleyball team at the Palaestra courts.`
   },
   {
     id: 'port_calder',

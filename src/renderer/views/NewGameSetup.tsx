@@ -19,11 +19,20 @@ export interface TeamOffer {
   /** What the card says it is for. */
   hint: string
   /** The roster's people who may belong, in roster order. */
-  candidates: ReadonlyArray<{ charId: string; label: string }>
+  candidates: ReadonlyArray<{ charId: string; label: string; elsewhere?: string }>
   /** The most it can hold; the count runs from none to this, and from the group's least up. */
   min: number
   max: number
+  /** Why the team will not be what was asked for, when it will not; shown on the card. */
+  notice?: string
   choice: TeamChoice
+}
+
+/** The counts a card offers: its least to its most, and the one held when it is outside them. */
+function countsOf(team: TeamOffer): number[] {
+  const range = Array.from({ length: Math.max(0, team.max - team.min + 1) }, (_, at) => team.min + at)
+  const held = team.choice.count
+  return held > 0 && !range.includes(held) ? [...range, held].sort((a, b) => a - b) : range
 }
 
 export interface NewGameSetupProps {
@@ -124,12 +133,13 @@ export function NewGameSetup({
               disabled={dead}
               options={[
                 { value: '0', label: 'No team' },
-                ...Array.from({ length: team.max - team.min + 1 }, (_, at) => ({
-                  value: String(team.min + at),
-                  label: `${team.min + at} from the roster`
+                ...countsOf(team).map((count) => ({
+                  value: String(count),
+                  label: `${count} from the roster`
                 }))
               ]}
             />
+            {team.notice && <p className="vu-field-hint">{team.notice}</p>}
             {team.choice.count > 0 && (
               <div className="vu-gamesetup-checks">
                 {team.candidates.map((candidate) => {
@@ -138,9 +148,17 @@ export function NewGameSetup({
                     <CheckField
                       key={candidate.charId}
                       id={`new-game-team-${team.id}-${candidate.charId}`}
-                      label={candidate.label}
+                      label={
+                        candidate.elsewhere
+                          ? `${candidate.label} (${candidate.elsewhere})`
+                          : candidate.label
+                      }
                       checked={checked}
-                      disabled={dead || (!checked && team.choice.picked.length >= team.choice.count)}
+                      disabled={
+                        dead ||
+                        candidate.elsewhere !== undefined ||
+                        (!checked && team.choice.picked.length >= team.choice.count)
+                      }
                       onChange={(on) =>
                         onTeam(team.id, {
                           count: team.choice.count,

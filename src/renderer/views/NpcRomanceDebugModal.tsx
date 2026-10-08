@@ -111,6 +111,15 @@ function sectionsOf(): DebugSection[] {
     const agenda = game.groups[id]
     if (!agenda) return []
     const def = GROUPS[id]
+    if (agenda.unformed) {
+      return [
+        {
+          key: id,
+          who: def.name,
+          facts: `asked for ${agenda.unformed.asked}, not formed: only ${agenda.unformed.left} women were left`
+        }
+      ]
+    }
     const members = game.chars.filter((charId) => game.charInfo[charId]?.groups?.includes(id))
     const slotsLabel = agenda.sessions.map(shiftSlotFullLabel).join(', ') || 'none'
     const lost = agenda.leftOutSessions

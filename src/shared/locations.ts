@@ -150,7 +150,7 @@ export const LOCATIONS: readonly LocationDef[] = [
   {
     id: 'palaestra_stadium',
     label: 'Palaestra Stadium',
-    blurb: 'an athletics complex with a track, weight rooms, sports fields and courts',
+    blurb: 'an athletics complex with a track, weight rooms, sports fields and tennis courts',
     icon: '🏟️',
     onCampus: true,
     closesWithUniversity: true
@@ -213,6 +213,14 @@ export const LOCATIONS: readonly LocationDef[] = [
     label: 'the Palaestra pool',
     blurb: "the Palaestra's indoor swimming pool, where the swim team trains",
     icon: '🏊',
+    onCampus: true,
+    closesWithUniversity: true
+  },
+  {
+    id: 'palaestra_court',
+    label: 'the Palaestra courts',
+    blurb: "the Palaestra's indoor volleyball and basketball courts, where the volleyball team trains",
+    icon: '🏐',
     onCampus: true,
     closesWithUniversity: true
   }

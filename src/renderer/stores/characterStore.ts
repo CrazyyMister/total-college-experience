@@ -1302,6 +1302,13 @@ export function missingContentPlan(
           EMOTIONS.filter((emotion) => !state.outfits[charId]?.winter?.[emotion]).length
         )
       }
+      // Likewise the uniform: only a character whose record carries its tags.
+      if (character.uniformOutfit && character.uniformOutfit.length > 0) {
+        consider(
+          'uniform',
+          EMOTIONS.filter((emotion) => !state.outfits[charId]?.uniform?.[emotion]).length
+        )
+      }
       if (!sfwWithholds('cgs', gates.noNsfwImages, character.gender)) {
         consider('cgs', POSITIONS.filter((position) => !state.cgs[charId]?.[position]).length)
       }

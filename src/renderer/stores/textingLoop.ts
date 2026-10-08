@@ -9,7 +9,6 @@ import { formatDateBanner, prevSlot } from '../prompts/gameDate'
 import type { CalendarEvent, CharInfo, EventCancellation, Gender, Occasion } from '@shared/types'
 import { affectionFor, dispositionOf, emptyFlags, isPositive } from '@shared/relationship'
 import { requestAcceptChance } from '@shared/feed'
-import { wearsWinter } from '@shared/season'
 import {
   npcFriendsOf,
   type NpcRelationshipMap,
@@ -90,7 +89,7 @@ import { useSetupStore } from './setupStore'
 import { useGameStore } from './gameStore'
 import { GROUP_EVENT_TIME } from '@shared/groups'
 import type { Verdict } from './loop/classify'
-import { groupEventVerdict } from './loop/groups'
+import { groupEventVerdict, photoWornSet } from './loop/groups'
 import { prefetchHangoutScene, startHangoutScene } from './loop/hooks'
 import { createRetryGate } from './retryGate'
 import { createTextExtractor } from './textingStream'
@@ -248,14 +247,15 @@ function replyPhotoFor(
   }
   if (kind === null) return null
   const game = useGameStore.getState()
+  const place = offered.offer?.place ?? photoPlaceOf(charHiddenLocationNow(charId))
   return settleMessagePhoto(
     character,
     kind,
-    offered.offer?.place ?? photoPlaceOf(charHiddenLocationNow(charId)),
+    place,
     game.time === 1,
     weatherAt(game.weather, game.date, game.time),
     photoSeed(),
-    wearsWinter(game.date, game.outfitReady[charId])
+    photoWornSet(charId, place, game.date, game.time)
   )
 }
 
@@ -347,14 +347,15 @@ export function invitationPhotoFor(
   }
   const character = game.characters[pick.charId]!
   const location = askers.find(({ charId }) => charId === pick.charId)?.location ?? null
+  const place = photoPlaceOf(location)
   const photo = settleMessagePhoto(
     character,
     pick.kind,
-    photoPlaceOf(location),
+    place,
     time === 1,
     weatherAt(game.weather, date, time),
     photoSeed(),
-    wearsWinter(date, game.outfitReady[pick.charId])
+    photoWornSet(pick.charId, place, date, time)
   )
   report.push(`${name(pick.charId)} sends a ${pick.kind} photo at ${photo.place}, seed ${photo.seed}`)
   return { charId: pick.charId, photo }
@@ -775,7 +776,12 @@ function textingRequestOf(
       springBreakAway: game.springBreakAway,
       // The photos she may send with this reply, worked out by the game.
       photoOffer: offered.offer,
-      wearsWinter: wearsWinter(game.date, game.outfitReady[charId])
+      photoWorn: photoWornSet(
+        charId,
+        offered.offer?.place ?? '',
+        game.date,
+        game.time
+      )
     },
     // The same reader block a scene gets, grades and all.
     readerBlockOf(game)

@@ -1,5 +1,6 @@
 import type { Haunt, Occasion, ShiftSlot, TimeSlot } from '@shared/types'
 import type { NpcGroup } from '@shared/npcRelationships'
+import { groupsOfChar, type GroupDef } from '@shared/groups'
 import { homeOf, type HomeId } from '@shared/homes'
 import { shiftSlotOf } from '@shared/jobs'
 import { ROOM_LOCATION } from '@shared/locations'
@@ -113,6 +114,18 @@ export function charStandingHauntAt(charId: string, date: number, time: TimeSlot
   if (charBusyNow(charId, date, time)) return null
   if (hauntClosedOn(haunt.location, haunt.kind, date, game.occasions)) return null
   return haunt
+}
+
+/**
+ * The team whose session `charId` is in right now, or null: her standing haunt this slot is a
+ * team's, and she is at it. The meet's night counts, since the event's place is a team haunt of
+ * its own. Read off her own record, since two teams may share a place.
+ */
+export function charTeamSessionNow(charId: string, date?: number, time?: TimeSlot): GroupDef | null {
+  const haunt = charStandingHauntNow(charId, date, time)
+  if (haunt?.kind !== 'team') return null
+  const groups = useGameStore.getState().charInfo[charId]?.groups
+  return groupsOfChar(groups).find((def) => def.location === haunt.location) ?? null
 }
 
 /**

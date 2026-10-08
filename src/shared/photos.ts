@@ -96,6 +96,7 @@ export const PHOTO_PLACES: Readonly<Record<string, PhotoPlace>> = {
   kendall_library: { tags: ['library', 'bookshelf', 'computer', 'indoors'] },
   lowrise_dorms: { tags: ['dormitory', 'lounge', 'couch', 'indoors'] },
   lumiere_fusion: { tags: ['restaurant', 'candle', 'wine_glass', 'indoors'], food: true },
+  palaestra_court: { tags: ['gym', 'indoors'], outfit: 'pe', mirror: true },
   palaestra_pool: { tags: ['pool', 'indoors'], outfit: 'swim' },
   palaestra_stadium: { tags: ['gym', 'indoors'], outfit: 'pe', mirror: true },
   pino_cola_lounge: { tags: ['lounge', 'table_tennis', 'couch', 'indoors'] },
@@ -134,11 +135,13 @@ export function photoTimeTags(
 }
 
 /**
- * The set she wears at a place unless something else is chosen: her usual clothes, which are her
- * winter set where `winter` says she is wearing it (the caller asks `wearsWinter`).
+ * The set she wears at a place unless something else is chosen: her team's uniform at the place
+ * of her session, then what the place calls for, then `worn` (what stands in place of her usual
+ * clothes, which the caller asks `wornSetOf`), then her usual clothes.
  */
-export function photoOutfitAt(placeId: string, winter = false): PhotoOutfit {
-  return PHOTO_PLACES[placeId]?.outfit ?? (winter ? 'winter' : 'main')
+export function photoOutfitAt(placeId: string, worn: OutfitSet | null = null): PhotoOutfit {
+  if (worn === 'uniform') return 'uniform'
+  return PHOTO_PLACES[placeId]?.outfit ?? (worn && worn !== 'nude' ? worn : 'main')
 }
 
 /** Where she is when the map places her nowhere, or somewhere no photo can show. */
@@ -366,7 +369,9 @@ export function photoPhrase(
           ? ', in her swimsuit'
           : photo.outfit === 'winter'
             ? ', in her winter clothes'
-            : ', in another of her outfits'
+            : photo.outfit === 'uniform'
+              ? ', in her team uniform'
+              : ', in another of her outfits'
   const when = photo.night ? 'at night' : 'during the day'
   return `${PHOTO_KIND_PHRASES[photo.kind]} ${where}${wearing}, ${when}`
 }

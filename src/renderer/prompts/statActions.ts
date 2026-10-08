@@ -37,7 +37,7 @@ export const STAT_ACTIONS: Record<StatKey, readonly string[]> = {
     'Improve Body by hiking through the hills at Green Hill Park.',
     'Improve Body by playing a pickup game on the Palaestra turf.',
     'Improve Body by playing laser tag at the Riverside Mall.',
-    'Improve Body by playing tennis down at the Palaestra courts.',
+    'Improve Body by playing tennis on the Palaestra tennis courts.',
     'Improve Body by hauling groceries home from SpringMart.',
     'Improve Body by swimming at Selkie Beach.',
     'Improve Body by jogging on the Pier 44 Boardwalk.',

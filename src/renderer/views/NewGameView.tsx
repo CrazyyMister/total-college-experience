@@ -445,32 +445,62 @@ export function NewGameView(): JSX.Element {
   }, [exChoice, roster])
   const exCharacter = activeEx ? roster.find((c) => c.charId === activeEx.charId) : undefined
 
-  // A team is offered while the roster has enough of the right people for it, with the picks
-  // that are still on the roster.
+  // Every team has a card, with the picks that are still on the roster. Nobody is on two teams,
+  // so a card's most is what the roster has left after the others' counts, a woman ticked on
+  // another card is out of this one, and a team that cannot reach its least says so on its card.
   const teamOffers = useMemo<TeamOffer[]>(
     () =>
-      GROUP_IDS.flatMap((id) => {
+      GROUP_IDS.map((id) => {
         const def = GROUPS[id]
         const eligible = eligibleFor(def, roster)
-        if (eligible.length < def.minMembers) return []
         const held = teamsChoice[id]
-        return [
-          {
-            id,
-            title: def.title,
-            hint: `The women of the roster who swim for ${def.name}. Tick the ones you want; the rest are drawn.`,
-            candidates: eligible.flatMap((charId) => {
-              const character = roster.find((c) => c.charId === charId)
-              return character ? [{ charId, label: `${character.firstName} ${character.lastName}` }] : []
-            }),
-            min: def.minMembers,
-            max: Math.min(def.maxMembers, eligible.length),
-            choice: {
-              count: Math.min(held?.count ?? 0, def.maxMembers, eligible.length),
-              picked: (held?.picked ?? []).filter((charId) => eligible.includes(charId))
-            }
+        const others = GROUP_IDS.filter((other) => other !== id && GROUPS[other].gender === def.gender)
+        const spoken = others.reduce((sum, other) => sum + (teamsChoice[other]?.count ?? 0), 0)
+        const left = Math.max(0, eligible.length - spoken)
+        const count = Math.min(held?.count ?? 0, def.maxMembers)
+        const ticked = new Map(
+          others.flatMap((other) =>
+            (teamsChoice[other]?.picked ?? []).map((charId) => [charId, GROUPS[other].title] as const)
+          )
+        )
+        let notice: string | undefined
+        if (eligible.length < def.minMembers) {
+          notice = `The roster has ${eligible.length} of the ${def.minMembers} women a team needs.`
+        } else if (left < def.minMembers) {
+          notice =
+            count > 0
+              ? `Only ${left} women are left after the other teams, and a team needs ${def.minMembers}: this one will not be formed.`
+              : `Only ${left} women are left after the other teams, and a team needs ${def.minMembers}.`
+        } else if (count > left) {
+          notice = `Only ${left} women are left after the other teams: this one will have ${left}.`
+        }
+        return {
+          id,
+          title: def.title,
+          hint: `The women of the roster who ${def.joins} ${def.name}. Tick the ones you want; the rest are drawn.`,
+          candidates: eligible.flatMap((charId) => {
+            const character = roster.find((c) => c.charId === charId)
+            const elsewhere = ticked.get(charId)
+            return character
+              ? [
+                  {
+                    charId,
+                    label: `${character.firstName} ${character.lastName}`,
+                    ...(elsewhere ? { elsewhere } : {})
+                  }
+                ]
+              : []
+          }),
+          min: def.minMembers,
+          max: Math.min(def.maxMembers, left),
+          ...(notice ? { notice } : {}),
+          choice: {
+            count,
+            picked: (held?.picked ?? []).filter(
+              (charId) => eligible.includes(charId) && !ticked.has(charId)
+            )
           }
-        ]
+        }
       }),
     [roster, teamsChoice]
   )
@@ -809,6 +839,12 @@ export function NewGameView(): JSX.Element {
     for (const id of GROUP_IDS) {
       const agenda = groupDeal.agendas[id]
       if (!agenda) continue
+      if (agenda.unformed) {
+        console.warn(
+          `[groups] ${id}: asked for ${agenda.unformed.asked}, not formed (${agenda.unformed.left} women left).`
+        )
+        continue
+      }
       const lost = agenda.leftOutSessions ? `; ${agenda.leftOutSessions} left out (too few free)` : ''
       console.log(
         `[groups] ${id}: ${groupDeal.members[id]?.length ?? 0} members, sessions ${agenda.sessions.map(shiftSlotFullLabel).join(', ') || 'none'}${lost}.`

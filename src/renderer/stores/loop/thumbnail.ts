@@ -21,6 +21,7 @@ import { stageContextOf, useGameStore } from '../gameStore'
 import { displaySlotsOf, displaySpriteRef } from '../stageDisplay'
 import { stageOnLoad } from '../stageStep'
 import { blobToBase64, canvasToBlob } from './encode'
+import { teamSetInScene } from './groups'
 import { currentRun, runStale } from './state'
 
 /**
@@ -210,7 +211,8 @@ export async function composeStageThumbnail(scene: SceneState): Promise<string |
           stage.emotions[charId] ?? 'neutral',
           scene.outfitLock?.[charId],
           game.outfitReady[charId],
-          game.date
+          game.date,
+          teamSetInScene(charId, scene.location, game.date, game.time)
         )
         // A portrait's height is her scale's alone; only its width waits on the decoded image.
         const height = stagePortraitPlacement(index, row.length, scale, 1).height

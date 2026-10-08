@@ -8,7 +8,8 @@ import type {
   SeasonOutfitSet,
   SeededSet,
   SpriteRef,
-  StockOutfitSet
+  StockOutfitSet,
+  TeamOutfitSet
 } from './types'
 import { EMOTIONS, isEmotion } from './emotions'
 import { withoutRegenEdits } from './regenTags'
@@ -28,6 +29,9 @@ export const CUSTOM_OUTFIT_SLOTS: readonly CustomOutfitSlot[] = [
 /** The seasonal wardrobes, appended after the custom slots so no earlier id moves. */
 export const SEASON_OUTFIT_SETS: readonly SeasonOutfitSet[] = ['winter'] as const
 
+/** The team wardrobe, appended after the seasonal one so no earlier id moves. */
+export const TEAM_OUTFIT_SETS: readonly TeamOutfitSet[] = ['uniform'] as const
+
 /**
  * Every alternate wardrobe, in a stable order (used for status grids, job counts and the
  * scene schema's emotion enum).
@@ -35,7 +39,8 @@ export const SEASON_OUTFIT_SETS: readonly SeasonOutfitSet[] = ['winter'] as cons
 export const OUTFIT_SETS: readonly OutfitSet[] = [
   ...STOCK_OUTFIT_SETS,
   ...CUSTOM_OUTFIT_SLOTS,
-  ...SEASON_OUTFIT_SETS
+  ...SEASON_OUTFIT_SETS,
+  ...TEAM_OUTFIT_SETS
 ] as const
 
 /** The longest a player-authored wardrobe's name may be. */
@@ -66,7 +71,7 @@ export function isOutfitSet(value: string): value is OutfitSet {
 
 /**
  * Whether a set is one of the three stock wardrobes: the only ones the writer is ever offered,
- * since a custom slot is the player's own and the winter set is the code's.
+ * since a custom slot is the player's own and the winter and team sets are the code's.
  */
 export function isStockOutfitSet(value: string): value is StockOutfitSet {
   return (STOCK_OUTFIT_SETS as readonly string[]).includes(value)
@@ -83,11 +88,15 @@ export function customSlotNumber(slot: CustomOutfitSlot): number {
 }
 
 /** Human label for a stock set, for status lines and job cards. */
-export const OUTFIT_SET_LABELS: Record<StockOutfitSet | SeasonOutfitSet, string> = {
+export const OUTFIT_SET_LABELS: Record<
+  StockOutfitSet | SeasonOutfitSet | TeamOutfitSet,
+  string
+> = {
   pe: 'PE wear',
   swim: 'swimsuit',
   nude: 'nude',
-  winter: 'winter outfit'
+  winter: 'winter outfit',
+  uniform: 'team uniform'
 }
 
 /** What one of a character's sets is called on screen: her own name for a custom slot. */
@@ -123,7 +132,7 @@ function stringTags(tags: unknown): string[] {
 }
 
 /**
- * The booru tags one outfit set renders from. A custom slot's and the winter set's are read
+ * The booru tags one outfit set renders from. A custom slot's, the winter set's and the uniform's are read
  * defensively, since a hand-edited record reaches the prompt builder unvalidated.
  */
 export function outfitTagsFor(character: Character, set: OutfitSet): readonly string[] {
@@ -131,6 +140,7 @@ export function outfitTagsFor(character: Character, set: OutfitSet): readonly st
   if (set === 'swim') return character.swimOutfit
   if (set === 'nude') return NUDE_OUTFIT_TAGS
   if (set === 'winter') return stringTags(character.winterOutfit)
+  if (set === 'uniform') return stringTags(character.uniformOutfit)
   return stringTags(character.customOutfits?.[set]?.tags)
 }
 

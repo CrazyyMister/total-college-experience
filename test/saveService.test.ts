@@ -258,7 +258,8 @@ describe('a playthrough with a team', () => {
             sessions: [10, 12],
             leftOutSessions: 1,
             leftOutEvents: [{ id: 'swimming-meet-2', reason: 'too_few_free' }]
-          }
+          },
+          volleyball: { sessions: [], unformed: { asked: 5, left: 2 } }
         }
       }),
       draft()
@@ -269,7 +270,8 @@ describe('a playthrough with a team', () => {
         sessions: [10, 12],
         leftOutSessions: 1,
         leftOutEvents: [{ id: 'swimming-meet-2', reason: 'too_few_free' }]
-      }
+      },
+      volleyball: { sessions: [], unformed: { asked: 5, left: 2 } }
     })
     expect(read.record.profiles.a.groups).toEqual(['swimming'])
 

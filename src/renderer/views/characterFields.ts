@@ -44,8 +44,9 @@ export const TAG_FIELDS: ReadonlyArray<{
 ]
 
 /**
- * The wardrobes in the order they are shown, named as the player sees them. The winter one is
- * last, and a panel shows it only for a character who has it ({@link shownWardrobes}).
+ * The wardrobes in the order they are shown, named as the player sees them. The winter and
+ * uniform ones are last, and a panel shows each only for a character who has it
+ * ({@link shownWardrobes}).
  */
 export const WARDROBES: ReadonlyArray<{ target: SetTarget; set: OutfitSet | null; title: string }> =
   [
@@ -53,12 +54,29 @@ export const WARDROBES: ReadonlyArray<{ target: SetTarget; set: OutfitSet | null
     { target: 'pe', set: 'pe', title: 'PE Outfit' },
     { target: 'swim', set: 'swim', title: 'Swimsuit' },
     { target: 'nude', set: 'nude', title: 'Nude Outfit' },
-    { target: 'winter', set: 'winter', title: 'Winter Outfit' }
+    { target: 'winter', set: 'winter', title: 'Winter Outfit' },
+    { target: 'uniform', set: 'uniform', title: 'Team Uniform' }
   ]
 
-/** The wardrobes a panel lays out: the winter column only where she has tags or sprites for it. */
-export function shownWardrobes(winter: boolean): typeof WARDROBES {
-  return winter ? WARDROBES : WARDROBES.filter((entry) => entry.set !== 'winter')
+/** Which of the code's own wardrobes a panel lays out: those she has tags or sprites for. */
+export interface ShownWardrobes {
+  winter: boolean
+  uniform: boolean
+}
+
+/** The wardrobes a panel lays out: a code-owned column only where she has tags or sprites for it. */
+export function shownWardrobes(shown: ShownWardrobes): typeof WARDROBES {
+  return WARDROBES.filter(
+    (entry) =>
+      (entry.set !== 'winter' || shown.winter) && (entry.set !== 'uniform' || shown.uniform)
+  )
+}
+
+/** The class of the grid that lays those columns out: four across, and one more for each shown. */
+export function wardrobesClass(shown: ShownWardrobes): string {
+  const extra = Number(shown.winter) + Number(shown.uniform)
+  if (extra === 0) return 'vu-edit-wardrobes'
+  return `vu-edit-wardrobes vu-edit-wardrobes--${extra === 1 ? 'five' : 'six'}`
 }
 
 /** The winter wardrobe's tag field: a record may omit it, so it stands apart from the others. */
@@ -67,6 +85,14 @@ export const WINTER_FIELD = {
   id: 'edit-winter-outfit',
   label: 'Winter Outfit',
   hint: 'Clothes she wears indoors, from January 19 to March 15. Use a color once, and never her hair color: a repeated color leaks onto the wrong piece.'
+} as const
+
+/** The uniform wardrobe's tag field: a record may omit it, so it stands apart like the winter one. */
+export const UNIFORM_FIELD = {
+  key: 'uniformOutfit',
+  id: 'edit-uniform-outfit',
+  label: 'Team Uniform',
+  hint: "What she wears at her team's practices and games: the sport's kit. Use a color once, and never her hair color: a repeated color leaks onto the wrong piece."
 } as const
 
 /** The trait vocabulary as picker options (`shared/traits.ts`, authoritative). */

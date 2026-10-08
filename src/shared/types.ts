@@ -116,11 +116,14 @@ export type CustomOutfitSlot = 'custom1' | 'custom2' | 'custom3' | 'custom4' | '
 /** The seasonal wardrobe the code puts in place of her usual clothes while it is winter. */
 export type SeasonOutfitSet = 'winter'
 
+/** The team wardrobe the code puts on a member in her team's session; the sport's own kit. */
+export type TeamOutfitSet = 'uniform'
+
 /**
  * Every alternate wardrobe a character can have sprites rendered in. A set rides in
  * a `sprite:` action suffixed onto an {@link Emotion} — `happy_pe` — and picks the folder.
  */
-export type OutfitSet = StockOutfitSet | CustomOutfitSlot | SeasonOutfitSet
+export type OutfitSet = StockOutfitSet | CustomOutfitSlot | SeasonOutfitSet | TeamOutfitSet
 
 /** One player-authored wardrobe: the booru tags it renders from, under the name he gave it. */
 export interface CustomOutfit {
@@ -404,6 +407,8 @@ export interface Character extends CharacterIdentity {
   customOutfits?: Partial<Record<CustomOutfitSlot, CustomOutfit>>
   /** The winter wardrobe's booru tags; omitted where she has none, and she renders no set then. */
   winterOutfit?: string[]
+  /** The team uniform's booru tags; omitted where she has none, and she renders no set then. */
+  uniformOutfit?: string[]
   /** String arrays of booru-style expression tags keyed by emotion. */
   expressionTags: Record<Emotion, string[]>
   /**

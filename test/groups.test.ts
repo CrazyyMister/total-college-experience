@@ -140,6 +140,32 @@ describe('dealGroups', () => {
     const deal = dealGroups({ ...base, roster: mixed, choice: { swimming: { count: 3, picked: ['m1'] } } })
     expect(deal.members).toEqual({})
   })
+
+  it('keeps two teams apart, honours both sets of picks, and records the one it could not form', () => {
+    for (let run = 0; run < 20; run++) {
+      const deal = dealGroups({
+        ...base,
+        seed: `run${run}`,
+        choice: {
+          swimming: { count: 4, picked: ['w0'] },
+          volleyball: { count: 4, picked: ['w8', 'w7'] }
+        }
+      })
+      const swimming = deal.members.swimming ?? []
+      const volleyball = deal.members.volleyball ?? []
+      expect(swimming.filter((charId) => volleyball.includes(charId))).toEqual([])
+      expect(volleyball).toEqual(expect.arrayContaining(['w8', 'w7']))
+      expect(swimming).toContain('w0')
+    }
+
+    const small = dealGroups({
+      ...base,
+      roster: roster.slice(0, 7),
+      choice: { swimming: { count: 5, picked: [] }, volleyball: { count: 5, picked: [] } }
+    })
+    expect(small.members.volleyball).toBeUndefined()
+    expect(small.agendas.volleyball).toEqual({ sessions: [], unformed: { asked: 5, left: 2 } })
+  })
 })
 
 describe('placeGroupEvents', () => {
@@ -184,7 +210,7 @@ describe('placeGroupEvents', () => {
   it('sends an event that no day can hold to the left-out list with the reason', () => {
     const closed = placeGroupEvents({
       members,
-      occasions: [held(33), held(40), held(19)],
+      occasions: [held(33), held(40), held(19), held(27)],
       avoid: [],
       freeCount: everyoneFree
     })
@@ -218,8 +244,17 @@ describe('gameResult', () => {
     for (let run = 0; run < 30; run++) {
       const first = gameResult(swimming, 0.6, `seed-${run}`)
       expect(gameResult(swimming, 0.6, `seed-${run}`)).toEqual(first)
-      expect(first.home + first.away).toBe(swimming.pointsTotal)
+      expect(swimming.scoring.kind === 'points' && first.home + first.away).toBe(300)
       expect(first.home > first.away).toBe(first.won)
+    }
+  })
+
+  it('scores a match in sets: three for the winner, none to two for the other side', () => {
+    for (let run = 0; run < 30; run++) {
+      const match = gameResult(GROUPS.volleyball, 0.6, `seed-${run}`)
+      expect(Math.max(match.home, match.away)).toBe(3)
+      expect(Math.min(match.home, match.away)).toBeLessThan(3)
+      expect(match.home > match.away).toBe(match.won)
     }
   })
 })

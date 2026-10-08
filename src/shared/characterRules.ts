@@ -97,6 +97,7 @@ const CHARACTER_REQUIRED: Record<
     | 'negativeTags'
     | 'profileCrop'
     | 'regenTags'
+    | 'uniformOutfit'
     | 'updatedAt'
     | 'voicePitch'
     | 'winterOutfit'
