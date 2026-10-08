@@ -56,7 +56,13 @@ import {
   type ReaderTallies
 } from '@shared/tallies'
 import { FALLBACK_DORM } from '@shared/dorms'
-import type { GroupId, GroupResult, GroupsRecord } from '@shared/groups'
+import type {
+  GroupId,
+  GroupResult,
+  GroupsRecord,
+  GroupTeam,
+  TryoutResult
+} from '@shared/groups'
 import { withHomeMove, type HomeId } from '@shared/homes'
 import {
   giftMemoryCapFor,
@@ -362,6 +368,10 @@ interface GameStoreState {
   homeMoves: Record<string, HomeId>
   /** How each group event ended, by event id; a result is never decided twice. Persisted. */
   groupResults: Record<string, GroupResult>
+  /** How each tryout he went to ended, by event id; one is never judged twice. Persisted. */
+  groupTryouts: Record<string, TryoutResult>
+  /** The team he is on, or null. Persisted. */
+  groupTeam: GroupTeam | null
   /** The graduation narration has played. Persisted. */
   graduationSeen: boolean
   /** Who the reader has already said goodbye to. Persisted. */
@@ -1000,6 +1010,13 @@ interface GameStoreState {
   /** Files how a group event ended; an event that already has a result keeps it. */
   setGroupResult: (eventId: string, result: GroupResult) => void
   /**
+   * Files how a tryout ended and, when he made the team, puts him on it from `since`, in one
+   * write. Filing the same tryout again leaves the first.
+   */
+  fileTryout: (eventId: string, result: TryoutResult, team: GroupTeam | null) => void
+  /** Takes him off his team. The tryout he went to stays filed. */
+  leaveTeam: () => void
+  /**
    * Snapshots the finishing slot's scene cast for the ask-out roll. Must run before
    * the clock or the cast moves — just ahead of `advanceSlot`.
    */
@@ -1450,6 +1467,8 @@ const initialState = {
   readerPosts: [] as ReaderPost[],
   homeMoves: {} as Record<string, HomeId>,
   groupResults: {} as Record<string, GroupResult>,
+  groupTryouts: {} as Record<string, TryoutResult>,
+  groupTeam: null as GroupTeam | null,
   graduationSeen: false,
   farewellsDone: [] as string[],
   endingArtWanted: false,
@@ -1585,6 +1604,8 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       readerPosts: save.readerPosts ?? [],
       homeMoves: save.homeMoves ?? {},
       groupResults: save.groups?.results ?? {},
+      groupTryouts: save.groups?.tryouts ?? {},
+      groupTeam: save.groups?.team ?? null,
       graduationSeen: save.graduationSeen,
       farewellsDone: save.farewellsDone,
       endingArtWanted: save.endingArtWanted,
@@ -3022,6 +3043,18 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
         : { groupResults: { ...state.groupResults, [eventId]: { ...result } } }
     ),
 
+  fileTryout: (eventId, result, team) =>
+    set((state) =>
+      state.groupTryouts[eventId]
+        ? {}
+        : {
+            groupTryouts: { ...state.groupTryouts, [eventId]: { ...result } },
+            ...(team ? { groupTeam: { ...team } } : {})
+          }
+    ),
+
+  leaveTeam: () => set({ groupTeam: null }),
+
   recordLastSlotCast: () =>
     set((state) => ({
       lastSlotCast: { date: state.date, time: state.time, charIds: [...state.cast] }
@@ -3148,8 +3181,18 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       feedExtras: state.feedExtras,
       ...(state.readerPosts.length > 0 ? { readerPosts: state.readerPosts } : {}),
       ...(Object.keys(state.homeMoves).length > 0 ? { homeMoves: state.homeMoves } : {}),
-      ...(Object.keys(state.groupResults).length > 0
-        ? { groups: { results: state.groupResults } }
+      ...(Object.keys(state.groupResults).length > 0 ||
+      Object.keys(state.groupTryouts).length > 0 ||
+      state.groupTeam
+        ? {
+            groups: {
+              results: state.groupResults,
+              ...(Object.keys(state.groupTryouts).length > 0
+                ? { tryouts: state.groupTryouts }
+                : {}),
+              ...(state.groupTeam ? { team: state.groupTeam } : {})
+            }
+          }
         : {}),
       graduationSeen: state.graduationSeen,
       farewellsDone: state.farewellsDone,

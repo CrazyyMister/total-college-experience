@@ -36,7 +36,8 @@ import {
 import { readerHolding, STARTING_HOME } from '@shared/homes'
 import type { NpcFriendship } from '@shared/npcRelationships'
 import { gpaOf, gradedCourses } from '@shared/academics'
-import { globalSlotOf, jobDefForChat, shiftSlotOf } from '@shared/jobs'
+import { GROUPS } from '@shared/groups'
+import { globalSlotOf, jobDefForChat, shiftSlotFullLabel, shiftSlotOf } from '@shared/jobs'
 import { locationLabel, ROOM_LOCATION } from '@shared/locations'
 import { formatMoney } from '@shared/money'
 import { PROFILE_PICTURE_TYPES } from '@shared/profilePicture'
@@ -427,7 +428,7 @@ export function BunnyboardModal({
                 )}
                 {tab === 'friends' && <FriendsList />}
                 {tab === 'updates' && <UpdatesFeed />}
-                {tab === 'profile' && <ProfilePage />}
+                {tab === 'profile' && <ProfilePage theme={theme} />}
               </div>
             </div>
           </motion.div>
@@ -1662,7 +1663,7 @@ function FriendsList(): JSX.Element {
  * rides every prompt, and the semester counted up. Every reading below the bio is derived here
  * from what the save already holds rather than kept beside it.
  */
-function ProfilePage(): JSX.Element {
+function ProfilePage({ theme }: { theme: 'day' | 'night' }): JSX.Element {
   const firstName = useGameStore((s) => s.playerFirstName)
   const lastName = useGameStore((s) => s.playerLastName)
   const picture = useGameStore((s) => s.profilePicture)
@@ -1827,6 +1828,9 @@ function ProfilePage(): JSX.Element {
           />
         </div>
 
+        <div className="vu-bb-section">Groups</div>
+        <TeamCard theme={theme} />
+
         <div className="vu-bb-section">Stats</div>
         <motion.div className="vu-bb-tallies" variants={LIST_DEAL}>
           {readings.map((reading) => (
@@ -1842,6 +1846,58 @@ function ProfilePage(): JSX.Element {
           ))}
         </motion.div>
       </div>
+    </div>
+  )
+}
+
+/**
+ * The team he is on, the hours it practices and the way out of it, or the plain fact that he is
+ * on none. Leaving asks first, and takes the team and nothing else.
+ */
+function TeamCard({ theme }: { theme: 'day' | 'night' }): JSX.Element {
+  const team = useGameStore((s) => s.groupTeam)
+  const agendas = useGameStore((s) => s.groups)
+  const sceneActive = useGameStore(sceneActiveOf)
+  const [leaving, setLeaving] = useState(false)
+  const def = team ? GROUPS[team.id] : undefined
+
+  if (!team || !def) {
+    return (
+      <div className="vu-bb-team">
+        <span className="vu-bb-team-hours">You are not on a team.</span>
+      </div>
+    )
+  }
+  const hours = (agendas[team.id]?.sessions ?? []).map(shiftSlotFullLabel).join(' and ')
+  return (
+    <div className="vu-bb-team">
+      <span className="vu-bb-team-main">
+        <span className="vu-bb-team-name">{def.title}</span>
+        <span className="vu-bb-team-hours">
+          {hours ? `Practice: ${hours}` : 'No practice hours'}
+        </span>
+      </span>
+      <PrimaryButton id="bb-team-leave" dead={sceneActive} onClick={() => setLeaving(true)}>
+        Leave
+      </PrimaryButton>
+      <AnimatePresence propagate>
+        {leaving && (
+          <ConfirmModal
+            key="leave-team"
+            id="bb-team-leave-confirm"
+            theme={theme}
+            title="Leave the team?"
+            message="You won't be able to try out for this team again this semester."
+            confirmText="Leave"
+            cancelText="Never mind"
+            onConfirm={() => {
+              setLeaving(false)
+              useGameStore.getState().leaveTeam()
+            }}
+            onCancel={() => setLeaving(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

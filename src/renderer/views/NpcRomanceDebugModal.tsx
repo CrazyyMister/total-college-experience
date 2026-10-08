@@ -129,8 +129,33 @@ function sectionsOf(): DebugSection[] {
       {
         key: id,
         who: def.name,
-        facts: `${members.length} members · sessions at ${locationLabel(def.location)}: ${slotsLabel}${lost}`
+        facts: `${members.length === 0 && def.readerPlays ? 'nobody from the roster' : `${members.length} members`} · sessions at ${locationLabel(def.location)}: ${slotsLabel}${lost}${
+          game.groupTeam?.id === id ? ' · the reader is on it' : ''
+        }`
       },
+      ...(def.tryout
+        ? [
+            (() => {
+              const tryout = def.tryout
+              const occasion = game.occasions.find((entry) => entry.id === tryout.id)
+              const verdict = game.groupTryouts[tryout.id]
+              const left = agenda.leftOutEvents?.find((entry) => entry.id === tryout.id)
+              const when = occasion
+                ? `${dated(occasion.startDate)}, day`
+                : left
+                  ? `left out: ${left.reason === 'too_few_free' ? 'too few members free' : 'no free day'}`
+                  : 'no record'
+              const ended = verdict
+                ? `${verdict.made ? 'made the team' : 'did not make it'} (Body tier ${verdict.tier})`
+                : 'not gone to'
+              return {
+                key: `${id}:${tryout.id}`,
+                who: occasion?.title ?? tryout.id,
+                facts: `${when}${occasion ? ` · ${ended}` : ''}`
+              }
+            })()
+          ]
+        : []),
       ...def.events.map((event) => {
         const occasion = game.occasions.find((entry) => entry.id === event.id)
         const result = game.groupResults[event.id]

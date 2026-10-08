@@ -81,7 +81,13 @@ export const LOREBOOK: readonly LoreEntry[] = [
     id: 'palaestra_court',
     // The first key is the one a scene set here is scanned by: it names no other Palaestra entry.
     keys: ['indoor courts', 'volleyball', 'volleyball court', 'basketball', 'basketball court'],
-    text: `The Palaestra courts are the indoor courts inside the Palaestra athletics complex: a high-ceilinged hall with polished hardwood floors, volleyball nets that roll out and basketball hoops at either end, and bleachers along one wall. The Venus Jackrabbits volleyball team trains and hosts its matches here. bg for the courts (volleyball, basketball, badminton): gymnasium.`
+    text: `The Palaestra courts are the indoor courts inside the Palaestra athletics complex: a high-ceilinged hall with polished hardwood floors, volleyball nets that roll out and basketball hoops at either end, and bleachers along one wall. The Venus Jackrabbits volleyball and basketball teams train here, and the volleyball team hosts its matches. bg for the courts (volleyball, basketball, badminton): gymnasium.`
+  },
+  {
+    id: 'palaestra_field',
+    // The first key is the one a scene set here is scanned by: it names no other Palaestra entry.
+    keys: ['football field', 'football', 'American football', 'gridiron'],
+    text: `The football field is the real-grass field inside the Palaestra athletics complex, with white yard lines, goalposts at either end, and bleachers along both sidelines. The Venus Jackrabbits football team trains and plays its games here. bg for the football field: stadium.`
   },
   {
     id: 'palaestra_pool',
@@ -90,8 +96,8 @@ export const LOREBOOK: readonly LoreEntry[] = [
   },
   {
     id: 'venus_jackrabbits',
-    keys: ['Jackrabbits', 'Venus Jackrabbits', 'swim team', 'swimming team', 'volleyball team', 'varsity'],
-    text: `The Venus Jackrabbits are the university's varsity teams, and the hare is their mascot, a sportier cousin of the university's bunny; their colors are wine and pink. Every team plays its season in the spring semester. The swim team trains at the Palaestra pool and the volleyball team at the Palaestra courts.`
+    keys: ['Jackrabbits', 'Venus Jackrabbits', 'swim team', 'swimming team', 'volleyball team', 'basketball team', 'football team', 'varsity'],
+    text: `The Venus Jackrabbits are the university's varsity teams, and the hare is their mascot, a sportier cousin of the university's bunny; their colors are wine and pink. Every team plays its season in the spring semester. The swim team trains at the Palaestra pool, the volleyball and basketball teams at the Palaestra courts and the football team on the football field.`
   },
   {
     id: 'port_calder',

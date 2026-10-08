@@ -49,8 +49,8 @@ import {
 } from './lorebook'
 import { encounterLines } from './encounters'
 import { factLines } from './facts'
-import { groupFigurantLine, groupNewsClause, groupsInPlay } from './groupPrompt'
-import type { GroupResult } from '@shared/groups'
+import { groupFigurantLine, groupNewsClause, groupsInPlay, readerTeamLines } from './groupPrompt'
+import type { GroupId, GroupResult } from '@shared/groups'
 import { occasionLoreLines } from './occasions'
 import { objectSchema } from './schema'
 import { memoryLines, profileLines, scheduleLines, yearMajorLine } from './scenePrompt'
@@ -127,6 +127,8 @@ export interface TextingPromptState {
   occasions: readonly Occasion[]
   /** How each group event ended, by occasion id; absent reads as none. */
   groupResults?: Readonly<Record<string, GroupResult>>
+  /** The team the reader is on, or null. */
+  playerTeam?: GroupId | null
   /**
    * The whole semester's sky, one reading per slot — the NOW line walks back through it for how
    * long the weather has held. Absent means nothing is said about it.
@@ -418,7 +420,7 @@ export function buildTextingPrompt(
   )
 
   // Her team's coach and the rest of it are never given names.
-  const figurant = groupFigurantLine(groupsInPlay([info?.groups]))
+  const figurant = groupFigurantLine(groupsInPlay([info?.groups], null, state.playerTeam))
 
   const characterBlock = [
     'CHARACTER',
@@ -477,6 +479,7 @@ export function buildTextingPrompt(
   const user = [
     'READER',
     reader,
+    ...readerTeamLines(state.playerTeam),
     ...scheduleLines(
       "The reader's Schedule:",
       state.playerSchedule,

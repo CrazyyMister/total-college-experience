@@ -220,7 +220,12 @@ import {
 } from './loop/ledgerView'
 import { registerLoopHooks } from './loop/hooks'
 import { failTurn, runSceneTurn } from './loop/turn'
-import { groupEventIdFor, planGroupEvent, settleGroupResults } from './loop/groups'
+import {
+  groupEventIdFor,
+  planGroupEvent,
+  settleGroupResults,
+  tryoutRefusal
+} from './loop/groups'
 import { resolveProject, settleShifts } from './loop/jobs'
 import {
   applyNewFriendships,
@@ -868,7 +873,9 @@ async function fetchSlotIntro(
   const introGroups = groupsInPlay(
     [...presentIds, ...ambient.map((character) => character.charId)].map(
       (charId) => view.charInfo[charId]?.groups
-    )
+    ),
+    null,
+    game.groupTeam?.id
   )
   const backgroundLore = characterLoreForIds(
     ambient,
@@ -1437,6 +1444,12 @@ function castGroupTurn(
   sceneAction: string,
   snapshot: TurnSnapshot
 ): CastPlan | null {
+  // A tryout he cannot go to says why, and costs him nothing.
+  const refusal = tryoutRefusal(eventId)
+  if (refusal) {
+    failTurn(rejection(refusal), snapshot)
+    return null
+  }
   const planned = planGroupEvent(eventId)
   if (!planned) {
     failTurn(rejection("That event isn't on right now."), snapshot)

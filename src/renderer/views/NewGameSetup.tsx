@@ -25,6 +25,10 @@ export interface TeamOffer {
   max: number
   /** Why the team will not be what was asked for, when it will not; shown on the card. */
   notice?: string
+  /** He can try out for it: it exists whoever joins, and left alone it is drawn. */
+  reader?: boolean
+  /** A team he can try out for that nothing has been asked of. */
+  auto?: boolean
   choice: TeamChoice
 }
 
@@ -48,7 +52,8 @@ export interface NewGameSetupProps {
   dead: boolean
   onOpenEx: () => void
   onCourse: (course: string) => void
-  onTeam: (id: GroupId, choice: TeamChoice) => void
+  /** Null puts a team he can try out for back to drawn. */
+  onTeam: (id: GroupId, choice: TeamChoice | null) => void
 }
 
 /**
@@ -123,16 +128,32 @@ export function NewGameSetup({
               id={`new-game-team-${team.id}`}
               label="Members"
               hint={team.hint}
-              value={String(team.choice.count)}
+              value={team.auto ? 'auto' : String(team.choice.count)}
               onChange={(value) =>
-                onTeam(team.id, {
-                  count: Number(value),
-                  picked: team.choice.picked.slice(0, Number(value))
-                })
+                onTeam(
+                  team.id,
+                  value === 'auto'
+                    ? null
+                    : {
+                        count: Number(value),
+                        picked: team.choice.picked.slice(0, Number(value))
+                      }
+                )
               }
               disabled={dead}
               options={[
-                { value: '0', label: 'No team' },
+                ...(team.reader
+                  ? [
+                      {
+                        value: 'auto',
+                        label:
+                          team.max >= team.min
+                            ? `Drawn (${team.min} to ${team.max})`
+                            : 'Nobody from the roster'
+                      },
+                      { value: '0', label: 'None from the roster' }
+                    ]
+                  : [{ value: '0', label: 'No team' }]),
                 ...countsOf(team).map((count) => ({
                   value: String(count),
                   label: `${count} from the roster`

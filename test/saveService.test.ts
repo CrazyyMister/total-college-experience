@@ -259,7 +259,9 @@ describe('a playthrough with a team', () => {
             leftOutSessions: 1,
             leftOutEvents: [{ id: 'swimming-meet-2', reason: 'too_few_free' }]
           },
-          volleyball: { sessions: [], unformed: { asked: 5, left: 2 } }
+          volleyball: { sessions: [], unformed: { asked: 5, left: 2 } },
+          // A team of the reader's with nobody from the roster, whose tryout found no day.
+          basketball: { sessions: [3, 8], leftOutEvents: [{ id: 'basketball-tryout', reason: 'no_date' }] }
         }
       }),
       draft()
@@ -271,7 +273,8 @@ describe('a playthrough with a team', () => {
         leftOutSessions: 1,
         leftOutEvents: [{ id: 'swimming-meet-2', reason: 'too_few_free' }]
       },
-      volleyball: { sessions: [], unformed: { asked: 5, left: 2 } }
+      volleyball: { sessions: [], unformed: { asked: 5, left: 2 } },
+      basketball: { sessions: [3, 8], leftOutEvents: [{ id: 'basketball-tryout', reason: 'no_date' }] }
     })
     expect(read.record.profiles.a.groups).toEqual(['swimming'])
 
@@ -280,13 +283,17 @@ describe('a playthrough with a team', () => {
     expect(readOlder.record.groups).toBeUndefined()
   })
 
-  it('reads back how an event ended from a save, and an older save as none', async () => {
+  it('reads back how an event and a tryout ended and the team he is on from a save, and an older save as none', async () => {
     const results = { 'swimming-meet-1': { won: true, home: 171, away: 129 } }
-    await saveService.writeManualSave('1', 3, draft({ groups: { results } }))
+    // The tryout he went to and the team it put him on ride the same field.
+    const groups = {
+      results,
+      tryouts: { 'basketball-tryout': { made: true, tier: 3 } },
+      team: { id: 'basketball' as const, since: 11 }
+    }
+    await saveService.writeManualSave('1', 3, draft({ groups }))
     await saveService.writeManualSave('1', 4, draft())
-    await expect(saveService.loadSave('1', 'manual03')).resolves.toMatchObject({
-      groups: { results }
-    })
+    await expect(saveService.loadSave('1', 'manual03')).resolves.toMatchObject({ groups })
     expect((await saveService.loadSave('1', 'manual04')).groups).toBeUndefined()
   })
 

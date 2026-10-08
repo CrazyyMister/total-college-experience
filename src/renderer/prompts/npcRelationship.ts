@@ -1,5 +1,5 @@
 import { dormSpotLabel } from '@shared/dorms'
-import { groupAtPlace } from '@shared/groups'
+import { groupsAtPlace } from '@shared/groups'
 import { locationLabel, ROOM_LOCATION } from '@shared/locations'
 import {
   npcBestFriendOf,
@@ -179,7 +179,11 @@ export function hauntActivity(
   if (haunt.kind === 'study') return `studying at ${label}`
   if (haunt.kind === 'meal') return `having ${time === 1 ? 'dinner' : 'lunch'} at ${label}`
   if (haunt.kind === 'activity') return haunt.doing || null
-  if (haunt.kind === 'team') return `at ${groupAtPlace(location)?.practice ?? label}`
+  if (haunt.kind === 'team') {
+    // Two teams may share a place, and a haunt does not say which one is hers.
+    const teams = groupsAtPlace(location)
+    return teams.length === 1 ? `at ${teams[0].practice}` : `at team practice at ${label}`
+  }
   return null
 }
 

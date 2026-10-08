@@ -1,5 +1,5 @@
 import { studentsOf } from '@shared/classes'
-import { groupAtPlace, GROUP_IDS, GROUPS } from '@shared/groups'
+import { groupsAtPlace, GROUP_IDS, GROUPS } from '@shared/groups'
 import { homeBuildingOf, homeOf } from '@shared/homes'
 import {
   isLocationOpen,
@@ -303,7 +303,7 @@ function runInSpots(): string[] {
     (def) =>
       def.onCampus === true &&
       def.id !== LOWRISE_LOCATION &&
-      groupAtPlace(def.id) === undefined &&
+      groupsAtPlace(def.id).length === 0 &&
       !hauntClosedOn(def.id, 'fun', game.date, game.occasions)
   ).map((def) => def.id)
 }

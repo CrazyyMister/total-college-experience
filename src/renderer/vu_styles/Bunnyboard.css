@@ -1257,6 +1257,35 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* The team he is on: the tally's quiet container, the team's name over the hours it practices and
+   the way out beside them. */
+.vu-bb-team {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  border-radius: 18px;
+  background: var(--vu-recessed);
+}
+
+.vu-bb-team-main {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.vu-bb-team-name {
+  color: var(--vu-accent);
+  font: 700 20px var(--font-mono);
+}
+
+.vu-bb-team-hours {
+  color: var(--vu-text-muted);
+  font: 500 13px var(--font-mono);
+}
+
 /* His picture standing where the rail's profile mark would, in the archway's own 5:6 at the
    marks' size beside it. */
 .vu-bb-tile-face {

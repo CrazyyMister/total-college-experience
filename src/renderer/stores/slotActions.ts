@@ -1,5 +1,5 @@
 import { kindOf } from '@shared/academics'
-import { groupEventButton, groupEventOf } from '@shared/groups'
+import { groupEventButton, groupEventOf, tryoutButton, tryoutOf } from '@shared/groups'
 import { jobDefOf } from '@shared/jobs'
 import { LOWRISE_LOCATION } from '@shared/locations'
 import { statsLowestFirst, type StatKey } from '@shared/playerStats'
@@ -10,7 +10,7 @@ import { statActionBag, statActionsFor } from '../prompts/statActions'
 import { useGameStore } from './gameStore'
 import { useGrabBagStore } from './grabBagStore'
 import type { Verdict } from './loop/classify'
-import { groupEventVerdict } from './loop/groups'
+import { canTryOut, groupEventVerdict } from './loop/groups'
 import { projectsNeedingWork } from './loop/jobs'
 import { groupEventAt, playerClassNow, shiftNow } from './timetable'
 
@@ -88,10 +88,19 @@ function commitments(): SlotAction[] {
   // A group's event on this half-day, whichever way he heard of it.
   const meet = groupEventAt(game.date, game.time)
   const found = meet ? groupEventOf(meet.id) : undefined
+  const tryout = meet ? tryoutOf(meet.id) : undefined
   if (meet && found) {
     actions.push({
       key: `group:${meet.id}`,
       text: groupEventButton(found.group, found.school),
+      tone: 'plan',
+      verdict: groupEventVerdict(meet)
+    })
+  } else if (meet && tryout && canTryOut(meet.id)) {
+    // Offered whether or not a class of his is in the way: pressing it says what to free.
+    actions.push({
+      key: `group:${meet.id}`,
+      text: tryoutButton(tryout.tryout),
       tone: 'plan',
       verdict: groupEventVerdict(meet)
     })

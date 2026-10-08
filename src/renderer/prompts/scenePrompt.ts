@@ -1,7 +1,7 @@
 import { BREAKTHROUGH_MEMORY_TYPE } from '@shared/breakthrough'
 import { romancesReader, SUBJECT_TAGS } from '@shared/characterRules'
 import { slotFullLabel, yearLabel } from '@shared/classes'
-import { groupClause, type GroupResult } from '@shared/groups'
+import { groupClause, type GroupId, type GroupResult, type TryoutResult } from '@shared/groups'
 import { homeClause, homeOf, type HomeId } from '@shared/homes'
 import { EMOTIONS } from '@shared/emotions'
 import { isStockOutfitSet, outfitTagsFor, spriteRefsFor, STOCK_OUTFIT_SETS } from '@shared/outfits'
@@ -90,7 +90,8 @@ import {
   groupEventLore,
   groupFigurantLine,
   groupNewsClause,
-  groupsInPlay
+  groupsInPlay,
+  readerTeamLines
 } from './groupPrompt'
 import { factLines } from './facts'
 import { moodLine } from './moods'
@@ -296,6 +297,10 @@ export interface PromptState {
   groupEvent?: string | null
   /** How each group event ended, by occasion id. */
   groupResults?: Readonly<Record<string, GroupResult>>
+  /** How each tryout the reader went to ended, by occasion id. */
+  groupTryouts?: Readonly<Record<string, TryoutResult>>
+  /** The team the reader is on, or null. */
+  playerTeam?: GroupId | null
   /**
    * One finished paragraph per gift given this scene, built by `giftLoreNote`
    * (`shared/shop.ts`) from `gameStore.sceneGifts`.
@@ -1055,6 +1060,7 @@ function whoBlock(cast: readonly Character[], state: PromptState, reader: string
   return [
     'READER',
     reader,
+    ...readerTeamLines(state.playerTeam),
     ...scheduleLines(
       "The reader's Schedule:",
       state.playerSchedule,
@@ -1075,7 +1081,8 @@ function figurantLines(cast: readonly Character[], state: PromptState): string[]
   const line = groupFigurantLine(
     groupsInPlay(
       cast.map((character) => state.charInfo[character.charId]?.groups),
-      state.sceneLocation
+      state.sceneLocation,
+      state.playerTeam
     )
   )
   return line ? [line, ''] : []
@@ -1524,6 +1531,7 @@ export function buildSoloPrompt(
     ...lore,
     'READER',
     reader,
+    ...readerTeamLines(state.playerTeam),
     '',
     'YOUR TURN',
     'Solo mission, RITA! The reader is on their own for this one, so write it start to finish in one go.',

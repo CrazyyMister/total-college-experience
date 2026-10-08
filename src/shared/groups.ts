@@ -7,14 +7,15 @@
 import { seededRand } from './hash'
 import { SHIFT_SLOTS } from './jobs'
 import { isLocationOpen, locationLabel } from './locations'
+import { tierOf } from './playerStats'
 import { pronounsOf } from './pronouns'
 import { shuffle } from './shuffle'
 import type { Gender, Occasion, OutfitSet, ShiftSlot, TimeSlot } from './types'
 
 /** Every group there is. The order is the order New Game draws their teams in. */
-export type GroupId = 'swimming' | 'volleyball'
+export type GroupId = 'swimming' | 'volleyball' | 'basketball' | 'football'
 
-export const GROUP_IDS: readonly GroupId[] = ['swimming', 'volleyball']
+export const GROUP_IDS: readonly GroupId[] = ['swimming', 'volleyball', 'basketball', 'football']
 
 /** A school the groups meet in the field. */
 export type SchoolId = 'port_calder' | 'veridan_state'
@@ -58,6 +59,19 @@ export interface GroupEventDef {
   candidates: readonly number[]
 }
 
+/** The tryout the reader can go to for a team that takes him. */
+export interface TryoutDef {
+  /** The id of the occasion it becomes. */
+  id: string
+  /** What the button and the title call it, lower case. */
+  label: string
+  /** The day indices it may fall on, best first: the first week, then the second as a reserve. */
+  candidates: readonly number[]
+}
+
+/** The half of the day a tryout is held in: the day. */
+export const TRYOUT_TIME: TimeSlot = 0
+
 /** One group's fixed facts. */
 export interface GroupDef {
   id: GroupId
@@ -87,6 +101,12 @@ export interface GroupDef {
   /** How an event is scored: points shared out, or the sets of a match played to three. */
   scoring: { kind: 'points'; total: number } | { kind: 'sets'; toWin: number }
   events: readonly GroupEventDef[]
+  /**
+   * Whether the reader can try out for it. Such a team exists whoever of the roster is on it,
+   * since the reader and the unnamed make a team of their own.
+   */
+  readerPlays: boolean
+  tryout?: TryoutDef
 }
 
 export const GROUPS: Readonly<Record<GroupId, GroupDef>> = {
@@ -111,7 +131,8 @@ export const GROUPS: Readonly<Record<GroupId, GroupDef>> = {
     events: [
       { id: 'swimming-meet-1', rival: 'port_calder', candidates: [33, 40, 19, 27] },
       { id: 'swimming-meet-2', rival: 'port_calder', candidates: [82, 89, 75, 90] }
-    ]
+    ],
+    readerPlays: false
   },
   volleyball: {
     id: 'volleyball',
@@ -132,7 +153,55 @@ export const GROUPS: Readonly<Record<GroupId, GroupDef>> = {
     events: [
       { id: 'volleyball-match-1', rival: 'port_calder', candidates: [61, 68, 12, 20] },
       { id: 'volleyball-match-2', rival: 'port_calder', candidates: [96, 89, 75, 83] }
-    ]
+    ],
+    readerPlays: false
+  },
+  basketball: {
+    id: 'basketball',
+    name: 'the Venus Jackrabbits basketball team',
+    title: 'Basketball team',
+    nickname: 'the basketball team',
+    practice: 'basketball practice',
+    joins: 'play basketball for',
+    sessionSet: 'pe',
+    location: 'palaestra_court',
+    gender: 'man',
+    minMembers: 1,
+    maxMembers: 3,
+    eventName: 'basketball game',
+    eventKind: 'game',
+    scoring: { kind: 'points', total: 160 },
+    events: [],
+    readerPlays: true,
+    // A Saturday first, then the other days of the first week, then the second week.
+    tryout: {
+      id: 'basketball-tryout',
+      label: 'basketball tryout',
+      candidates: [5, 2, 4, 1, 3, 6, 12, 9, 11, 8, 10, 7, 13]
+    }
+  },
+  football: {
+    id: 'football',
+    name: 'the Venus Jackrabbits football team',
+    title: 'Football team',
+    nickname: 'the football team',
+    practice: 'football practice',
+    joins: 'play football for',
+    sessionSet: 'pe',
+    location: 'palaestra_field',
+    gender: 'man',
+    minMembers: 1,
+    maxMembers: 3,
+    eventName: 'football game',
+    eventKind: 'game',
+    scoring: { kind: 'points', total: 60 },
+    events: [],
+    readerPlays: true,
+    tryout: {
+      id: 'football-tryout',
+      label: 'football tryout',
+      candidates: [6, 3, 1, 4, 2, 5, 13, 10, 8, 11, 9, 12, 7]
+    }
   }
 }
 
@@ -147,9 +216,9 @@ export function groupDefOf(id: string): GroupDef | undefined {
   return (GROUPS as Readonly<Record<string, GroupDef | undefined>>)[id]
 }
 
-/** The group whose sessions are held at a place, or `undefined` for a place that is nobody's. */
-export function groupAtPlace(location: string): GroupDef | undefined {
-  return GROUP_IDS.map((id) => GROUPS[id]).find((def) => def.location === location)
+/** The groups whose sessions are held at a place; none for a place that is nobody's. */
+export function groupsAtPlace(location: string): GroupDef[] {
+  return GROUP_IDS.map((id) => GROUPS[id]).filter((def) => def.location === location)
 }
 
 /** What New Game asked for one team: how many, and who by name; the rest are drawn. */
@@ -158,7 +227,10 @@ export interface TeamChoice {
   picked: string[]
 }
 
-/** New Game's whole answer on teams; a group with no entry has no team. */
+/**
+ * New Game's whole answer on teams. A team the reader cannot try out for and has no entry for
+ * does not exist; one he can try out for and has no entry for is drawn, from one to its most.
+ */
 export type TeamsChoice = Partial<Record<GroupId, TeamChoice>>
 
 /** What a group does in the week once it has members: when it meets. */
@@ -188,9 +260,26 @@ export interface GroupResult {
   away: number
 }
 
-/** What a save keeps of the groups: how each decided event ended, keyed by event id. */
+/** How a tryout the reader went to ended, and the Body tier it was judged on. */
+export interface TryoutResult {
+  made: boolean
+  tier: number
+}
+
+/** The team the reader is on: which, and the slot id he joined from. */
+export interface GroupTeam {
+  id: GroupId
+  since: number
+}
+
+/**
+ * What a save keeps of the groups: how each decided event ended, keyed by event id, how each
+ * tryout the reader went to ended, and the team he is on.
+ */
 export interface GroupsSave {
   results: Record<string, GroupResult>
+  tryouts?: Record<string, TryoutResult>
+  team?: GroupTeam
 }
 
 /** Every group's agenda in a playthrough, keyed by group id. */
@@ -254,18 +343,23 @@ export interface SessionInput {
   playerClassSlots: ReadonlySet<number>
   /** How many sessions to place. */
   count: number
+  /** The `ShiftSlot`s another group already holds the place in, which are never a session. */
+  taken?: ReadonlySet<number>
   seed: string
 }
 
 /**
  * The periods of the week a team meets in: those with the most members free, never one the
- * reader has a class in, never one the place is shut in, never one with fewer than
- * {@link MIN_SESSION_ATTENDEES} members free, and on different days where the week allows it.
+ * reader has a class in, never one the place is shut in or another team holds it in, never one
+ * with fewer than {@link MIN_SESSION_ATTENDEES} members free (fewer when the team has fewer),
+ * and on different days where the week allows it.
  * `leftOut` is how many of the asked-for sessions found no period.
  */
 export function groupSessionSlots(input: SessionInput): { slots: ShiftSlot[]; leftOut: number } {
   const { members, busy, count } = input
   const rand = seededRand(input.seed)
+  // A team of one or none holds its sessions with whoever it has.
+  const least = Math.min(MIN_SESSION_ATTENDEES, members.length)
   const free = (slot: number): number =>
     members.filter((charId) => !busy[charId]?.has(slot)).length
 
@@ -274,7 +368,8 @@ export function groupSessionSlots(input: SessionInput): { slots: ShiftSlot[]; le
       (slot) =>
         isLocationOpen(input.location, slot) &&
         !input.playerClassSlots.has(slot) &&
-        free(slot) >= MIN_SESSION_ATTENDEES
+        !input.taken?.has(slot) &&
+        free(slot) >= least
     ),
     rand
   ).sort((a, b) => free(b) - free(a))
@@ -305,38 +400,113 @@ export interface GroupDeal {
   agendas: GroupsRecord
 }
 
-/** Settles every team New Game asked for, once. */
+/**
+ * The members of a team the reader can try out for. A choice of none (count 0) is nobody from
+ * the roster; no choice at all is drawn, from one up to the most the team can take. `reserve` is
+ * how many later teams still need one of the same people, kept back from the draw, so that with
+ * two or more people on the roster no team is left with nobody. The same seed draws the same
+ * team.
+ */
+function drawReaderTeam(
+  def: GroupDef,
+  eligible: readonly string[],
+  choice: TeamChoice | undefined,
+  taken: ReadonlySet<string>,
+  reserved: ReadonlySet<string>,
+  reserve: number,
+  seed: string
+): string[] {
+  if (choice && choice.count <= 0) return []
+  const pool = eligible.filter((charId) => !taken.has(charId))
+  const picks = (choice?.picked ?? []).filter((charId) => pool.includes(charId))
+  const rand = seededRand(seed)
+  const free = shuffle(
+    pool.filter((charId) => !picks.includes(charId) && !reserved.has(charId)),
+    rand
+  )
+  const held = eligible.length >= 2 ? reserve : 0
+  const room = Math.min(def.maxMembers, Math.max(picks.length, picks.length + free.length - held))
+  if (room <= 0) return []
+  const want = choice
+    ? Math.min(Math.max(Math.trunc(choice.count), picks.length, def.minMembers), room)
+    : 1 + Math.floor(rand() * room)
+  const members = new Set([...picks, ...free].slice(0, want))
+  return eligible.filter((charId) => members.has(charId))
+}
+
+/** The order New Game deals the teams in: the women's as listed, then the men's in a drawn order. */
+function dealOrder(seed: string): GroupId[] {
+  const readers = shuffle(
+    GROUP_IDS.filter((id) => GROUPS[id].readerPlays),
+    seededRand(`${seed}:order`)
+  )
+  return [...GROUP_IDS.filter((id) => !GROUPS[id].readerPlays), ...readers]
+}
+
+/** Settles every team New Game asked for, and every team the reader can try out for, once. */
 export function dealGroups(input: GroupDealInput): GroupDeal {
   const members: Partial<Record<GroupId, string[]>> = {}
   const agendas: GroupsRecord = {}
   const taken = new Set<string>()
-  for (const id of GROUP_IDS) {
+  /** The periods each place is already held in, so that two teams never share one. */
+  const held = new Map<string, Set<number>>()
+  const order = dealOrder(input.seed)
+  for (const [at, id] of order.entries()) {
     const choice = input.choice[id]
-    if (!choice || choice.count <= 0) continue
     const def = GROUPS[id]
+    if (!def.readerPlays && (!choice || choice.count <= 0)) continue
     const eligible = eligibleFor(def, input.roster)
     // What the other teams were asked for by hand stays theirs, whichever is drawn first.
     const reserved = new Set(
       GROUP_IDS.filter((other) => other !== id).flatMap((other) => input.choice[other]?.picked ?? [])
     )
-    const team = drawMembers(def, eligible, choice, taken, `${input.seed}:${id}:members`, reserved)
-    if (team.length === 0) {
-      agendas[id] = {
-        sessions: [],
-        unformed: { asked: choice.count, left: eligible.filter((charId) => !taken.has(charId)).length }
+    let team: string[]
+    if (def.readerPlays) {
+      // The later teams of the reader's that still want somebody and picked nobody themselves.
+      const reserve = order
+        .slice(at + 1)
+        .filter((other) => {
+          const wanted = input.choice[other]
+          return (
+            GROUPS[other].readerPlays &&
+            GROUPS[other].gender === def.gender &&
+            (wanted === undefined || wanted.count > 0) &&
+            (wanted?.picked.length ?? 0) === 0
+          )
+        }).length
+      team = drawReaderTeam(def, eligible, choice, taken, reserved, reserve, `${input.seed}:${id}:members`)
+    } else {
+      team = drawMembers(
+        def,
+        eligible,
+        choice as TeamChoice,
+        taken,
+        `${input.seed}:${id}:members`,
+        reserved
+      )
+      if (team.length === 0) {
+        agendas[id] = {
+          sessions: [],
+          unformed: {
+            asked: (choice as TeamChoice).count,
+            left: eligible.filter((charId) => !taken.has(charId)).length
+          }
+        }
+        continue
       }
-      continue
     }
     for (const charId of team) taken.add(charId)
-    members[id] = team
+    if (team.length > 0) members[id] = team
     const sessions = groupSessionSlots({
       location: def.location,
       members: team,
       busy: input.busy,
       playerClassSlots: input.playerClassSlots,
       count: TEAM_SESSIONS_PER_WEEK,
+      taken: held.get(def.location),
       seed: `${input.seed}:${id}:sessions`
     })
+    held.set(def.location, new Set([...(held.get(def.location) ?? []), ...sessions.slots]))
     agendas[id] = {
       sessions: sessions.slots,
       ...(sessions.leftOut > 0 ? { leftOutSessions: sessions.leftOut } : {})
@@ -409,6 +579,33 @@ export function gameResult(group: GroupDef, strength: number, seed: string): Gro
   return won ? { won, home: winner, away: loser } : { won, home: loser, away: winner }
 }
 
+/** The odds of making a team by the reader's Body tier, tier 1 first. */
+export const TRYOUT_CHANCES: readonly number[] = [0.15, 0.35, 0.55, 0.75, 0.9]
+
+/**
+ * How a tryout ends: made when the seed's roll falls under the odds of the Body tier his points
+ * buy. Going is the whole of his presence; luck is the roll. The same points and seed always end
+ * it the same way.
+ */
+export function tryoutVerdict(bodyPoints: number, seed: string): TryoutResult {
+  const tier = tierOf(bodyPoints)
+  return { made: seededRand(seed)() < TRYOUT_CHANCES[tier - 1], tier }
+}
+
+/** The group a tryout id names, or `undefined` for an id that is not one. */
+export function tryoutOf(eventId: string): { group: GroupDef; tryout: TryoutDef } | undefined {
+  for (const id of GROUP_IDS) {
+    const tryout = GROUPS[id].tryout
+    if (tryout?.id === eventId) return { group: GROUPS[id], tryout }
+  }
+  return undefined
+}
+
+/** What the button for a tryout says. */
+export function tryoutButton(tryout: TryoutDef): string {
+  return `Go to the ${tryout.label}`
+}
+
 /** The group, event and school an event id names, or `undefined` for an id that is not one. */
 export function groupEventOf(
   eventId: string
@@ -450,6 +647,23 @@ function groupEventOccasion(group: GroupDef, event: GroupEventDef, date: number)
   }
 }
 
+/** The occasion a tryout becomes once it has a day. */
+function tryoutOccasion(group: GroupDef, tryout: TryoutDef, date: number): Occasion {
+  const title = `${tryout.label.charAt(0).toUpperCase()}${tryout.label.slice(1)}`
+  return {
+    id: tryout.id,
+    title,
+    description: `Open tryouts for ${group.name} at ${locationLabel(group.location)}: anybody may try out, and the coach picks who makes the team.`,
+    startDate: date,
+    endDate: date,
+    time: TRYOUT_TIME,
+    cancelsClasses: false,
+    kind: 'campus',
+    group: group.id,
+    where: group.location
+  }
+}
+
 /** Whether an occasion holds the half-day. */
 function occupies(occasion: Occasion, date: number, time: TimeSlot): boolean {
   return (
@@ -469,13 +683,16 @@ export interface EventPlacementInput {
   avoid: readonly { startDate: number; endDate: number }[]
   /** How many of `members` are free at a half-day. */
   freeCount: (members: readonly string[], date: number, time: TimeSlot) => number
+  /** Whether the reader has a class in a half-day, which no tryout is held in. */
+  readerBusy?: (date: number, time: TimeSlot) => boolean
 }
 
 /**
- * Gives every event of every group with a team its day: the first candidate whose half-day no
- * occasion and no other event holds, outside the weeks to avoid, with at least
- * {@link MIN_SESSION_ATTENDEES} members free. An event no candidate can hold is returned with
- * the reason and never dropped; the same input always places the same days.
+ * Gives every tryout and every event of every group with a team its day: the first candidate
+ * whose half-day no occasion and no other event holds, outside the weeks to avoid, with at least
+ * {@link MIN_SESSION_ATTENDEES} members free (a tryout asks for nobody, and none is held in a
+ * period the reader has a class in). Tryouts come first. An event no candidate can hold is
+ * returned with the reason and never dropped; the same input always places the same days.
  */
 export function placeGroupEvents(input: EventPlacementInput): {
   placed: Occasion[]
@@ -483,28 +700,47 @@ export function placeGroupEvents(input: EventPlacementInput): {
 } {
   const placed: Occasion[] = []
   const leftOut: Partial<Record<GroupId, LeftOutEvent[]>> = {}
+
+  const dayFor = (
+    candidates: readonly number[],
+    time: TimeSlot,
+    members: readonly string[],
+    least: number,
+    readerFree: boolean
+  ): { day?: number; reason: LeftOutEventReason } => {
+    const open = candidates.filter(
+      (date) =>
+        !input.avoid.some((range) => date >= range.startDate && date <= range.endDate) &&
+        !(readerFree && input.readerBusy?.(date, time)) &&
+        ![...input.occasions, ...placed].some((occasion) => occupies(occasion, date, time))
+    )
+    const day = open.find((date) => least === 0 || input.freeCount(members, date, time) >= least)
+    return { day, reason: open.length === 0 ? 'no_date' : 'too_few_free' }
+  }
+  const leave = (id: GroupId, eventId: string, reason: LeftOutEventReason): void => {
+    leftOut[id] = [...(leftOut[id] ?? []), { id: eventId, reason }]
+  }
+
+  for (const id of GROUP_IDS) {
+    const tryout = GROUPS[id].tryout
+    if (!tryout || !GROUPS[id].readerPlays) continue
+    const { day, reason } = dayFor(tryout.candidates, TRYOUT_TIME, [], 0, true)
+    if (day !== undefined) placed.push(tryoutOccasion(GROUPS[id], tryout, day))
+    else leave(id, tryout.id, reason)
+  }
   for (const id of GROUP_IDS) {
     const members = input.members[id]
     if (!members || members.length === 0) continue
     for (const event of GROUPS[id].events) {
-      const open = event.candidates.filter(
-        (date) =>
-          !input.avoid.some((range) => date >= range.startDate && date <= range.endDate) &&
-          ![...input.occasions, ...placed].some((occasion) =>
-            occupies(occasion, date, GROUP_EVENT_TIME)
-          )
+      const { day, reason } = dayFor(
+        event.candidates,
+        GROUP_EVENT_TIME,
+        members,
+        MIN_SESSION_ATTENDEES,
+        false
       )
-      const day = open.find(
-        (date) => input.freeCount(members, date, GROUP_EVENT_TIME) >= MIN_SESSION_ATTENDEES
-      )
-      if (day !== undefined) {
-        placed.push(groupEventOccasion(GROUPS[id], event, day))
-        continue
-      }
-      leftOut[id] = [
-        ...(leftOut[id] ?? []),
-        { id: event.id, reason: open.length === 0 ? 'no_date' : 'too_few_free' }
-      ]
+      if (day !== undefined) placed.push(groupEventOccasion(GROUPS[id], event, day))
+      else leave(id, event.id, reason)
     }
   }
   return { placed, leftOut }

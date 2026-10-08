@@ -7,8 +7,11 @@ import {
   groupSessionSlots,
   MIN_SESSION_ATTENDEES,
   placeGroupEvents,
-  TEAM_SESSIONS_PER_WEEK
+  TEAM_SESSIONS_PER_WEEK,
+  TRYOUT_CHANCES,
+  tryoutVerdict
 } from '@shared/groups'
+import { pointsForTier } from '@shared/playerStats'
 import { isLocationOpen } from '@shared/locations'
 import type { Occasion } from '@shared/types'
 
@@ -131,14 +134,81 @@ describe('dealGroups', () => {
     expect(deal.members.swimming).toContain('w3')
     expect(deal.agendas.swimming?.sessions).toHaveLength(TEAM_SESSIONS_PER_WEEK)
 
-    expect(dealGroups({ ...base, choice: {} })).toEqual({ members: {}, agendas: {} })
-    expect(dealGroups({ ...base, choice: { swimming: { count: 0, picked: [] } } }).agendas).toEqual({})
+    // The women's teams are only what was asked for; the men's exist whoever is on them.
+    const none = dealGroups({ ...base, choice: {} })
+    expect(none.members).toEqual({})
+    expect(Object.keys(none.agendas).sort()).toEqual(['basketball', 'football'])
+    const declined = dealGroups({ ...base, choice: { swimming: { count: 0, picked: [] } } })
+    expect(declined.agendas.swimming).toBeUndefined()
   })
 
   it('takes only the women of the roster', () => {
     const mixed = [...roster.slice(0, 2), { charId: 'm1', gender: 'man' as const }]
     const deal = dealGroups({ ...base, roster: mixed, choice: { swimming: { count: 3, picked: ['m1'] } } })
-    expect(deal.members).toEqual({})
+    expect(deal.members.swimming).toBeUndefined()
+  })
+
+  it('draws the men of the roster into the men\'s teams, and gives a team with none a schedule', () => {
+    const menOf = (n: number): Array<{ charId: string; gender: 'man' }> =>
+      Array.from({ length: n }, (_, i) => ({ charId: `m${i}`, gender: 'man' as const }))
+    for (const n of [0, 1, 2, 3, 5]) {
+      for (let run = 0; run < 40; run++) {
+        const men = menOf(n)
+        const deal = dealGroups({
+          ...base,
+          roster: [...roster, ...men],
+          busy: { ...base.busy, ...Object.fromEntries(men.map((m) => [m.charId, new Set<number>()])) },
+          seed: `n${n}r${run}`,
+          choice: {}
+        })
+        const b = deal.members.basketball ?? []
+        const f = deal.members.football ?? []
+        expect(b.filter((charId) => f.includes(charId))).toEqual([])
+        for (const team of [b, f]) {
+          expect(team.length).toBeLessThanOrEqual(3)
+          expect(team.every((charId) => charId.startsWith('m'))).toBe(true)
+        }
+        expect(b.length + f.length).toBeLessThanOrEqual(n)
+        // Two men or more leave nobody out; with fewer, the one man (or none) is all there is.
+        if (n >= 2) expect(Math.min(b.length, f.length)).toBeGreaterThanOrEqual(1)
+        else expect(b.length + f.length).toBe(n)
+        // A team of nobody from the roster still meets, twice, and only on its own.
+        expect(deal.agendas.basketball?.sessions).toHaveLength(TEAM_SESSIONS_PER_WEEK)
+        expect(deal.agendas.football?.sessions).toHaveLength(TEAM_SESSIONS_PER_WEEK)
+      }
+    }
+  })
+
+  it('keeps what was asked of the men by hand, and a count of none means nobody', () => {
+    const men = Array.from({ length: 4 }, (_, i) => ({ charId: `m${i}`, gender: 'man' as const }))
+    const deal = dealGroups({
+      ...base,
+      roster: [...roster, ...men],
+      busy: { ...base.busy, ...Object.fromEntries(men.map((m) => [m.charId, new Set<number>()])) },
+      choice: {
+        basketball: { count: 2, picked: ['m3'] },
+        football: { count: 0, picked: [] }
+      }
+    })
+    expect(deal.members.basketball).toHaveLength(2)
+    expect(deal.members.basketball).toContain('m3')
+    expect(deal.members.football).toBeUndefined()
+  })
+
+  it('never holds the courts for the volleyball and the basketball team in the same period', () => {
+    const men = Array.from({ length: 3 }, (_, i) => ({ charId: `m${i}`, gender: 'man' as const }))
+    for (let run = 0; run < 60; run++) {
+      const deal = dealGroups({
+        ...base,
+        roster: [...roster, ...men],
+        busy: { ...base.busy, ...Object.fromEntries(men.map((m) => [m.charId, new Set<number>()])) },
+        seed: `court${run}`,
+        choice: { volleyball: { count: 4, picked: [] } }
+      })
+      const volley = deal.agendas.volleyball?.sessions ?? []
+      const ball = deal.agendas.basketball?.sessions ?? []
+      expect(volley.filter((slot) => ball.includes(slot))).toEqual([])
+    }
   })
 
   it('keeps two teams apart, honours both sets of picks, and records the one it could not form', () => {
@@ -170,6 +240,8 @@ describe('dealGroups', () => {
 
 describe('placeGroupEvents', () => {
   const members = { swimming: ['a', 'b', 'c'] }
+  /** The swim team's own meets, which the tryouts placed beside them do not belong to. */
+  const meetsOf = (placed: Occasion[]): Occasion[] => placed.filter((o) => o.group === 'swimming')
   const everyoneFree = (): number => 3
   const held = (date: number, time: 0 | 1 | null = 1): Occasion => ({
     id: `held-${date}`,
@@ -189,7 +261,7 @@ describe('placeGroupEvents', () => {
       avoid: [],
       freeCount: everyoneFree
     })
-    expect(placed.map((o) => [o.id, o.startDate, o.time, o.group, o.where])).toEqual([
+    expect(meetsOf(placed).map((o) => [o.id, o.startDate, o.time, o.group, o.where])).toEqual([
       ['swimming-meet-1', 33, 1, 'swimming', 'palaestra_pool'],
       ['swimming-meet-2', 82, 1, 'swimming', 'palaestra_pool']
     ])
@@ -204,7 +276,7 @@ describe('placeGroupEvents', () => {
       freeCount: everyoneFree
     })
     // 33 and 40 are both lost for meet 1, which takes 19; 82 and 89 are lost for meet 2, which takes 75.
-    expect(placed.map((o) => o.startDate)).toEqual([19, 75])
+    expect(meetsOf(placed).map((o) => o.startDate)).toEqual([19, 75])
   })
 
   it('sends an event that no day can hold to the left-out list with the reason', () => {
@@ -222,20 +294,70 @@ describe('placeGroupEvents', () => {
       avoid: [],
       freeCount: (_members, date) => (date === 33 ? MIN_SESSION_ATTENDEES - 1 : 3)
     })
-    expect(quiet.placed.map((o) => o.startDate)).toEqual([40, 82])
+    expect(meetsOf(quiet.placed).map((o) => o.startDate)).toEqual([40, 82])
     const none = placeGroupEvents({
       members,
       occasions: [],
       avoid: [],
       freeCount: () => 0
     })
-    expect(none.placed).toEqual([])
+    expect(meetsOf(none.placed)).toEqual([])
     expect(none.leftOut.swimming?.map((e) => e.reason)).toEqual(['too_few_free', 'too_few_free'])
+  })
+
+  it('places a tryout by day with nobody free asked, around the reader\'s classes, a Saturday first', () => {
+    const open = placeGroupEvents({ members: {}, occasions: [], avoid: [], freeCount: () => 0 })
+    expect(open.placed.map((o) => [o.id, o.startDate, o.time])).toEqual([
+      ['basketball-tryout', 5, 0],
+      ['football-tryout', 6, 0]
+    ])
+    // The weekend is lost to occasions and the reader has class on the first week's days: the
+    // second week takes over, in order.
+    const second = placeGroupEvents({
+      members: {},
+      occasions: [held(5, 0), held(6, null)],
+      avoid: [],
+      freeCount: () => 0,
+      readerBusy: (date) => date >= 1 && date <= 4
+    })
+    expect(second.placed.map((o) => [o.id, o.startDate])).toEqual([
+      ['basketball-tryout', 12],
+      ['football-tryout', 13]
+    ])
+  })
+
+  it('sends a tryout no day can hold to the left-out list, never dropped', () => {
+    const all = Array.from({ length: 14 }, (_, day) => held(day, 0))
+    const { placed, leftOut } = placeGroupEvents({
+      members: {},
+      occasions: all,
+      avoid: [],
+      freeCount: () => 0
+    })
+    expect(placed).toEqual([])
+    expect(leftOut.basketball).toEqual([{ id: 'basketball-tryout', reason: 'no_date' }])
+    expect(leftOut.football).toEqual([{ id: 'football-tryout', reason: 'no_date' }])
   })
 
   it('places the same days for the same input', () => {
     const input = { members, occasions: [held(33)], avoid: [], freeCount: everyoneFree }
     expect(placeGroupEvents(input)).toEqual(placeGroupEvents(input))
+  })
+})
+
+describe('tryoutVerdict', () => {
+  it('judges the same way for the same seed, and more Body makes the team more often', () => {
+    const madeAt = (tier: number): number =>
+      Array.from({ length: 400 }, (_, run) =>
+        tryoutVerdict(pointsForTier(tier as 1 | 2 | 3 | 4 | 5), `game${run}:tryout`).made
+      ).filter(Boolean).length
+    expect(tryoutVerdict(0, 's')).toEqual(tryoutVerdict(0, 's'))
+    expect(tryoutVerdict(pointsForTier(3), 's').tier).toBe(3)
+    const counts = [1, 2, 3, 4, 5].map(madeAt)
+    expect([...counts].sort((a, b) => a - b)).toEqual(counts)
+    expect(counts[0]).toBeLessThan(counts[4])
+    // Close to the table's odds, which the sample of 400 cannot miss by much.
+    counts.forEach((made, at) => expect(Math.abs(made / 400 - TRYOUT_CHANCES[at])).toBeLessThan(0.1))
   })
 })
 

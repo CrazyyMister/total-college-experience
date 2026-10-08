@@ -3,9 +3,13 @@ import {
   GROUP_EVENT_TIME,
   gameResult,
   groupEventOf,
+  TRYOUT_TIME,
+  tryoutOf,
+  tryoutVerdict,
   type GroupId,
   type GroupResult
 } from '@shared/groups'
+import { classSlotForShift, globalSlotOf, shiftSlotFullLabel } from '@shared/jobs'
 import { shuffle } from '@shared/shuffle'
 import { wornSetOf } from '@shared/wardrobe'
 import type { Occasion, OutfitSet, TimeSlot } from '@shared/types'
@@ -106,6 +110,28 @@ export function settleGroupResults(): void {
   }
 }
 
+/**
+ * How a tryout ends, decided and filed once when its scene is opened: the seed is the playthrough
+ * and the tryout, and the Body is what he has now. Making the team puts him on it from the next
+ * period, in the same write; the second to arrive finds the first's verdict and leaves it.
+ */
+function judgeTryout(occasion: Occasion): void {
+  const game = useGameStore.getState()
+  const filed = game.groupTryouts[occasion.id]
+  if (filed || !occasion.group) return
+  const result = tryoutVerdict(game.stats.body, `${game.playthroughId ?? 'game'}:${occasion.id}:tryout`)
+  console.log(
+    `[groups] ${occasion.id}: Body tier ${result.tier}, ${result.made ? 'made the team' : 'did not make it'}.`
+  )
+  game.fileTryout(
+    occasion.id,
+    result,
+    result.made
+      ? { id: occasion.group, since: globalSlotOf(game.date, game.time) + 1 }
+      : null
+  )
+}
+
 /** The verdict that opens an event's scene, naming nobody and setting it at the event's place. */
 export function groupEventVerdict(occasion: Occasion): Verdict {
   return {
@@ -134,7 +160,44 @@ export function groupEventIdFor(verdict: Verdict): string | null {
   const game = useGameStore.getState()
   const event = groupEventAt(game.date, game.time)
   if (!event?.where || !verdict.sceneLocation) return null
+  // A tryout he can no longer go to is a place like any other.
+  if (tryoutOf(event.id) && !canTryOut(event.id)) return null
   return resolveLocationId(verdict.sceneLocation) === event.where ? event.id : null
+}
+
+/**
+ * Whether he can go to a tryout: he is on no team, and has not been judged at it before today.
+ * The half-day of a tryout he has just been judged at still counts, so the scene that filed it
+ * can be opened again.
+ */
+export function canTryOut(eventId: string): boolean {
+  const game = useGameStore.getState()
+  if (!tryoutOf(eventId)) return false
+  const occasion = game.occasions.find((entry) => entry.id === eventId)
+  if (!occasion) return false
+  if (game.groupTryouts[eventId]) {
+    return occasion.startDate === game.date && (occasion.time ?? TRYOUT_TIME) === game.time
+  }
+  return !game.groupTeam
+}
+
+/**
+ * Why he cannot go to a tryout though it is on, or null: a class or a shift of his is at a time
+ * the team practices. The line says which time and what to free.
+ */
+export function tryoutRefusal(eventId: string): string | null {
+  const found = tryoutOf(eventId)
+  if (!found) return null
+  const game = useGameStore.getState()
+  const held = [...(game.job?.shifts ?? []), ...(game.job?.pendingShifts ?? [])]
+  const clashes = (game.groups[found.group.id]?.sessions ?? []).flatMap((slot) => {
+    const classSlot = classSlotForShift(slot)
+    const code = classSlot === null ? undefined : game.playerSchedule[classSlot]
+    if (code) return [`${shiftSlotFullLabel(slot)} (your ${game.classes[code]?.name ?? code} class)`]
+    return held.includes(slot) ? [`${shiftSlotFullLabel(slot)} (one of your shifts)`] : []
+  })
+  if (clashes.length === 0) return null
+  return `The ${found.group.practice} would meet ${clashes.join(' and ')}. Free that time first, then come back to the tryout.`
 }
 
 /** What opening an event's scene settles. */
@@ -151,8 +214,12 @@ export function planGroupEvent(eventId: string, required?: string): GroupEventPl
   const game = useGameStore.getState()
   const occasion = game.occasions.find((entry) => entry.id === eventId)
   if (!occasion?.group || occasion.startDate !== game.date) return null
-  if ((occasion.time ?? GROUP_EVENT_TIME) !== game.time) return null
-  if (!resultOfEvent(occasion)) return null
+  const tryout = tryoutOf(eventId)
+  if ((occasion.time ?? (tryout ? TRYOUT_TIME : GROUP_EVENT_TIME)) !== game.time) return null
+  if (tryout) {
+    if (!canTryOut(eventId) || tryoutRefusal(eventId)) return null
+    judgeTryout(occasion)
+  } else if (!resultOfEvent(occasion)) return null
 
   const free = shuffle(
     groupMembersOf(occasion.group).filter((charId) =>

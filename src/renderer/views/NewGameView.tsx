@@ -60,7 +60,13 @@ import { ExPickerModal } from './ExPickerModal'
 import { LlmFailureModal } from '../components/LlmFailureModal'
 import { useWindowKeydown } from '../components/useWindowKeydown'
 import { formatGameDate, shiftWeekdayOf, slotHalf } from '../prompts/gameDate'
-import { FINALS_WEEK, MIDTERM_WEEK, SPRING_BREAK, STATIC_OCCASIONS } from '../prompts/occasions'
+import {
+  classSlotOf,
+  FINALS_WEEK,
+  MIDTERM_WEEK,
+  SPRING_BREAK,
+  STATIC_OCCASIONS
+} from '../prompts/occasions'
 import { isMoodHomebound, MOOD_CYCLE_LENGTH } from '../prompts/moods'
 import { dryOccasionDates } from '../prompts/weather'
 import { type ScheduleResult } from '../stores/classScheduler'
@@ -446,8 +452,10 @@ export function NewGameView(): JSX.Element {
   const exCharacter = activeEx ? roster.find((c) => c.charId === activeEx.charId) : undefined
 
   // Every team has a card, with the picks that are still on the roster. Nobody is on two teams,
-  // so a card's most is what the roster has left after the others' counts, a woman ticked on
+  // so a card's most is what the roster has left after the others' counts, a person ticked on
   // another card is out of this one, and a team that cannot reach its least says so on its card.
+  // A team he can try out for always exists: its card says only how many of the roster are on it,
+  // and left alone it is drawn.
   const teamOffers = useMemo<TeamOffer[]>(
     () =>
       GROUP_IDS.map((id) => {
@@ -455,7 +463,14 @@ export function NewGameView(): JSX.Element {
         const eligible = eligibleFor(def, roster)
         const held = teamsChoice[id]
         const others = GROUP_IDS.filter((other) => other !== id && GROUPS[other].gender === def.gender)
-        const spoken = others.reduce((sum, other) => sum + (teamsChoice[other]?.count ?? 0), 0)
+        // What another card has claimed: its count, or the one a drawn team of his will take.
+        const spoken = others.reduce((sum, other) => {
+          const claim = teamsChoice[other]
+          return (
+            sum +
+            (claim ? claim.count : GROUPS[other].readerPlays && eligible.length >= 2 ? 1 : 0)
+          )
+        }, 0)
         const left = Math.max(0, eligible.length - spoken)
         const count = Math.min(held?.count ?? 0, def.maxMembers)
         const ticked = new Map(
@@ -463,21 +478,30 @@ export function NewGameView(): JSX.Element {
             (teamsChoice[other]?.picked ?? []).map((charId) => [charId, GROUPS[other].title] as const)
           )
         )
+        const people = def.gender === 'man' ? 'men' : 'women'
         let notice: string | undefined
-        if (eligible.length < def.minMembers) {
-          notice = `The roster has ${eligible.length} of the ${def.minMembers} women a team needs.`
+        if (def.readerPlays) {
+          if (eligible.length === 0) {
+            notice = 'The roster has no men: the team is only the unnamed.'
+          } else if (count > left) {
+            notice = `Only ${left} ${left === 1 ? 'man is' : 'men are'} left after the other team: this one will have ${left}.`
+          }
+        } else if (eligible.length < def.minMembers) {
+          notice = `The roster has ${eligible.length} of the ${def.minMembers} ${people} a team needs.`
         } else if (left < def.minMembers) {
           notice =
             count > 0
-              ? `Only ${left} women are left after the other teams, and a team needs ${def.minMembers}: this one will not be formed.`
-              : `Only ${left} women are left after the other teams, and a team needs ${def.minMembers}.`
+              ? `Only ${left} ${people} are left after the other teams, and a team needs ${def.minMembers}: this one will not be formed.`
+              : `Only ${left} ${people} are left after the other teams, and a team needs ${def.minMembers}.`
         } else if (count > left) {
-          notice = `Only ${left} women are left after the other teams: this one will have ${left}.`
+          notice = `Only ${left} ${people} are left after the other teams: this one will have ${left}.`
         }
         return {
           id,
           title: def.title,
-          hint: `The women of the roster who ${def.joins} ${def.name}. Tick the ones you want; the rest are drawn.`,
+          hint: def.readerPlays
+            ? `The men of the roster who ${def.joins} ${def.name}. The team exists whoever joins, and the rest of it is unnamed. Tick the ones you want; the rest are drawn.`
+            : `The ${people} of the roster who ${def.joins} ${def.name}. Tick the ones you want; the rest are drawn.`,
           candidates: eligible.flatMap((charId) => {
             const character = roster.find((c) => c.charId === charId)
             const elsewhere = ticked.get(charId)
@@ -493,6 +517,7 @@ export function NewGameView(): JSX.Element {
           }),
           min: def.minMembers,
           max: Math.min(def.maxMembers, left),
+          ...(def.readerPlays ? { reader: true, auto: held === undefined } : {}),
           ...(notice ? { notice } : {}),
           choice: {
             count,
@@ -658,7 +683,7 @@ export function NewGameView(): JSX.Element {
       ...(tokensGenerated > 0 ? { tokensGenerated } : {}),
       ...(activeEx ? { ex: activeEx } : {}),
       ...(courseChoice ? { playerCourse: courseChoice } : {}),
-      ...(Object.values(teamsChoice).some((team) => team.count > 0) ? { teams: teamsChoice } : {})
+      ...(Object.keys(teamsChoice).length > 0 ? { teams: teamsChoice } : {})
     })
     if (!written.ok) {
       showError(written.error)
@@ -845,9 +870,10 @@ export function NewGameView(): JSX.Element {
         )
         continue
       }
+      const members = groupDeal.members[id]?.length ?? 0
       const lost = agenda.leftOutSessions ? `; ${agenda.leftOutSessions} left out (too few free)` : ''
       console.log(
-        `[groups] ${id}: ${groupDeal.members[id]?.length ?? 0} members, sessions ${agenda.sessions.map(shiftSlotFullLabel).join(', ') || 'none'}${lost}.`
+        `[groups] ${id}: ${members === 0 && GROUPS[id].readerPlays ? 'no one from the roster' : `${members} members`}, sessions ${agenda.sessions.map(shiftSlotFullLabel).join(', ') || 'none'}${lost}.`
       )
     }
 
@@ -915,6 +941,10 @@ export function NewGameView(): JSX.Element {
       members: groupDeal.members,
       occasions: [...STATIC_OCCASIONS, ...occasions],
       avoid: [MIDTERM_WEEK, SPRING_BREAK, FINALS_WEEK],
+      readerBusy: (date, time) => {
+        const slot = classSlotOf(date, time, occasions)
+        return slot !== null && playerSchedule[slot] !== undefined
+      },
       freeCount: (members, date, time) => {
         const slot = shiftSlotOf(shiftWeekdayOf(date), time)
         return members.filter((charId) => {
@@ -1317,7 +1347,12 @@ export function NewGameView(): JSX.Element {
               dead={exDead}
               onOpenEx={() => setChoosingEx(true)}
               onCourse={setCourseChoice}
-              onTeam={(id, choice) => setTeamsChoice((held) => ({ ...held, [id]: choice }))}
+              onTeam={(id, choice) =>
+                setTeamsChoice((held) => {
+                  const { [id]: _gone, ...rest } = held
+                  return choice ? { ...rest, [id]: choice } : rest
+                })
+              }
             />
           </motion.div>
         )}

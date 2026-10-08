@@ -1,11 +1,16 @@
 import {
   GROUP_EVENT_TIME,
-  groupAtPlace,
+  GROUPS,
+  groupsAtPlace,
   groupEventOf,
   groupsOfChar,
+  tryoutOf,
   type GroupDef,
-  type GroupResult
+  type GroupId,
+  type GroupResult,
+  type TryoutResult
 } from '@shared/groups'
+import { locationLabel } from '@shared/locations'
 import { andList } from '@shared/sentences'
 import type { Occasion, TimeSlot } from '@shared/types'
 import { formatGameDate } from './gameDate'
@@ -19,11 +24,13 @@ import { loreEntryById, loreTextForKey } from './lorebook'
  */
 export function groupsInPlay(
   memberships: ReadonlyArray<readonly string[] | undefined>,
-  location?: string | null
+  location?: string | null,
+  readerTeam?: GroupId | null
 ): GroupDef[] {
   const found = [
     ...memberships.flatMap((ids) => groupsOfChar(ids)),
-    ...(location ? [groupAtPlace(loreEntryById(location)?.id ?? location)] : [])
+    ...(readerTeam ? [GROUPS[readerTeam]] : []),
+    ...(location ? groupsAtPlace(loreEntryById(location)?.id ?? location) : [])
   ]
   return found.filter(
     (def, at): def is GroupDef => def !== undefined && found.findIndex((one) => one === def) === at
@@ -40,12 +47,20 @@ export function groupFigurantLine(groups: readonly GroupDef[]): string {
   return `The coach and every member of ${teams} who has not been named above are unnamed background: never give any of them a name, only "the coach" or "a teammate".`
 }
 
+/** The line saying which team the reader is on, or nothing where he is on none. */
+export function readerTeamLines(team: GroupId | null | undefined): string[] {
+  const def = team ? GROUPS[team] : undefined
+  return def ? [`The reader is on ${def.name}, which practices at ${locationLabel(def.location)}.`] : []
+}
+
 /** What a group's events are told from: the calendar's occasions and how each one ended. */
 export interface GroupNewsState {
   date: number
   time: TimeSlot
   occasions: readonly Occasion[]
   groupResults?: Readonly<Record<string, GroupResult>>
+  /** How each tryout the reader went to ended, by occasion id. */
+  groupTryouts?: Readonly<Record<string, TryoutResult>>
 }
 
 /** How an event ended, in the words of a line about the team. */
@@ -96,6 +111,16 @@ export function groupNewsClause(
 export function groupEventLines(eventId: string | null | undefined, state: GroupNewsState): string[] {
   if (!eventId) return []
   const occasion = state.occasions.find((entry) => entry.id === eventId)
+  if (tryoutOf(eventId)) {
+    const verdict = state.groupTryouts?.[eventId]
+    if (!occasion || !verdict) return []
+    return [
+      'GROUP EVENT',
+      `${occasion.title}: ${occasion.description}`,
+      `The coach's decision is already made and is not the writer's to change: ${verdict.made ? 'the reader makes the team' : 'the reader does not make the team'}. The tryout can be shown whole or in part, and the coach says so at its end, but nothing in the scene may contradict that or leave it open.`,
+      ''
+    ]
+  }
   const result = state.groupResults?.[eventId]
   const found = groupEventOf(eventId)
   if (!occasion || !result || !found) return []

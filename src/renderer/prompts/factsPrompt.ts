@@ -124,7 +124,8 @@ export function buildFactsPrompt(
   const figurant = groupFigurantLine(
     groupsInPlay(
       cast.map((c) => state.charInfo[c.charId]?.groups),
-      state.sceneLocation
+      state.sceneLocation,
+      state.playerTeam
     )
   )
 

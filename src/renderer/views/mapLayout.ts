@@ -25,6 +25,7 @@ const MAP_ANCHORS: Readonly<Record<string, MapAnchor>> = {
   kendall_library: { x: 0.75, y: 0.41 },
   palaestra_stadium: { x: 0.8, y: 0.25 },
   palaestra_court: { x: 0.76, y: 0.19 },
+  palaestra_field: { x: 0.72, y: 0.27 },
   palaestra_pool: { x: 0.84, y: 0.21 },
   pino_cola_lounge: { x: 0.65, y: 0.75 },
   thorne_auditorium: { x: 0.88, y: 0.58 },

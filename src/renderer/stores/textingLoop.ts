@@ -87,9 +87,9 @@ import { resetPhotos, showPhoto } from './photoStore'
 import { noNsfwImagesOf, textPhotosOf, useSettingsStore } from './settingsStore'
 import { useSetupStore } from './setupStore'
 import { useGameStore } from './gameStore'
-import { GROUP_EVENT_TIME } from '@shared/groups'
+import { GROUP_EVENT_TIME, tryoutOf } from '@shared/groups'
 import type { Verdict } from './loop/classify'
-import { groupEventVerdict, photoWornSet } from './loop/groups'
+import { canTryOut, groupEventVerdict, photoWornSet } from './loop/groups'
 import { prefetchHangoutScene, startHangoutScene } from './loop/hooks'
 import { createRetryGate } from './retryGate'
 import { createTextExtractor } from './textingStream'
@@ -756,6 +756,7 @@ function textingRequestOf(
       roster: others,
       homeMoves: game.homeMoves,
       groupResults: game.groupResults,
+      playerTeam: game.groupTeam?.id ?? null,
       charInfo: game.charInfo,
       npcRelationships: game.npcRelationships,
       npcRomance: game.npcRomance,
@@ -1416,6 +1417,8 @@ export function askOccasionFor(day: number, half: TimeSlot, view: SlotAskerView)
   if (!readerFreeAt(day, half, view.events)) return null
   const occasion = outingOccasionAt(day, half, game.occasions)
   if (!occasion || game.occasionsDeclined.includes(occasion.id)) return null
+  // Nobody asks him to a tryout he is on a team too late for.
+  if (occasion.group && tryoutOf(occasion.id) && !canTryOut(occasion.id)) return null
   return occasion
 }
 
