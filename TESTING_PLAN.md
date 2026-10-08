@@ -182,6 +182,8 @@ You will need externally kept data for testing:
 - [ ] Start a new game and verify the January 19 opening mentions only a few early flowers, not flowers everywhere.
 - [ ] Give a character of yours a winter outfit, render it and play a scene with her before March 16. Verify she wears it on stage, her "Main Outfit:" line in data/app.log names the winter tags, the Cast modal's wardrobe locks do not list it, and a text photo of her carries the winter tags and "in her winter clothes".
 - [ ] Load a save with her after March 16 and verify she wears her usual clothes, and that a character without a winter outfit wears her usual clothes all semester.
+- [ ] Start a New Game with the swim team filled in (pick one member by hand), leave before Finalize, resume and verify the pick is kept. After Finalize, verify F9's Groups section lists the members and two weekly sessions, with no session left out.
+- [ ] At a swim team session, verify the map shows the members at the pool, a scene there brings at most three of them, and the coach and the other teammates are never named.
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 
