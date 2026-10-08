@@ -1,7 +1,13 @@
 import { BREAKTHROUGH_MEMORY_TYPE } from '@shared/breakthrough'
 import { romancesReader, SUBJECT_TAGS } from '@shared/characterRules'
 import { slotFullLabel, yearLabel } from '@shared/classes'
-import { groupClause, type GroupId, type GroupResult, type TryoutResult } from '@shared/groups'
+import {
+  groupClause,
+  GROUPS,
+  type GroupId,
+  type GroupResult,
+  type TryoutResult
+} from '@shared/groups'
 import { homeClause, homeOf, type HomeId } from '@shared/homes'
 import { EMOTIONS } from '@shared/emotions'
 import { isStockOutfitSet, outfitTagsFor, spriteRefsFor, STOCK_OUTFIT_SETS } from '@shared/outfits'
@@ -242,6 +248,10 @@ export interface PromptState {
   addedNotices?: readonly AddedNotice[]
   /** The part-time job the reader holds, or null — the other half of his week. */
   playerJob: JobState | null
+  /** His team's practice periods while it practices, or null — the third part of his week. */
+  playerPractice?: PracticeWeek | null
+  /** Whether the scene is one of his team's practices, which the game pays itself. */
+  groupPractice?: boolean
   /** The girl he starts with as an ex, where New Game picked one. */
   ex?: ExChoice | null
   /** The reader's accumulated stats, used for relationship requirement guidance. */
@@ -816,13 +826,20 @@ export function profileLines(
   return lines
 }
 
-/** One week under one heading — classes and shifts interleaved in slot order. */
+/** The periods of the week the reader's team practices in, and what the week calls them. */
+export interface PracticeWeek {
+  label: string
+  slots: readonly ShiftSlot[]
+}
+
+/** One week under one heading — classes, shifts and practices interleaved in slot order. */
 export function scheduleLines(
   heading: string,
   schedule: Record<number, string>,
   classes: Record<string, ClassEntry>,
   job?: { jobId: string; shifts: readonly ShiftSlot[]; startsOn?: number } | null,
-  date?: number
+  date?: number,
+  practice?: PracticeWeek | null
 ): string[] {
   const rows: (readonly [number, string])[] = Object.entries(schedule)
     .map(([slot, code]) => [Number(slot) as ClassSlot, classes[code]] as const)
@@ -835,6 +852,9 @@ export function scheduleLines(
     for (const slot of job.shifts) {
       rows.push([slot as number, `${shiftSlotFullLabel(slot)}: shift at ${employer}`] as const)
     }
+  }
+  for (const slot of practice?.slots ?? []) {
+    rows.push([slot as number, `${shiftSlotFullLabel(slot)}: ${practice?.label}`] as const)
   }
 
   if (rows.length === 0) return []
@@ -1067,7 +1087,8 @@ function whoBlock(cast: readonly Character[], state: PromptState, reader: string
       state.playerSchedule,
       state.classes,
       state.playerJob,
-      state.date
+      state.date,
+      state.playerPractice
     ),
     '',
     ...castBlock(cast, state),
@@ -1526,9 +1547,12 @@ export function buildSoloPrompt(
     state.slotRumor
   )
 
-  // A group's event with nobody of the roster free is still the team's event: its result is told,
-  // and the coach and the team stay unnamed. A team's place without an event gets the second only.
-  const eventGroup = groupOfEvent(state.groupEvent)
+  // A group's event or practice with nobody of the roster free is still the team's hour: its
+  // result is told, and the coach and the team stay unnamed. A team's place without either gets
+  // the second only.
+  const eventGroup =
+    groupOfEvent(state.groupEvent) ??
+    (state.groupPractice && state.playerTeam ? GROUPS[state.playerTeam] : undefined)
   const inPlay = groupsInPlay([], state.sceneLocation)
   const figurant = groupFigurantLine(
     eventGroup && !inPlay.includes(eventGroup) ? [eventGroup, ...inPlay] : inPlay
@@ -2000,9 +2024,10 @@ export function buildLedgerPrompt(
   const classScene = state.classCode
     ? { factoid: state.classMeeting?.kind === 'lecture' && state.classMeeting.index > 1 }
     : null
-  // Classes and shifts are scored by the app; every other hour with
+  // Classes, shifts and practices are scored by the app; every other hour with
   // company is judged here, one stat's worth.
-  const castStats = cast.length > 0 && !classScene && state.jobId === null
+  const castStats =
+    cast.length > 0 && !classScene && state.jobId === null && state.groupPractice !== true
   const romance = ledgerAsksNpcRomance(
     cast,
     state.npcRomance,

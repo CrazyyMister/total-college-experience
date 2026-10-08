@@ -56,13 +56,18 @@ import {
   type ReaderTallies
 } from '@shared/tallies'
 import { FALLBACK_DORM } from '@shared/dorms'
-import type {
-  GroupId,
-  GroupResult,
-  GroupsRecord,
-  GroupTeam,
-  TryoutResult
+import {
+  coachChatIdOf,
+  teamOfSave,
+  type GroupId,
+  type GroupResult,
+  type GroupsRecord,
+  type GroupTeam,
+  type SavedTeam,
+  type SessionSettle,
+  type TryoutResult
 } from '@shared/groups'
+import type { CoachTexts } from './loop/coach'
 import { withHomeMove, type HomeId } from '@shared/homes'
 import {
   giftMemoryCapFor,
@@ -74,7 +79,7 @@ import {
 } from '@shared/shop'
 import type { GameOverReason } from '@shared/gameOver'
 import type { Weather } from '@shared/weather'
-import { MAX_RAISES, newJobState, RAISE_EVERY } from '@shared/jobs'
+import { globalSlotOf, MAX_RAISES, newJobState, RAISE_EVERY } from '@shared/jobs'
 import type { ExamPeriod } from '@shared/academics'
 import type { DatingPassOutcome } from '@shared/dating'
 import {
@@ -209,6 +214,8 @@ export interface SceneKind {
   groupId?: GroupId | null
   /** The event the scene is, whose result is in the store's `groupResults`. */
   groupEvent?: string | null
+  /** Whether the scene is one of the reader's team's practices. */
+  groupPractice?: boolean
   /** The stats the shift's rolled gain moves, when the employer has more than one to roll. */
   jobStats?: readonly StatKey[]
   /** Roster charIds the action named without bringing along. */
@@ -235,6 +242,7 @@ function sceneKindFields(scene: SceneKind | null | undefined) {
     sceneVisitJob: scene?.visitJobId ?? null,
     sceneGroup: scene?.groupId ?? null,
     sceneGroupEvent: scene?.groupEvent ?? null,
+    sceneGroupPractice: scene?.groupPractice === true,
     sceneJobStats: [...(scene?.jobStats ?? [])],
     sceneMentions: [...(scene?.mentions ?? [])],
     sceneLocation: scene?.location ?? null,
@@ -426,6 +434,8 @@ interface GameStoreState {
   sceneGroup: GroupId | null
   /** The event this scene is, or null. */
   sceneGroupEvent: string | null
+  /** The scene is one of his team's practices. */
+  sceneGroupPractice: boolean
   /**
    * Who this scene is *about* without their being in it — the classifier's mentioned-only
    * list, resolved to charIds.
@@ -1010,12 +1020,29 @@ interface GameStoreState {
   /** Files how a group event ended; an event that already has a result keeps it. */
   setGroupResult: (eventId: string, result: GroupResult) => void
   /**
-   * Files how a tryout ended and, when he made the team, puts him on it from `since`, in one
-   * write. Filing the same tryout again leaves the first.
+   * Files how a tryout ended and, when he made the team, puts him on it from `since` and files
+   * his coach's welcome, in one write. Filing the same tryout again leaves the first.
    */
-  fileTryout: (eventId: string, result: TryoutResult, team: GroupTeam | null) => void
-  /** Takes him off his team. The tryout he went to stays filed. */
-  leaveTeam: () => void
+  fileTryout: (
+    eventId: string,
+    result: TryoutResult,
+    team: Pick<SavedTeam, 'id' | 'since'> | null,
+    welcome?: CoachTexts
+  ) => void
+  /** Takes him off his team and files his coach's goodbye. The tryout he went to stays filed. */
+  leaveTeam: (goodbye?: CoachTexts) => void
+  /**
+   * Files a practice he went to, so the pass that judges it finds him there. A slot is filed
+   * once.
+   */
+  recordPracticeAttended: (slotId: number) => void
+  /**
+   * Applies a pass of {@link settleSessions}: his strikes, the slot judged through and the
+   * coach's texts for each strike, in one write, and takes him off the team when the pass put
+   * him out. A pass that judged nothing new changes nothing, which is what keeps a replayed
+   * boundary from counting a miss or sending its text twice.
+   */
+  settleTeam: (settle: SessionSettle, texts: CoachTexts) => void
   /**
    * Snapshots the finishing slot's scene cast for the ask-out roll. Must run before
    * the clock or the cast moves — just ahead of `advanceSlot`.
@@ -1145,6 +1172,20 @@ function patchConversation(
       conversations: { ...state.bunnyboard.conversations, [charId]: patched }
     }
   }
+}
+
+/** The write that files a coach's texts in his thread, or nothing where there are none. */
+function withCoachTexts(
+  state: GameStoreState,
+  id: GroupId,
+  texts: CoachTexts
+): Partial<GameStoreState> {
+  if (texts.messages.length === 0) return {}
+  return patchConversation(state, coachChatIdOf(id), (chat) => ({
+    ...chat,
+    messages: [...chat.messages, ...texts.messages],
+    unread: chat.unread + texts.unread
+  }))
 }
 
 /**
@@ -1487,6 +1528,7 @@ const initialState = {
   sceneVisitJob: null as string | null,
   sceneGroup: null as GroupId | null,
   sceneGroupEvent: null as string | null,
+  sceneGroupPractice: false,
   sceneMentions: [] as string[],
   sceneLocation: null as string | null,
   sceneInPublic: true,
@@ -1605,7 +1647,9 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       homeMoves: save.homeMoves ?? {},
       groupResults: save.groups?.results ?? {},
       groupTryouts: save.groups?.tryouts ?? {},
-      groupTeam: save.groups?.team ?? null,
+      groupTeam: save.groups?.team
+        ? teamOfSave(save.groups.team, globalSlotOf(save.date, save.time))
+        : null,
       graduationSeen: save.graduationSeen,
       farewellsDone: save.farewellsDone,
       endingArtWanted: save.endingArtWanted,
@@ -1685,6 +1729,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       ...(state.sceneVisitJob ? { visitJobId: state.sceneVisitJob } : {}),
       ...(state.sceneGroup ? { groupId: state.sceneGroup } : {}),
       ...(state.sceneGroupEvent ? { groupEvent: state.sceneGroupEvent } : {}),
+      ...(state.sceneGroupPractice ? { groupPractice: true as const } : {}),
       ...(state.sceneMentions.length > 0 ? { mentions: [...state.sceneMentions] } : {}),
       ...(state.sceneLocation ? { location: state.sceneLocation } : {}),
       // Written only when *false*: absent is the classifier's own default.
@@ -3043,17 +3088,55 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
         : { groupResults: { ...state.groupResults, [eventId]: { ...result } } }
     ),
 
-  fileTryout: (eventId, result, team) =>
+  fileTryout: (eventId, result, team, welcome) =>
     set((state) =>
       state.groupTryouts[eventId]
         ? {}
         : {
             groupTryouts: { ...state.groupTryouts, [eventId]: { ...result } },
-            ...(team ? { groupTeam: { ...team } } : {})
+            ...(team
+              ? {
+                  groupTeam: teamOfSave(team, team.since),
+                  ...(welcome ? withCoachTexts(state, team.id, welcome) : {})
+                }
+              : {})
           }
     ),
 
-  leaveTeam: () => set({ groupTeam: null }),
+  leaveTeam: (goodbye) =>
+    set((state) => ({
+      groupTeam: null,
+      ...(state.groupTeam && goodbye ? withCoachTexts(state, state.groupTeam.id, goodbye) : {})
+    })),
+
+  recordPracticeAttended: (slotId) =>
+    set((state) =>
+      !state.groupTeam || state.groupTeam.attendedSlots.includes(slotId)
+        ? {}
+        : {
+            groupTeam: {
+              ...state.groupTeam,
+              attendedSlots: [...state.groupTeam.attendedSlots, slotId]
+            }
+          }
+    ),
+
+  settleTeam: (settle, texts) =>
+    set((state) => {
+      const team = state.groupTeam
+      if (!team || settle.settledThrough <= team.settledThrough) return {}
+      return {
+        groupTeam: settle.expelled
+          ? null
+          : {
+              ...team,
+              strikes: settle.total,
+              settledThrough: settle.settledThrough,
+              attendedSlots: team.attendedSlots.filter((slotId) => slotId > settle.settledThrough)
+            },
+        ...withCoachTexts(state, team.id, texts)
+      }
+    }),
 
   recordLastSlotCast: () =>
     set((state) => ({

@@ -9,6 +9,7 @@ import {
   charClassNow,
   charJobNow,
   playerClassNow,
+  playerGroupNow,
   shiftNow
 } from './timetable'
 
@@ -21,7 +22,15 @@ import {
 export const RESCHEDULE_WEEKS = 2
 
 /** Why a slot cannot take the plan. */
-type RescheduleBlock = 'past' | 'over' | 'class' | 'shift' | 'booked' | 'away' | 'busy'
+type RescheduleBlock =
+  | 'past'
+  | 'over'
+  | 'class'
+  | 'shift'
+  | 'practice'
+  | 'booked'
+  | 'away'
+  | 'busy'
 
 /** One tile of the grid. */
 export interface RescheduleSlot {
@@ -53,6 +62,12 @@ function readerVerdict(event: CalendarEvent, date: number, time: TimeSlot): Verd
 
   if (shiftNow(date, time) !== null && game.job) {
     return { blocked: 'shift', label: jobDefOf(game.job.jobId)?.employer ?? 'Work' }
+  }
+
+  const practice = playerGroupNow(date, time)
+  if (practice) {
+    const name = practice.group.practice
+    return { blocked: 'practice', label: `${name.charAt(0).toUpperCase()}${name.slice(1)}` }
   }
 
   const booked = game.events.find(

@@ -1339,6 +1339,8 @@ export interface SceneState {
   groupId?: GroupId
   /** The id of the event this scene is, whose result the game decided, or absent. */
   groupEvent?: string
+  /** Set when the scene is one of his team's practices, which pays him and spares him a strike. */
+  groupPractice?: true
   /**
    * Roster charIds the action named without their being in the scene — bought for, thought
    * about, asked after — or absent when it named nobody absent.

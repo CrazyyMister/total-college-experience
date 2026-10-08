@@ -289,7 +289,14 @@ describe('a playthrough with a team', () => {
     const groups = {
       results,
       tryouts: { 'basketball-tryout': { made: true, tier: 3 } },
-      team: { id: 'basketball' as const, since: 11 }
+      // His practices as they stand: two misses judged through a slot, and one practice gone to.
+      team: {
+        id: 'basketball' as const,
+        since: 11,
+        strikes: 2,
+        settledThrough: 40,
+        attendedSlots: [41]
+      }
     }
     await saveService.writeManualSave('1', 3, draft({ groups }))
     await saveService.writeManualSave('1', 4, draft())

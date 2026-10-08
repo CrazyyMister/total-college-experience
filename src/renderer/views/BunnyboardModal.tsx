@@ -36,7 +36,8 @@ import {
 import { readerHolding, STARTING_HOME } from '@shared/homes'
 import type { NpcFriendship } from '@shared/npcRelationships'
 import { gpaOf, gradedCourses } from '@shared/academics'
-import { GROUPS } from '@shared/groups'
+import { GROUPS, groupOfCoachChat } from '@shared/groups'
+import { leaveTeamNow } from '../stores/loop/groups'
 import { globalSlotOf, jobDefForChat, shiftSlotFullLabel, shiftSlotOf } from '@shared/jobs'
 import { locationLabel, ROOM_LOCATION } from '@shared/locations'
 import { formatMoney } from '@shared/money'
@@ -111,6 +112,7 @@ import {
   charHiddenLocationNow,
   charJobNow,
   playerClassNow,
+  playerGroupNow,
   shiftNow
 } from '../stores/timetable'
 import { ContactPage } from './ContactPage'
@@ -182,6 +184,17 @@ function chatIdentityOf(charId: string, character: Character | undefined): ChatI
       emoji: boss.boss.emoji,
       name: boss.boss.name,
       subtitle: boss.boss.title,
+      known: true
+    }
+  }
+  const coach = groupOfCoachChat(charId)?.coach
+  if (coach) {
+    return {
+      bot: true,
+      mark: null,
+      emoji: coach.icon,
+      name: coach.name,
+      subtitle: 'Venus Jackrabbits',
       known: true
     }
   }
@@ -659,7 +672,11 @@ function ChatList(): JSX.Element {
                           <span className="vu-bb-name">{identity.name}</span>
                           {identity.bot && (
                             <span className="vu-bb-kind">
-                              {jobDefForChat(conversation.charId) ? 'BOSS' : 'BOT'}
+                              {jobDefForChat(conversation.charId)
+                                ? 'BOSS'
+                                : groupOfCoachChat(conversation.charId)
+                                  ? 'COACH'
+                                  : 'BOT'}
                             </span>
                           )}
                         </span>
@@ -947,7 +964,9 @@ function ConversationView({
   // Reschedule needs a real `CalendarEvent` to move and an hour already spoken for.
   const plan = bot ? null : plannedWith(charId, date, time, events)
   const canReschedule =
-    askingOut && plan !== null && (playerClassNow() !== null || shiftNow() !== null)
+    askingOut &&
+    plan !== null &&
+    (playerClassNow() !== null || shiftNow() !== null || playerGroupNow() !== null)
   const [rescheduling, setRescheduling] = useState(false)
   // She has him blocked: readable to the end of the slot, nothing sendable.
   const blocked = useGameStore((s) => s.charInfo[charId]?.flags?.blocked === true)
@@ -1892,7 +1911,7 @@ function TeamCard({ theme }: { theme: 'day' | 'night' }): JSX.Element {
             cancelText="Never mind"
             onConfirm={() => {
               setLeaving(false)
-              useGameStore.getState().leaveTeam()
+              leaveTeamNow()
             }}
             onCancel={() => setLeaving(false)}
           />

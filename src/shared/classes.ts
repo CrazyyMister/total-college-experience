@@ -66,6 +66,9 @@ export function scheduleComplaint(
  */
 export const FINAL_DATE = 123
 
+/** The last day classes meet, Thursday May 7: what a team's practices end with. */
+export const LAST_CLASS_DATE = 108
+
 /** Class year labels, index 0 = year 1. */
 const YEAR_LABELS = ['Freshman', 'Sophomore', 'Junior', 'Senior'] as const
 

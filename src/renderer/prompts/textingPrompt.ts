@@ -53,7 +53,13 @@ import { groupFigurantLine, groupNewsClause, groupsInPlay, readerTeamLines } fro
 import type { GroupId, GroupResult } from '@shared/groups'
 import { occasionLoreLines } from './occasions'
 import { objectSchema } from './schema'
-import { memoryLines, profileLines, scheduleLines, yearMajorLine } from './scenePrompt'
+import {
+  memoryLines,
+  profileLines,
+  scheduleLines,
+  yearMajorLine,
+  type PracticeWeek
+} from './scenePrompt'
 import { springBreakLines } from './springBreak'
 import {
   bestFriendLines,
@@ -123,6 +129,8 @@ export interface TextingPromptState {
   playerSchedule: Record<number, string>
   /** The part-time job the reader holds, or null — the rest of his week. */
   playerJob: JobState | null
+  /** His team's practice periods while it practices, or null. */
+  playerPractice?: PracticeWeek | null
   /** The save's generated occasions; the fixed calendar is merged in on read. */
   occasions: readonly Occasion[]
   /** How each group event ended, by occasion id; absent reads as none. */
@@ -485,7 +493,8 @@ export function buildTextingPrompt(
       state.playerSchedule,
       state.classes,
       state.playerJob,
-      state.date
+      state.date,
+      state.playerPractice
     ),
     '',
     ...characterBlock,

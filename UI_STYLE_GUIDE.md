@@ -406,7 +406,8 @@
 - The milestone modal draws her as the stage's own sprite standing over the panel rather than as an archway: she is the screen's subject, and the crop, the height and the ground are the stage's, a shade closer.
 - The Edit modal's portrait and the reader's own archway on his profile are the only archways in the app that are controls.
 - New Game's foot button is the only control whose size is a state, doubled once the roster is full and so at both steps, which rides a wrapper so the gesture composes.
-- The Bunnyboard's chat rows lift `.vu-row` to a surface fill, the list standing on the ground rather than in a panel.
+- The Bunnyboard's chat rows lift `.vu-row` to a surface fill, the list standing on the ground rather than in a panel. A coach's row is a bot's, with the sport's icon and the tag COACH where a boss wears BOSS.
+- A team's practice is drawn as a boss's shift is: a `work` chip and card in the calendar, and on the job board and the add/drop week a dead tile, the board's marking it with a `PE`-tinted `Practice` chip.
 - A sticker is the only rotated text outside the fan.
 - The contact page and the self-improvement screen take the bare veil, both placing their own layers against the stage's edges.
 - The contact page sizes the character in percentages, she being the subject rather than decoration.

@@ -10,9 +10,9 @@ import { statActionBag, statActionsFor } from '../prompts/statActions'
 import { useGameStore } from './gameStore'
 import { useGrabBagStore } from './grabBagStore'
 import type { Verdict } from './loop/classify'
-import { canTryOut, groupEventVerdict } from './loop/groups'
+import { canTryOut, groupEventVerdict, MAP_ACTION, PRACTICE_ACTION } from './loop/groups'
 import { projectsNeedingWork } from './loop/jobs'
-import { groupEventAt, playerClassNow, shiftNow } from './timetable'
+import { groupEventAt, playerClassNow, playerGroupNow, shiftNow } from './timetable'
 
 /** What the slot's opening offers the reader as buttons. */
 
@@ -59,7 +59,7 @@ export function goToText(locationId: string, placeLabel: string): string {
  * a place the reader picked off a map being the one thing it could not tell him.
  */
 export function goToVerdict(locationId: string): Verdict {
-  return { ...knownVerdict(''), sceneLocation: locationId }
+  return { ...knownVerdict(MAP_ACTION), sceneLocation: locationId }
 }
 
 /** What the class button says. */
@@ -125,6 +125,17 @@ function commitments(): SlotAction[] {
       text: `Work at ${def.employer}`,
       tone: 'shift',
       verdict: knownVerdict('job')
+    })
+  }
+
+  // His team's practice, which sets the scene at the team's place.
+  const practice = playerGroupNow()
+  if (practice) {
+    actions.push({
+      key: `practice:${practice.group.id}`,
+      text: `Go to ${practice.group.practice}`,
+      tone: 'plan',
+      verdict: { ...knownVerdict(PRACTICE_ACTION), sceneLocation: practice.group.location }
     })
   }
 

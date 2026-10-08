@@ -1,10 +1,18 @@
 import type { Haunt, Occasion, ShiftSlot, TimeSlot } from '@shared/types'
+import { LAST_CLASS_DATE } from '@shared/classes'
 import type { NpcGroup } from '@shared/npcRelationships'
-import { groupsOfChar, type GroupDef } from '@shared/groups'
+import {
+  GROUPS,
+  groupsOfChar,
+  practiceHeld,
+  type GroupDef,
+  type PracticeContext
+} from '@shared/groups'
 import { homeOf, type HomeId } from '@shared/homes'
-import { shiftSlotOf } from '@shared/jobs'
+import { globalSlotOf, shiftSlotOf, slotFromId } from '@shared/jobs'
 import { ROOM_LOCATION } from '@shared/locations'
 import { classSlotOf, hauntClosedOn, jobClosedOn } from '../prompts/occasions'
+import type { PracticeWeek } from '../prompts/scenePrompt'
 import { charJobAt, shiftWeekdayOf } from '../prompts/gameDate'
 import { isMoodHomebound } from '../prompts/moods'
 import { isAwayForSpringBreak } from '../prompts/springBreak'
@@ -49,6 +57,89 @@ export function shiftNow(date?: number, time?: TimeSlot): ShiftSlot | null {
   if (jobClosedOn(game.job.jobId, on, game.occasions)) return null
   const slot = shiftSlotOf(shiftWeekdayOf(on), time ?? game.time)
   return game.job.shifts.includes(slot) ? slot : null
+}
+
+/** Whether a slot of his team's own event holds the half-day. */
+function ownEventAt(groupId: string, slotId: number): boolean {
+  const { date, time } = slotFromId(slotId)
+  return useGameStore
+    .getState()
+    .occasions.some(
+      (occasion) =>
+        occasion.group === groupId &&
+        date >= occasion.startDate &&
+        date <= occasion.endDate &&
+        (occasion.time === null || occasion.time === time)
+    )
+}
+
+/**
+ * What decides whether his team practices in a slot, read off the store: the one context the
+ * clock's commitments and the strikes both judge a practice by.
+ */
+function practiceContext(): PracticeContext {
+  const game = useGameStore.getState()
+  const team = game.groupTeam
+  return {
+    shiftSlotAt: (slotId) => {
+      const { date, time } = slotFromId(slotId)
+      return shiftSlotOf(shiftWeekdayOf(date), time)
+    },
+    closedOn: (date) =>
+      team ? hauntClosedOn(GROUPS[team.id].location, 'team', date, game.occasions) : true,
+    eventAt: (slotId) => (team ? ownEventAt(team.id, slotId) : false),
+    otherCommitmentAt: (slotId) => {
+      const { date, time } = slotFromId(slotId)
+      return playerClassNow(date, time) !== null || shiftNow(date, time) !== null
+    }
+  }
+}
+
+/** Whether his team practices in a global slot. */
+export function practiceHeldAt(slotId: number): boolean {
+  const game = useGameStore.getState()
+  const team = game.groupTeam
+  if (!team) return false
+  const sessions = game.groups[team.id]?.sessions ?? []
+  return practiceHeld(team, sessions, slotId, practiceContext())
+}
+
+/** A practice of the reader's team: which team, and the period of the week it falls in. */
+export interface PlayerGroupSlot {
+  group: GroupDef
+  /** What kind of group commitment it is; a house's meetings will be `'house'`. */
+  kind: 'team'
+  slot: ShiftSlot
+}
+
+/**
+ * The group commitment the reader has in a slot, defaulting to now, or null: his team practices
+ * then. The sibling of {@link shiftNow} for everything that asks whether his time is spoken for.
+ */
+export function playerGroupNow(date?: number, time?: TimeSlot): PlayerGroupSlot | null {
+  const game = useGameStore.getState()
+  const team = game.groupTeam
+  if (!team) return null
+  const on = date ?? game.date
+  const half = time ?? game.time
+  if (!practiceHeldAt(globalSlotOf(on, half))) return null
+  return {
+    group: GROUPS[team.id],
+    kind: 'team',
+    slot: shiftSlotOf(shiftWeekdayOf(on), half)
+  }
+}
+
+/**
+ * His team's practice periods, for the lines that tell the writer his week: nothing once classes
+ * are over or when he is on no team.
+ */
+export function playerPracticeWeek(): PracticeWeek | null {
+  const game = useGameStore.getState()
+  const team = game.groupTeam
+  if (!team || game.date > LAST_CLASS_DATE) return null
+  const slots = game.groups[team.id]?.sessions ?? []
+  return slots.length > 0 ? { label: GROUPS[team.id].practice, slots: [...slots] } : null
 }
 
 /**

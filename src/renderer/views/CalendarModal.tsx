@@ -4,6 +4,7 @@ import { motion } from 'motion/react'
 import { kindSentenceOf } from '@shared/academics'
 import { FINAL_DATE, studentsOf, TIME_SLOTS } from '@shared/classes'
 import { jobDefOf, shiftSlotOf, WEEK_COLUMNS, WEEK_DAY_HEADERS } from '@shared/jobs'
+import { locationLabel } from '@shared/locations'
 import type { CalendarEvent, ClassEntry, Occasion, TimeSlot } from '@shared/types'
 import { weatherAt, type Weather } from '@shared/weather'
 import { useModalShell } from '../components/useModalShell'
@@ -22,6 +23,7 @@ import { everAttended } from '../prompts/classProgress'
 import { classSlotOf, jobClosedOn, occasionsOn } from '../prompts/occasions'
 import { profileUrl, useSpriteVersion } from '../stores/characterStore'
 import { useGameStore } from '../stores/gameStore'
+import { playerGroupNow } from '../stores/timetable'
 import type { ScreenTheme } from './clockTheme'
 import {
   dealt,
@@ -279,6 +281,8 @@ export function CalendarModal({ theme, onClose }: CalendarModalProps): JSX.Eleme
   const occasions = useGameStore((s) => s.occasions)
   const weather = useGameStore((s) => s.weather)
   const job = useGameStore((s) => s.job)
+  // Read so the practices drawn below follow his team.
+  useGameStore((s) => s.groupTeam)
   const jobDef = job ? jobDefOf(job.jobId) : undefined
   const jobTitle = jobDef ? `${jobDef.title} — ${jobDef.employer}` : 'Shift'
 
@@ -333,6 +337,11 @@ export function CalendarModal({ theme, onClose }: CalendarModalProps): JSX.Eleme
     // A day the employer is closed has no shift to show.
     if (jobClosedOn(job.jobId, date, occasions)) return []
     return TIME_SLOTS.filter((time) => job.shifts.includes(shiftSlotOf(shiftWeekdayOf(date), time)))
+  }
+
+  /** The halves of `date` his team practices, Day then Night. */
+  function practicesOn(date: number): TimeSlot[] {
+    return TIME_SLOTS.filter((time) => playerGroupNow(date, time) !== null)
   }
 
   /**
@@ -398,7 +407,8 @@ export function CalendarModal({ theme, onClose }: CalendarModalProps): JSX.Eleme
     const entry = slot === null ? undefined : classes[playerSchedule[slot] ?? '']
     const plans = plansOn(selected).filter((plan) => plan.time === time)
     const onShift = shiftsOn(selected).includes(time)
-    if (!entry && plans.length === 0 && !onShift && timed.length === 0) {
+    const practice = playerGroupNow(selected, time)
+    if (!entry && plans.length === 0 && !onShift && !practice && timed.length === 0) {
       return <Quiet empty>Nothing scheduled.</Quiet>
     }
 
@@ -407,6 +417,13 @@ export function CalendarModal({ theme, onClose }: CalendarModalProps): JSX.Eleme
         {timed.map(occasionCard)}
         {onShift && (
           <Card kind="work" title={jobTitle} text="You have a shift to work." />
+        )}
+        {practice && (
+          <Card
+            kind="work"
+            title={`${practice.group.practice.charAt(0).toUpperCase()}${practice.group.practice.slice(1)}`}
+            text={`Your team practices at ${locationLabel(practice.group.location)}.`}
+          />
         )}
         {entry && (
           <Card
@@ -563,6 +580,9 @@ export function CalendarModal({ theme, onClose }: CalendarModalProps): JSX.Eleme
                     ))}
                     {shiftsOn(date).map((time) => (
                       <Chip key={`shift-${time}`} kind="work" label="Shift" time={time} />
+                    ))}
+                    {practicesOn(date).map((time) => (
+                      <Chip key={`practice-${time}`} kind="work" label="Practice" time={time} />
                     ))}
                     {plansOn(date).map((plan) => (
                       <Chip

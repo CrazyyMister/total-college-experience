@@ -1,8 +1,10 @@
 import {
   eventStrength,
   GROUP_EVENT_TIME,
+  GROUPS,
   gameResult,
   groupEventOf,
+  settleSessions as settleSessions_,
   TRYOUT_TIME,
   tryoutOf,
   tryoutVerdict,
@@ -15,9 +17,16 @@ import { wornSetOf } from '@shared/wardrobe'
 import type { Occasion, OutfitSet, TimeSlot } from '@shared/types'
 import { isMoodHomebound } from '../../prompts/moods'
 import { PORTRAIT_SLOTS, useGameStore, type SceneKind } from '../gameStore'
-import { charTeamSessionNow, charUnavailableNow, groupEventAt } from '../timetable'
+import {
+  charTeamSessionNow,
+  charUnavailableNow,
+  groupEventAt,
+  playerGroupNow,
+  practiceHeldAt
+} from '../timetable'
 import type { Verdict } from './classify'
 import { resolveLocationId } from './casting'
+import { coachTexts } from './coach'
 
 /**
  * The impure edge of the groups: who is free for an event, how it ended, and the scene it
@@ -123,13 +132,87 @@ function judgeTryout(occasion: Occasion): void {
   console.log(
     `[groups] ${occasion.id}: Body tier ${result.tier}, ${result.made ? 'made the team' : 'did not make it'}.`
   )
+  const sessions = game.groups[occasion.group]?.sessions ?? []
   game.fileTryout(
     occasion.id,
     result,
     result.made
       ? { id: occasion.group, since: globalSlotOf(game.date, game.time) + 1 }
-      : null
+      : null,
+    // His coach's welcome rides the same write that puts him on the team.
+    result.made ? coachTexts(GROUPS[occasion.group], sessions, [{ kind: 'intro' }]) : undefined
   )
+}
+
+/** Takes him off his team, and his coach says goodbye in the same write. */
+export function leaveTeamNow(): void {
+  const game = useGameStore.getState()
+  const team = game.groupTeam
+  if (!team) return
+  game.leaveTeam(coachTexts(GROUPS[team.id], game.groups[team.id]?.sessions ?? [], [{ kind: 'quit' }]))
+}
+
+/**
+ * Judges every practice the clock has passed since the last sweep: a practice his team held in
+ * a slot he did not go to is a strike, and his coach texts for each. The strikes, the slot
+ * judged through and the texts are filed by one store write, so a save never holds one without
+ * the others and a replayed boundary finds the slots already judged.
+ */
+export function settleSessions(): void {
+  const game = useGameStore.getState()
+  const team = game.groupTeam
+  if (!team) return
+
+  // The slot that just ended — the current one has not been spent yet.
+  const throughSlot = globalSlotOf(game.date, game.time) - 1
+  const settled = settleSessions_(team, throughSlot, practiceHeldAt)
+  if (settled.settledThrough === team.settledThrough) return
+
+  let strikes = team.strikes
+  const sends = settled.strikes.map(({ kind }) => ({ kind, strikes: ++strikes }))
+  for (const { slotId, kind } of settled.strikes) {
+    console.log(`[groups] ${team.id}: missed practice at slot ${slotId} (${kind}).`)
+  }
+  const sessions = game.groups[team.id]?.sessions ?? []
+  game.settleTeam(settled, coachTexts(GROUPS[team.id], sessions, sends))
+}
+
+/** What the practice button answers when his team is not practicing now. */
+export const NO_PRACTICE_MESSAGE = "You don't have practice right now."
+
+/** The action type of the practice button, which opens a practice scene. */
+export const PRACTICE_ACTION = 'practice'
+
+/** The action type of a Go from the map, which a phrase he typed never has. */
+export const MAP_ACTION = 'go'
+
+/**
+ * Whether a verdict is going to his practice: its own button, or a Go from the map to the place
+ * his team practices at while it does. A phrase he typed is never one.
+ */
+export function isPracticeVerdict(verdict: Verdict): boolean {
+  if (verdict.actionType === PRACTICE_ACTION) return true
+  const practice = playerGroupNow()
+  return (
+    verdict.actionType === MAP_ACTION &&
+    practice !== null &&
+    resolveLocationId(verdict.sceneLocation) === practice.group.location
+  )
+}
+
+/** The scene his practice opens now, or null when his team is not practicing: up to three of the team who are free. */
+export function planPractice(): { cast: string[]; scene: SceneKind; slotId: number } | null {
+  const game = useGameStore.getState()
+  const practice = playerGroupNow()
+  if (!practice) return null
+  const cast = shuffle(
+    groupMembersOf(practice.group.id).filter((charId) => memberFreeAt(charId, game.date, game.time))
+  ).slice(0, PORTRAIT_SLOTS)
+  return {
+    cast,
+    scene: { groupId: practice.group.id, groupPractice: true },
+    slotId: globalSlotOf(game.date, game.time)
+  }
 }
 
 /** The verdict that opens an event's scene, naming nobody and setting it at the event's place. */

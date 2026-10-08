@@ -4,10 +4,11 @@
  * the store.
  */
 
+import { LAST_CLASS_DATE } from './classes'
 import { seededRand } from './hash'
-import { SHIFT_SLOTS } from './jobs'
+import { MAX_STRIKES, SHIFT_SLOTS, shiftSlotFullLabel } from './jobs'
 import { isLocationOpen, locationLabel } from './locations'
-import { tierOf } from './playerStats'
+import { tierOf, type ShiftGain } from './playerStats'
 import { pronounsOf } from './pronouns'
 import { shuffle } from './shuffle'
 import type { Gender, Occasion, OutfitSet, ShiftSlot, TimeSlot } from './types'
@@ -107,6 +108,22 @@ export interface GroupDef {
    */
   readerPlays: boolean
   tryout?: TryoutDef
+  /** Who texts the reader about his place on the team; set on the teams he can try out for. */
+  coach?: CoachDef
+}
+
+/** The texts a coach sends, which kinds there are of them, and the tokens each may carry. */
+export type CoachKind = 'intro' | 'missed' | 'missed2' | 'expelled' | 'quit'
+
+/**
+ * A team's coach as a contact: no name, only what he coaches. A text may hold `{hours}` (the
+ * practice periods), `{place}`, `{limit}` (the misses that end it), `{strike}` (the count so far)
+ * and `{left}` (the misses still allowed), each a word, capitalized when the token is.
+ */
+export interface CoachDef {
+  name: string
+  icon: string
+  texts: Readonly<Record<CoachKind, string>>
 }
 
 export const GROUPS: Readonly<Record<GroupId, GroupDef>> = {
@@ -178,6 +195,17 @@ export const GROUPS: Readonly<Record<GroupId, GroupDef>> = {
       id: 'basketball-tryout',
       label: 'basketball tryout',
       candidates: [5, 2, 4, 1, 3, 6, 12, 9, 11, 8, 10, 7, 13]
+    },
+    coach: {
+      name: 'Basketball coach',
+      icon: '🏀',
+      texts: {
+        intro: "Coach here. You're on the roster. Practice is {hours} at {place}. Be there, every time.",
+        missed: "You weren't at practice. That's {strike}. {Limit} misses and you're off the team.",
+        missed2: "That's {strike}. {Left} more and you're done here.",
+        expelled: "That's {strike}. You're off the team. Clear out your locker.",
+        quit: "Understood. Your spot goes to someone else. Good luck."
+      }
     }
   },
   football: {
@@ -201,6 +229,17 @@ export const GROUPS: Readonly<Record<GroupId, GroupDef>> = {
       id: 'football-tryout',
       label: 'football tryout',
       candidates: [6, 3, 1, 4, 2, 5, 13, 10, 8, 11, 9, 12, 7]
+    },
+    coach: {
+      name: 'Football coach',
+      icon: '🏈',
+      texts: {
+        intro: "Coach here. You made the roster. Practice is {hours} at {place}. Show up, every time.",
+        missed: "You weren't at practice. That's {strike}. {Limit} misses and you're off the team.",
+        missed2: "{Strike}. {Left} more and you're done here.",
+        expelled: "{Strike}. You're off the team. Turn in your gear.",
+        quit: "Understood. Your spot goes to someone else. Good luck."
+      }
     }
   }
 }
@@ -266,12 +305,35 @@ export interface TryoutResult {
   tier: number
 }
 
-/** The team the reader is on: which, and the slot id he joined from. */
+/** The team the reader is on: which, the slot id he joined from, and how his practices stand. */
 export interface GroupTeam {
   id: GroupId
   since: number
+  /** The practices he has missed. */
+  strikes: number
+  /** The last slot id judged; a practice at or before it is never judged again. */
+  settledThrough: number
+  /** The slot ids of practices he went to that are still to be judged. */
+  attendedSlots: number[]
 }
 
+/** A team as a save keeps it: the fields a save from before practices counted are absent. */
+export type SavedTeam = Pick<GroupTeam, 'id' | 'since'> & Partial<GroupTeam>
+
+/**
+ * The team a save describes, whole. A save from before practices counted has no strikes and has
+ * judged nothing yet, so its first judgement is the slot the save stands on: he is not charged
+ * for the practices nobody asked him to go to.
+ */
+export function teamOfSave(saved: SavedTeam, standingSlot: number): GroupTeam {
+  return {
+    id: saved.id,
+    since: saved.since,
+    strikes: saved.strikes ?? 0,
+    settledThrough: saved.settledThrough ?? standingSlot - 1,
+    attendedSlots: saved.attendedSlots ?? []
+  }
+}
 /**
  * What a save keeps of the groups: how each decided event ended, keyed by event id, how each
  * tryout the reader went to ended, and the team he is on.
@@ -279,7 +341,7 @@ export interface GroupTeam {
 export interface GroupsSave {
   results: Record<string, GroupResult>
   tryouts?: Record<string, TryoutResult>
-  team?: GroupTeam
+  team?: SavedTeam
 }
 
 /** Every group's agenda in a playthrough, keyed by group id. */
@@ -345,14 +407,20 @@ export interface SessionInput {
   count: number
   /** The `ShiftSlot`s another group already holds the place in, which are never a session. */
   taken?: ReadonlySet<number>
+  /**
+   * A team of the unnamed always meets its full count: a period with too few members free is
+   * the last choice rather than no choice.
+   */
+  lenient?: boolean
   seed: string
 }
 
 /**
  * The periods of the week a team meets in: those with the most members free, never one the
  * reader has a class in, never one the place is shut in or another team holds it in, never one
- * with fewer than {@link MIN_SESSION_ATTENDEES} members free (fewer when the team has fewer),
- * and on different days where the week allows it.
+ * with fewer than {@link MIN_SESSION_ATTENDEES} members free (fewer when the team has fewer;
+ * a lenient team takes such a period only after every other), and on different days where the
+ * week allows it.
  * `leftOut` is how many of the asked-for sessions found no period.
  */
 export function groupSessionSlots(input: SessionInput): { slots: ShiftSlot[]; leftOut: number } {
@@ -363,16 +431,23 @@ export function groupSessionSlots(input: SessionInput): { slots: ShiftSlot[]; le
   const free = (slot: number): number =>
     members.filter((charId) => !busy[charId]?.has(slot)).length
 
-  const ranked = shuffle(
-    SHIFT_SLOTS.filter(
-      (slot) =>
-        isLocationOpen(input.location, slot) &&
-        !input.playerClassSlots.has(slot) &&
-        !input.taken?.has(slot) &&
-        free(slot) >= least
-    ),
-    rand
-  ).sort((a, b) => free(b) - free(a))
+  const open = SHIFT_SLOTS.filter(
+    (slot) =>
+      isLocationOpen(input.location, slot) &&
+      !input.playerClassSlots.has(slot) &&
+      !input.taken?.has(slot)
+  )
+  const enough = open.filter((slot) => free(slot) >= least)
+  const byFree = (a: number, b: number): number => free(b) - free(a)
+  const ranked = input.lenient
+    ? [
+        ...shuffle(enough, rand).sort(byFree),
+        ...shuffle(
+          open.filter((slot) => free(slot) < least),
+          rand
+        ).sort(byFree)
+      ]
+    : shuffle(enough, rand).sort(byFree)
 
   const chosen: ShiftSlot[] = []
   const dayOf = (slot: number): number => Math.floor(slot / 2)
@@ -504,6 +579,7 @@ export function dealGroups(input: GroupDealInput): GroupDeal {
       playerClassSlots: input.playerClassSlots,
       count: TEAM_SESSIONS_PER_WEEK,
       taken: held.get(def.location),
+      lenient: def.readerPlays,
       seed: `${input.seed}:${id}:sessions`
     })
     held.set(def.location, new Set([...(held.get(def.location) ?? []), ...sessions.slots]))
@@ -744,4 +820,133 @@ export function placeGroupEvents(input: EventPlacementInput): {
     }
   }
   return { placed, leftOut }
+}
+
+// ─── The reader's practices ────────────────────────────────────────────────────
+
+/** What a practice pays the reader: one point of Body, a fixed rule of the code like a shift's. */
+export const PRACTICE_GAIN: ShiftGain = {
+  stats: ['body'],
+  text: 'Running drills until your legs shook was a real workout.'
+}
+
+/** What the game knows about a slot that decides whether a practice is held in it. */
+export interface PracticeContext {
+  /** The weekly period a global slot id falls in. */
+  shiftSlotAt: (slotId: number) => ShiftSlot
+  /** Whether the university is shut that day: a holiday, spring break or any day without classes. */
+  closedOn: (date: number) => boolean
+  /** Whether an event of his own team holds the slot. */
+  eventAt: (slotId: number) => boolean
+  /** Whether a class or a shift of his holds the slot, which outranks the practice. */
+  otherCommitmentAt: (slotId: number) => boolean
+}
+
+/**
+ * Whether his team practices in a slot: it is one of the team's sessions, he is on the team
+ * by then, classes still meet, the university is open, and neither his own team's event nor a
+ * class or a shift of his holds it. The one rule the clock's commitments and the strikes both ask.
+ */
+export function practiceHeld(
+  team: Pick<GroupTeam, 'since'>,
+  sessions: readonly ShiftSlot[],
+  slotId: number,
+  context: PracticeContext
+): boolean {
+  const date = Math.floor(slotId / 2)
+  return (
+    slotId >= team.since &&
+    date <= LAST_CLASS_DATE &&
+    sessions.includes(context.shiftSlotAt(slotId)) &&
+    !context.closedOn(date) &&
+    !context.eventAt(slotId) &&
+    !context.otherCommitmentAt(slotId)
+  )
+}
+
+/** The coach's text for a missed practice, by how many he has missed. */
+export type StrikeKind = 'missed' | 'missed2' | 'expelled'
+
+/** What {@link settleSessions} concluded, as data the caller applies. */
+export interface SessionSettle {
+  /** The practices missed, each with the text its strike calls for. */
+  strikes: Array<{ slotId: number; kind: StrikeKind }>
+  /** His strikes after the pass. */
+  total: number
+  /** The last slot judged: the one asked for, or the slot he was put out in. */
+  settledThrough: number
+  /** The pass took him to the most misses a team allows. */
+  expelled: boolean
+}
+
+/**
+ * Judges every slot from `team.settledThrough + 1` through `throughSlot`: a practice held in a
+ * slot he did not go to is a strike, and the last allowed puts him out. The same pass asked
+ * again from the same team gives the same answer, and a team that has judged a slot never
+ * judges it again.
+ */
+export function settleSessions(
+  team: GroupTeam,
+  throughSlot: number,
+  held: (slotId: number) => boolean
+): SessionSettle {
+  const strikes: SessionSettle['strikes'] = []
+  let total = team.strikes
+  let settledThrough = team.settledThrough
+  let expelled = false
+
+  for (let slotId = team.settledThrough + 1; slotId <= throughSlot; slotId++) {
+    settledThrough = slotId
+    if (!held(slotId) || team.attendedSlots.includes(slotId)) continue
+    total += 1
+    expelled = total >= MAX_STRIKES
+    strikes.push({ slotId, kind: expelled ? 'expelled' : total === 1 ? 'missed' : 'missed2' })
+    if (expelled) break
+  }
+  return { strikes, total, settledThrough, expelled }
+}
+
+const COUNT_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine']
+
+/** A small count in words, capitalized when asked. */
+function countWord(count: number, capital: boolean): string {
+  const word = COUNT_WORDS[count] ?? String(count)
+  return capital ? `${word.charAt(0).toUpperCase()}${word.slice(1)}` : word
+}
+
+/**
+ * The text his coach sends: the team's own words for the kind, with the practice periods, the
+ * place and the counts written in. \`strikes\` is how many he has missed once this text is sent.
+ */
+export function coachText(
+  group: GroupDef,
+  kind: CoachKind,
+  sessions: readonly ShiftSlot[],
+  strikes = 0
+): string | null {
+  const template = group.coach?.texts[kind]
+  if (!template) return null
+  const values: Record<string, number | string> = {
+    hours: sessions.map(shiftSlotFullLabel).join(' and '),
+    place: locationLabel(group.location),
+    limit: MAX_STRIKES,
+    strike: strikes,
+    left: Math.max(0, MAX_STRIKES - strikes)
+  }
+  return template.replace(/\{(\w+)\}/g, (whole, token: string) => {
+    const key = `${token.charAt(0).toLowerCase()}${token.slice(1)}`
+    const value = values[key]
+    if (value === undefined) return whole
+    return typeof value === 'number' ? countWord(value, token !== key) : value
+  })
+}
+
+/** The Bunnyboard conversation key for a team's coach, one per team. */
+export function coachChatIdOf(id: GroupId): string {
+  return `team:${id}`
+}
+
+/** The group behind a coach's conversation key, or `undefined` for a key that is not one. */
+export function groupOfCoachChat(chatId: string): GroupDef | undefined {
+  return chatId.startsWith('team:') ? groupDefOf(chatId.slice('team:'.length)) : undefined
 }

@@ -7,6 +7,7 @@ import {
   scheduleComplaint,
   studentsOf
 } from '@shared/classes'
+import { GROUPS } from '@shared/groups'
 import { classSlotForShift, jobDefOf } from '@shared/jobs'
 import type { ClassEntry, ClassSlot } from '@shared/types'
 import { useModalShell } from '../components/useModalShell'
@@ -38,6 +39,8 @@ export function ClassScheduleModal({ theme, onClose }: ClassScheduleModalProps):
   const chars = useGameStore((s) => s.chars)
   const charInfo = useGameStore((s) => s.charInfo)
   const job = useGameStore((s) => s.job)
+  const team = useGameStore((s) => s.groupTeam)
+  const agendas = useGameStore((s) => s.groups)
   const droppedClasses = useGameStore((s) => s.droppedClasses)
   const current = useGameStore((s) => s.playerSchedule)
 
@@ -48,17 +51,27 @@ export function ClassScheduleModal({ theme, onClose }: ClassScheduleModalProps):
   const count = Object.keys(schedule).length
   const droppedCodes = useMemo(() => new Set(Object.keys(droppedClasses)), [droppedClasses])
 
-  // Current and pending shifts both block, since a pending change lands on Sunday.
+  // Current and pending shifts both block, since a pending change lands on Sunday; so do the
+  // periods his team practices in.
   const blocked = useMemo(() => {
     const owner = job ? (jobDefOf(job.jobId)?.employer ?? 'Shift') : ''
     const map: Partial<Record<ClassSlot, string>> = {}
-    if (!job) return map
-    for (const shift of [...job.shifts, ...(job.pendingShifts ?? [])]) {
-      const slot = classSlotForShift(shift)
-      if (slot !== null) map[slot] = owner
+    if (job) {
+      for (const shift of [...job.shifts, ...(job.pendingShifts ?? [])]) {
+        const slot = classSlotForShift(shift)
+        if (slot !== null) map[slot] = owner
+      }
+    }
+    if (team) {
+      const practice = GROUPS[team.id].practice
+      const name = `${practice.charAt(0).toUpperCase()}${practice.slice(1)}`
+      for (const shift of agendas[team.id]?.sessions ?? []) {
+        const slot = classSlotForShift(shift)
+        if (slot !== null) map[slot] = name
+      }
     }
     return map
-  }, [job])
+  }, [job, team, agendas])
 
   const { host, overlayProps } = useModalShell(onClose)
 

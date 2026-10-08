@@ -139,6 +139,13 @@ function Requirements({ def }: { def: JobDef }): JSX.Element {
   )
 }
 
+/** The periods his team practices in, which no shift may take. */
+function usePracticeSlots(): readonly ShiftSlot[] {
+  const team = useGameStore((s) => s.groupTeam)
+  const agendas = useGameStore((s) => s.groups)
+  return team ? (agendas[team.id]?.sessions ?? []) : []
+}
+
 interface ShiftWeekProps {
   /** The shifts picked, or the roster being read. */
   shifts: readonly ShiftSlot[]
@@ -160,6 +167,7 @@ interface ShiftWeekProps {
 function ShiftWeek({ shifts, offered, onToggle, disabled = false }: ShiftWeekProps): JSX.Element {
   const playerSchedule = useGameStore((s) => s.playerSchedule)
   const classes = useGameStore((s) => s.classes)
+  const practice = usePracticeSlots()
 
   return (
     <div className="vu-jobs-week">
@@ -178,9 +186,12 @@ function ShiftWeek({ shifts, offered, onToggle, disabled = false }: ShiftWeekPro
             const code = classSlot === null ? undefined : playerSchedule[classSlot]
             const entry = code ? classes[code] : undefined
             const picked = shifts.includes(slot)
-            // His own class holds the hour, the employer is shut that half of the day, or the
-            // week is a reading. A shift already held in a closed hour still reads.
-            const dead = disabled || Boolean(code) || !offered.includes(slot)
+            const practicing = practice.includes(slot)
+            // His own class or his team's practice holds the hour, the employer is shut that
+            // half of the day, or the week is a reading. A shift already held in a closed hour
+            // still reads; one held on a practice (from before the team) can still be given up.
+            const dead =
+              disabled || Boolean(code) || (!offered.includes(slot) && !(practicing && picked))
 
             const cls =
               `vu-slot${picked ? ' vu-slot--on' : ''}` + `${dead ? ' vu-slot--dead' : ''}`
@@ -190,6 +201,11 @@ function ShiftWeek({ shifts, offered, onToggle, disabled = false }: ShiftWeekPro
                 {entry && (
                   <span className="vu-code" data-group={classGroupOf(entry)}>
                     {entry.code}
+                  </span>
+                )}
+                {practicing && !entry && (
+                  <span className="vu-code" data-group="pe">
+                    Practice
                   </span>
                 )}
               </>
@@ -261,7 +277,10 @@ function BoardView({ onClose }: { onClose: () => void }): JSX.Element {
   const [shifts, setShifts] = useState<ShiftSlot[]>([])
 
   const selected = open.find((def) => def.id === selectedId) ?? null
-  const offered = selected ? offeredShifts(selected, jobClosures) : []
+  const practice = usePracticeSlots()
+  const offered = (selected ? offeredShifts(selected, jobClosures) : []).filter(
+    (slot) => !practice.includes(slot)
+  )
   const short = selected ? unmetStatKeys(stats, selected) : []
 
   /** Selecting a different opening drops the shifts picked for the last one. */
@@ -369,7 +388,10 @@ function HiredView({ onClose }: { onClose: () => void }): JSX.Element {
   const jobClosures = useGameStore((s) => s.jobClosures)
 
   const def = job ? jobDefOf(job.jobId) : undefined
-  const offered = def ? offeredShifts(def, jobClosures) : []
+  const practice = usePracticeSlots()
+  const offered = (def ? offeredShifts(def, jobClosures) : []).filter(
+    (slot) => !practice.includes(slot)
+  )
   // The roster being edited; `null` until the grid is touched.
   const [draft, setDraft] = useState<ShiftSlot[] | null>(null)
 
@@ -394,7 +416,7 @@ function HiredView({ onClose }: { onClose: () => void }): JSX.Element {
     (draft.length !== job.shifts.length || draft.some((s) => !job.shifts.includes(s)))
 
   function toggle(slot: ShiftSlot): void {
-    if (!offered.includes(slot)) return
+    if (!offered.includes(slot) && !shown.includes(slot)) return
     setDraft((current) => {
       const base = current ?? [...shown]
       return base.includes(slot) ? base.filter((s) => s !== slot) : [...base, slot]

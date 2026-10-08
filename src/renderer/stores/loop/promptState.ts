@@ -40,6 +40,7 @@ import { readyOutfitSets } from '../characterStore'
 import { useGameStore, type SceneKind } from '../gameStore'
 import { useGrabBagStore } from '../grabBagStore'
 import { stageAsWritten } from '../sceneSanitizer'
+import { playerPracticeWeek } from '../timetable'
 import { cancelAllTexts, expireHangoutInvitations } from '../textingLoop'
 import { presentCastOf } from './cast'
 import { teamSetInScene } from './groups'
@@ -371,6 +372,8 @@ export function promptState(): PromptState {
     // Only ever set inside the epilogue.
     ...(farewell ? { farewell } : {}),
     playerJob: game.job,
+    playerPractice: playerPracticeWeek(),
+    groupPractice: game.sceneGroupPractice,
     occasions: game.occasions,
     weather: game.weather,
     bg: stage.bg,

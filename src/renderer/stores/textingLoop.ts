@@ -83,11 +83,12 @@ import {
 } from '@shared/photos'
 import { weatherAt } from '@shared/weather'
 import { useBunnyboardStore } from './bunnyboardStore'
+import { isViewing } from './loop/coach'
 import { resetPhotos, showPhoto } from './photoStore'
 import { noNsfwImagesOf, textPhotosOf, useSettingsStore } from './settingsStore'
 import { useSetupStore } from './setupStore'
 import { useGameStore } from './gameStore'
-import { GROUP_EVENT_TIME, tryoutOf } from '@shared/groups'
+import { GROUP_EVENT_TIME, groupOfCoachChat, tryoutOf } from '@shared/groups'
 import type { Verdict } from './loop/classify'
 import { canTryOut, groupEventVerdict, photoWornSet } from './loop/groups'
 import { prefetchHangoutScene, startHangoutScene } from './loop/hooks'
@@ -102,6 +103,8 @@ import {
   charStandingHauntNow,
   charUnavailableNow,
   playerClassNow,
+  playerGroupNow,
+  playerPracticeWeek,
   shiftNow
 } from './timetable'
 import { isMoodHomebound } from '../prompts/moods'
@@ -465,18 +468,6 @@ function chatMessage(sender: ChatSender, text: string, error = false): ChatMessa
   return message
 }
 
-/**
- * Whether the player is already looking at this conversation — the Chats list
- * or the thread itself. A message landing there needs no notification.
- */
-function isViewing(charId: string): boolean {
-  const ui = useBunnyboardStore.getState()
-  if (!ui.open || ui.tab !== 'chats') return false
-  // A contact page covers the whole stage, list and thread both.
-  if (ui.pageCharId !== null) return false
-  return ui.viewingCharId === null || ui.viewingCharId === charId
-}
-
 /** Appends an incoming message, lighting the badge unless the player is watching. */
 function deliver(charId: string, message: ChatMessage): void {
   useGameStore.getState().appendChatMessage(charId, message, isViewing(charId) ? 0 : 1)
@@ -594,6 +585,7 @@ export function deliverVenusJobIntro(): void {
   if (game.job !== null) return
   if (isTutorialSlot(game.date, game.time)) return
   if (playerClassNow(game.date, game.time) !== null) return
+  if (playerGroupNow(game.date, game.time) !== null) return
 
   useGameStore.getState().markVenusJobIntroSent()
   for (const text of venusJobIntroTexts(game.playerFirstName)) {
@@ -697,7 +689,14 @@ export async function sendMessage(charId: string, text: string): Promise<void> {
   const trimmed = text.trim()
   if (!trimmed || inFlight.has(charId)) return
   // No bot can be written for: their composers are buttons or nothing at all.
-  if (isBossChat(charId) || isVenusChat(charId) || isBunnybotChat(charId)) return
+  if (
+    isBossChat(charId) ||
+    isVenusChat(charId) ||
+    isBunnybotChat(charId) ||
+    groupOfCoachChat(charId)
+  ) {
+    return
+  }
 
   const game = useGameStore.getState()
   // Texting her anything settles an ignored invitation and answers one put away with No.
@@ -765,6 +764,7 @@ function textingRequestOf(
       classes: game.classes,
       playerSchedule: game.playerSchedule,
       playerJob: game.job,
+      playerPractice: playerPracticeWeek(),
       occasions: game.occasions,
       weather: game.weather,
       // Where she is texting from; never a class or shift, as the composer is shut then.
@@ -1399,7 +1399,11 @@ export interface SlotAskerView {
 
 /** Whether the reader's own timetable has already spoken for the slot. */
 function readerBookedAt(day: number, half: TimeSlot): boolean {
-  return playerClassNow(day, half) !== null || shiftNow(day, half) !== null
+  return (
+    playerClassNow(day, half) !== null ||
+    shiftNow(day, half) !== null ||
+    playerGroupNow(day, half) !== null
+  )
 }
 
 /** Whether the slot is the reader's to spend: nothing on his timetable and no plan on it. */

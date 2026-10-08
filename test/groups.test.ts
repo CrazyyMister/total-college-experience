@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  coachText,
   dealGroups,
   drawMembers,
   gameResult,
@@ -7,13 +8,18 @@ import {
   groupSessionSlots,
   MIN_SESSION_ATTENDEES,
   placeGroupEvents,
+  practiceHeld,
+  settleSessions,
   TEAM_SESSIONS_PER_WEEK,
   TRYOUT_CHANCES,
-  tryoutVerdict
+  tryoutVerdict,
+  type GroupTeam,
+  type PracticeContext
 } from '@shared/groups'
+import { MAX_STRIKES } from '@shared/jobs'
 import { pointsForTier } from '@shared/playerStats'
 import { isLocationOpen } from '@shared/locations'
-import type { Occasion } from '@shared/types'
+import type { Occasion, ShiftSlot } from '@shared/types'
 
 /**
  * A team is drawn and given its sessions once, at New Game, and the record keeps the answer for
@@ -44,6 +50,127 @@ describe('drawMembers', () => {
   it('draws nobody where too few are left to make a team', () => {
     const taken = new Set(eligible.slice(0, eligible.length - (swimming.minMembers - 1)))
     expect(drawMembers(swimming, eligible, { count: 4, picked: [] }, taken, 'seed')).toEqual([])
+  })
+})
+
+describe('a team of the unnamed', () => {
+  const members = ['a', 'b']
+  // Everyone is busy in every period but the weekend's, so the two-free rule finds no period.
+  const busy = Object.fromEntries(members.map((charId) => [charId, new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])]))
+
+  it('still meets its full count, and a team of the named does not bend its rule', () => {
+    const input = {
+      location: 'palaestra_field',
+      members,
+      busy,
+      playerClassSlots: new Set<number>(),
+      count: TEAM_SESSIONS_PER_WEEK,
+      seed: 'x'
+    }
+    expect(groupSessionSlots({ ...input, lenient: true }).slots).toHaveLength(TEAM_SESSIONS_PER_WEEK)
+    const strict = groupSessionSlots(input)
+    expect(strict.slots.every((slot) => slot >= 10)).toBe(true)
+    // Four periods have both free, so the lenient team takes those first.
+    expect(groupSessionSlots({ ...input, lenient: true }).slots.every((slot) => slot >= 10)).toBe(true)
+  })
+
+  it('reaches its count wherever the reader has most of his week in class', () => {
+    const none = Object.fromEntries(members.map((charId) => [charId, new Set<number>([...Array(14).keys()])]))
+    const { slots, leftOut } = groupSessionSlots({
+      location: 'palaestra_court',
+      members,
+      busy: none,
+      playerClassSlots: new Set([0, 1, 2, 3, 4, 5, 6, 7]),
+      count: TEAM_SESSIONS_PER_WEEK,
+      taken: new Set([10, 11]),
+      lenient: true,
+      seed: 'y'
+    })
+    expect(slots).toHaveLength(TEAM_SESSIONS_PER_WEEK)
+    expect(leftOut).toBe(0)
+    expect(slots.some((slot) => slot < 8 || slot === 10 || slot === 11)).toBe(false)
+  })
+})
+
+describe('the practices of a team', () => {
+  const sessions: ShiftSlot[] = [2, 13]
+  const team = (over: Partial<GroupTeam> = {}): GroupTeam => ({
+    id: 'basketball',
+    since: 10,
+    strikes: 0,
+    settledThrough: 9,
+    attendedSlots: [],
+    ...over
+  })
+  const open: PracticeContext = {
+    shiftSlotAt: (slotId) => (slotId % 14) as never,
+    closedOn: () => false,
+    eventAt: () => false,
+    otherCommitmentAt: () => false
+  }
+  const held = (t: GroupTeam, context: PracticeContext = open) => (slotId: number): boolean =>
+    practiceHeld(t, sessions, slotId, context)
+  // The sessions are the periods 2 and 13 of a week, so the practices fall in slots 13, 16, 27, 30.
+  const FIRST = 13
+  const SECOND = 16
+
+  it('counts a practice he missed, tells the strike apart, and puts him out on the third', () => {
+    const t = team()
+    const one = settleSessions(t, FIRST, held(t))
+    expect(one.strikes).toEqual([{ slotId: FIRST, kind: 'missed' }])
+    expect(one.total).toBe(1)
+    expect(one.settledThrough).toBe(FIRST)
+
+    const all = settleSessions(t, 14 * 4, held(t))
+    expect(all.strikes.map((s) => s.kind)).toEqual(['missed', 'missed2', 'expelled'])
+    expect(all.expelled).toBe(true)
+    expect(all.total).toBe(MAX_STRIKES)
+    // The pass stops where he is put out.
+    expect(all.settledThrough).toBe(all.strikes[2].slotId)
+  })
+
+  it('spares the practices he went to, and judges nothing twice', () => {
+    const t = team({ attendedSlots: [FIRST] })
+    const pass = settleSessions(t, SECOND, held(t))
+    expect(pass.strikes.map((s) => s.slotId)).toEqual([SECOND])
+
+    const settledAlready = team({ settledThrough: SECOND, strikes: 1 })
+    const again = settleSessions(settledAlready, SECOND, held(settledAlready))
+    expect(again.strikes).toEqual([])
+    expect(again.settledThrough).toBe(SECOND)
+    expect(again.total).toBe(1)
+  })
+
+  it('holds no practice on a closed day, before he joined, after classes, or under an event, a class or a shift', () => {
+    const t = team({ since: SECOND })
+    // Before he joined.
+    expect(practiceHeld(t, sessions, FIRST, open)).toBe(false)
+    expect(practiceHeld(t, sessions, SECOND, open)).toBe(true)
+    // A holiday or spring break, and an event of his own team, a class or a shift of his.
+    expect(practiceHeld(t, sessions, SECOND, { ...open, closedOn: () => true })).toBe(false)
+    expect(practiceHeld(t, sessions, SECOND, { ...open, eventAt: () => true })).toBe(false)
+    expect(practiceHeld(t, sessions, SECOND, { ...open, otherCommitmentAt: () => true })).toBe(false)
+    // Nothing on a period that is not one of the team's.
+    expect(practiceHeld(t, sessions, SECOND + 1, open)).toBe(false)
+    // After the last day of classes (day 108), nothing at all.
+    const late = 108 * 2 + 1
+    expect(practiceHeld(team({ since: 0 }), [(late % 14) as ShiftSlot], late, open)).toBe(true)
+    expect(practiceHeld(team({ since: 0 }), [((late + 2) % 14) as ShiftSlot], late + 2, open)).toBe(false)
+    expect(settleSessions(team({ settledThrough: late }), 123 * 2, held(t)).strikes).toEqual([])
+  })
+
+  it('writes the words of the coach from the table, with the hours and the limit', () => {
+    expect(coachText(GROUPS.basketball, 'intro', [2, 13])).toBe(
+      "Coach here. You're on the roster. Practice is Tuesday Day and Sunday Night at the indoor courts. Be there, every time."
+    )
+    expect(coachText(GROUPS.basketball, 'missed', [2, 13], 1)).toBe(
+      "You weren't at practice. That's one. Three misses and you're off the team."
+    )
+    expect(coachText(GROUPS.football, 'missed2', [2, 13], 2)).toBe("Two. One more and you're done here.")
+    expect(coachText(GROUPS.football, 'expelled', [2, 13], MAX_STRIKES)).toBe(
+      "Three. You're off the team. Turn in your gear."
+    )
+    expect(coachText(GROUPS.swimming, 'intro', [2])).toBeNull()
   })
 })
 

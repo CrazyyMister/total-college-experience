@@ -1,14 +1,18 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { placeGroupEvents, tryoutVerdict, type GroupResult } from '@shared/groups'
-import { classSlotForShift, globalSlotOf } from '@shared/jobs'
-import type { GameSave, Occasion } from '@shared/types'
+import { classSlotForShift, globalSlotOf, JOB_CATALOG, newJobState } from '@shared/jobs'
+import type { GameSave, Occasion, ShiftSlot } from '@shared/types'
 import { groupNewsClause } from '../src/renderer/prompts/groupPrompt'
+import { SPRING_BREAK } from '../src/renderer/prompts/occasions'
+import { playerGroupNow } from '../src/renderer/stores/timetable'
 import { useGameStore } from '../src/renderer/stores/gameStore'
 import {
   canTryOut,
+  leaveTeamNow,
   planGroupEvent,
   resultOfEvent,
   settleGroupResults,
+  settleSessions,
   tryoutRefusal
 } from '../src/renderer/stores/loop/groups'
 import { character, charactersById, charInfo, playthroughRecord } from './fixtures'
@@ -160,7 +164,19 @@ describe('a tryout', () => {
     expect(plan?.scene).toEqual({ groupId: 'basketball', groupEvent: tryout.id })
     const game = useGameStore.getState()
     expect(game.groupTryouts[tryout.id]).toEqual({ made: true, tier: 4 })
-    expect(game.groupTeam).toEqual({ id: 'basketball', since: globalSlotOf(DAY, 0) + 1 })
+    const since = globalSlotOf(DAY, 0) + 1
+    expect(game.groupTeam).toEqual({
+      id: 'basketball',
+      since,
+      strikes: 0,
+      settledThrough: since - 1,
+      attendedSlots: []
+    })
+    // The welcome of the coach is filed in the write that put him on the team.
+    const welcome = game.bunnyboard.conversations['team:basketball']?.messages ?? []
+    expect(welcome.map((m) => m.text)).toEqual([
+      "Coach here. You're on the roster. Practice is Tuesday Day and Sunday Night at the indoor courts. Be there, every time."
+    ])
 
     // Opening it again in the same half-day is the same scene, and changes nothing.
     useGameStore.setState({ stats: { brain: 0, body: 0, heart: 0 } })
@@ -218,5 +234,168 @@ describe('a tryout', () => {
     useGameStore.getState().loadSave(save, playthroughRecord(), {})
     expect(useGameStore.getState().groupTeam).toBeNull()
     expect(useGameStore.getState().groupTryouts).toEqual({})
+  })
+})
+
+describe('the practices of the team he is on', () => {
+  // The team practices in periods 2 and 13 of the week, so its practices fall in slots 13, 16,
+  // 27 and 30; he joined on day 5, Saturday, from the slot after the tryout.
+  const SESSIONS: ShiftSlot[] = [2, 13]
+  const CHAT = 'team:basketball'
+  const AGENDAS = { basketball: { sessions: SESSIONS } }
+
+  /** A reader on the basketball team, the clock at the given half-day and nothing judged yet. */
+  function onTeam(date: number, time: 0 | 1, over: Record<string, unknown> = {}): void {
+    useGameStore.getState().reset()
+    useGameStore.setState({
+      playthroughId: 'p1',
+      date,
+      time,
+      groups: { basketball: { sessions: SESSIONS } },
+      groupTryouts: { 'basketball-tryout': { made: true, tier: 3 } },
+      groupTeam: {
+        id: 'basketball',
+        since: 11,
+        strikes: 0,
+        settledThrough: 10,
+        attendedSlots: []
+      },
+      ...over
+    })
+  }
+  const texts = (): string[] =>
+    (useGameStore.getState().bunnyboard.conversations[CHAT]?.messages ?? []).map((m) => m.text)
+
+  it('files the strike, the slot judged through and the text of the coach in one write', () => {
+    onTeam(7, 0)
+    const seen: Array<[number, number]> = []
+    const unsubscribe = useGameStore.subscribe((state) => {
+      seen.push([
+        state.groupTeam?.strikes ?? -1,
+        state.bunnyboard.conversations[CHAT]?.messages.length ?? 0
+      ])
+    })
+    settleSessions()
+    unsubscribe()
+    // One change to the store, and it carries all three together.
+    expect(seen).toEqual([[1, 1]])
+    expect(useGameStore.getState().groupTeam?.settledThrough).toBe(13)
+    expect(texts()).toEqual([
+      "You weren't at practice. That's one. Three misses and you're off the team."
+    ])
+
+    // Asked again, nothing is judged or sent a second time.
+    settleSessions()
+    expect(useGameStore.getState().groupTeam?.strikes).toBe(1)
+    expect(texts()).toHaveLength(1)
+  })
+
+  it('counts a replayed boundary once, from the save taken before it or after it', () => {
+    onTeam(7, 0)
+    const before = JSON.parse(JSON.stringify(useGameStore.getState().toGameSave())) as GameSave
+    settleSessions()
+    const after = JSON.parse(JSON.stringify(useGameStore.getState().toGameSave())) as GameSave
+
+    for (const save of [before, after]) {
+      useGameStore.getState().reset()
+      useGameStore.getState().loadSave(save, playthroughRecord({ groups: AGENDAS }), {})
+      settleSessions()
+      expect(useGameStore.getState().groupTeam?.strikes).toBe(1)
+      expect(texts()).toHaveLength(1)
+    }
+  })
+
+  it('spares a practice he went to, filed at the boundary, and forgets it once judged', () => {
+    onTeam(7, 0)
+    useGameStore.getState().recordPracticeAttended(13)
+    useGameStore.getState().recordPracticeAttended(13)
+    expect(useGameStore.getState().groupTeam?.attendedSlots).toEqual([13])
+    settleSessions()
+    expect(useGameStore.getState().groupTeam).toMatchObject({
+      strikes: 0,
+      settledThrough: 13,
+      attendedSlots: []
+    })
+    expect(texts()).toEqual([])
+  })
+
+  it('puts him out on the third miss, with a text for each, and keeps the tryout filed', () => {
+    onTeam(14, 0)
+    settleSessions()
+    const game = useGameStore.getState()
+    expect(game.groupTeam).toBeNull()
+    expect(game.groupTryouts['basketball-tryout']?.made).toBe(true)
+    expect(texts()).toEqual([
+      "You weren't at practice. That's one. Three misses and you're off the team.",
+      "That's two. One more and you're done here.",
+      "That's three. You're off the team. Clear out your locker."
+    ])
+  })
+
+  it('does not count a day the university is shut, a day after classes, or a shift of his', () => {
+    // A practice on the first day of spring break, which closes the university.
+    const day = SPRING_BREAK.startDate
+    onTeam(day, 1, {
+      groups: { basketball: { sessions: [(day % 7) * 2] } },
+      groupTeam: {
+        id: 'basketball',
+        since: 11,
+        strikes: 0,
+        settledThrough: day * 2 - 1,
+        attendedSlots: []
+      }
+    })
+    settleSessions()
+    expect(useGameStore.getState().groupTeam?.strikes).toBe(0)
+
+    // The Friday after the last day of classes.
+    onTeam(110, 0, {
+      groups: { basketball: { sessions: [(109 % 7) * 2] } },
+      groupTeam: {
+        id: 'basketball',
+        since: 11,
+        strikes: 0,
+        settledThrough: 216,
+        attendedSlots: []
+      }
+    })
+    settleSessions()
+    expect(useGameStore.getState().groupTeam).toMatchObject({ strikes: 0, settledThrough: 219 })
+
+    // A shift of his on the practice outranks it: no practice, no strike, and no button.
+    onTeam(7, 0, { job: newJobState(JOB_CATALOG[0].id, [13], 0) })
+    expect(playerGroupNow(6, 1)).toBeNull()
+    settleSessions()
+    expect(useGameStore.getState().groupTeam?.strikes).toBe(0)
+    expect(texts()).toEqual([])
+  })
+
+  it('offers the practice only in its period, and the coach says goodbye when he leaves', () => {
+    onTeam(6, 1)
+    expect(playerGroupNow()?.group.id).toBe('basketball')
+    expect(playerGroupNow(6, 0)).toBeNull()
+    leaveTeamNow()
+    expect(useGameStore.getState().groupTeam).toBeNull()
+    expect(useGameStore.getState().groupTryouts['basketball-tryout']?.made).toBe(true)
+    expect(texts()).toEqual(['Understood. Your spot goes to someone else. Good luck.'])
+    expect(playerGroupNow()).toBeNull()
+  })
+
+  it('reads a team saved before practices counted as having judged nothing', () => {
+    onTeam(40, 0, { groupTeam: { id: 'basketball', since: 11 } })
+    const old = JSON.parse(JSON.stringify(useGameStore.getState().toGameSave())) as GameSave
+    expect(old.groups?.team).toEqual({ id: 'basketball', since: 11 })
+    useGameStore.getState().reset()
+    useGameStore.getState().loadSave(old, playthroughRecord({ groups: AGENDAS }), {})
+    expect(useGameStore.getState().groupTeam).toEqual({
+      id: 'basketball',
+      since: 11,
+      strikes: 0,
+      settledThrough: globalSlotOf(40, 0) - 1,
+      attendedSlots: []
+    })
+    // Nothing is charged for the weeks before the save.
+    settleSessions()
+    expect(useGameStore.getState().groupTeam?.strikes).toBe(0)
   })
 })

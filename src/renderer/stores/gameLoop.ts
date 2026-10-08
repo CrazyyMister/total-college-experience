@@ -1,7 +1,9 @@
 import { breakthroughReady, breakthroughsOfTurn } from '@shared/breakthrough'
 import { checkFacts } from '@shared/facts'
 import { gameOverLines, gameOverReasonOf } from '@shared/gameOver'
+import { GROUPS, PRACTICE_GAIN } from '@shared/groups'
 import { homeOf, READER, withHomeMove } from '@shared/homes'
+import { locationLabel } from '@shared/locations'
 import { earnLine, spendLine, spentOf } from '@shared/money'
 import {
   globalSlotOf,
@@ -222,8 +224,12 @@ import { registerLoopHooks } from './loop/hooks'
 import { failTurn, runSceneTurn } from './loop/turn'
 import {
   groupEventIdFor,
+  isPracticeVerdict,
+  NO_PRACTICE_MESSAGE,
   planGroupEvent,
+  planPractice,
   settleGroupResults,
+  settleSessions,
   tryoutRefusal
 } from './loop/groups'
 import { resolveProject, settleShifts } from './loop/jobs'
@@ -404,6 +410,9 @@ async function beginSlot(): Promise<void> {
 
   // Every shift walked past since the last sweep is judged here, before the fold.
   settleShifts()
+
+  // So is every practice, beside it: the strikes and the coach's texts are one write.
+  settleSessions()
 
   // The two grade notifications: the standing heads the slot, the finals close it.
   const grades = settleGrades()
@@ -1373,7 +1382,9 @@ async function castTurn(
   const eventId = groupEventIdFor(verdict)
   const plan = eventId !== null
     ? castGroupTurn(eventId, trimmed, snapshot)
-    : actionType.startsWith('goto_class:')
+    : isPracticeVerdict(verdict)
+      ? castPracticeTurn(trimmed, snapshot)
+      : actionType.startsWith('goto_class:')
       ? await castClassTurn(actionType, mentioned, trimmed, snapshot)
       : actionType === 'job'
         ? castJobTurn(trimmed, inPublic, snapshot)
@@ -1456,6 +1467,29 @@ function castGroupTurn(
     return null
   }
   return { cast: planned.cast, scene: planned.scene, passerby: null, sceneAction }
+}
+
+/**
+ * His team's practice, played with whoever of the team is free: refused, and costing him
+ * nothing, when the team is not practicing now. The attendance is filed at the boundary.
+ */
+function castPracticeTurn(sceneAction: string, snapshot: TurnSnapshot): CastPlan | null {
+  const planned = planPractice()
+  if (!planned || !planned.scene.groupId) {
+    failTurn(rejection(NO_PRACTICE_MESSAGE), snapshot)
+    return null
+  }
+  const group = GROUPS[planned.scene.groupId]
+  return {
+    cast: planned.cast,
+    scene: planned.scene,
+    passerby: null,
+    // Under the action, like a shift's note, so the Chat Log shows it too.
+    sceneAction: [
+      sceneAction,
+      `(He is at his ${group.practice} at ${locationLabel(group.location)}.)`
+    ].join('\n')
+  }
 }
 
 /** A `job` verdict: one shift. */
@@ -2315,12 +2349,18 @@ function resolveScene(): { deltas: PlayerStats; lines: StatusText[] } {
     // Not `closingCast`, which a resumed save has already cleared by this point.
     // A group's event is the team's hour, however many of them the roster has free.
     solo:
-      useGameStore.getState().cast.length === 0 && useGameStore.getState().sceneGroupEvent === null,
+      useGameStore.getState().cast.length === 0 &&
+      useGameStore.getState().sceneGroupEvent === null &&
+      !useGameStore.getState().sceneGroupPractice,
     // The same fact the ledger's `STATS` section is dropped on.
     classScene: useGameStore.getState().sceneClass !== null,
     classOutcome: classOutcomeNow(),
     // On a worked shift, replaces every other source, the ledger's award included.
-    jobOutcome: loopState.jobShift ? { gain: loopState.jobShift.gain } : null,
+    jobOutcome: loopState.jobShift
+      ? { gain: loopState.jobShift.gain }
+      : useGameStore.getState().sceneGroupPractice
+        ? { gain: PRACTICE_GAIN }
+        : null,
     // Additive, unlike `jobOutcome`.
     gradeOutcome: gradeOutcomeNow()
   })
@@ -2823,6 +2863,11 @@ async function crossSlotBoundary(): Promise<void> {
     const raised = useGameStore.getState().recordShiftWorked(shift.slotId, shift.pay)
     const jobId = useGameStore.getState().job?.jobId
     if (raised && jobId) owedTexts.push(() => deliverBossMessage(jobId, 'raise'))
+  }
+  // A practice he went to is filed as the boundary closes it, so the pass that judges the slot
+  // finds him there.
+  if (useGameStore.getState().sceneGroupPractice) {
+    useGameStore.getState().recordPracticeAttended(globalSlotOf(game.date, game.time))
   }
   // Independent of the ledger: being in the scene is the whole of this claim.
   useGameStore.getState().markMet(useGameStore.getState().cast)

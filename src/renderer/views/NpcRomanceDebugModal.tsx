@@ -4,7 +4,7 @@ import { motion } from 'motion/react'
 import { breakthroughMeterNow, lastBreakthroughUse, METER_MAX } from '@shared/breakthrough'
 import { factsKnownBy } from '@shared/facts'
 import { GROUP_IDS, GROUPS } from '@shared/groups'
-import { shiftSlotFullLabel } from '@shared/jobs'
+import { MAX_STRIKES, shiftSlotFullLabel } from '@shared/jobs'
 import { locationLabel } from '@shared/locations'
 import { pairKeyOf } from '@shared/npcRelationships'
 import {
@@ -130,7 +130,9 @@ function sectionsOf(): DebugSection[] {
         key: id,
         who: def.name,
         facts: `${members.length === 0 && def.readerPlays ? 'nobody from the roster' : `${members.length} members`} · sessions at ${locationLabel(def.location)}: ${slotsLabel}${lost}${
-          game.groupTeam?.id === id ? ' · the reader is on it' : ''
+          game.groupTeam?.id === id
+            ? ` · the reader is on it, ${game.groupTeam.strikes} of ${MAX_STRIKES} misses, judged through slot ${game.groupTeam.settledThrough}`
+            : ''
         }`
       },
       ...(def.tryout

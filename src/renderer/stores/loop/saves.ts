@@ -198,6 +198,8 @@ export function queuedScene(
   else delete scene.groupId
   if (game.sceneGroupEvent) scene.groupEvent = game.sceneGroupEvent
   else delete scene.groupEvent
+  if (game.sceneGroupPractice) scene.groupPractice = true
+  else delete scene.groupPractice
   if (game.sceneTextLedgerSkip) scene.textLedgerSkip = game.sceneTextLedgerSkip
   else delete scene.textLedgerSkip
   if (game.sceneTextLedger) scene.textLedger = { ...game.sceneTextLedger }

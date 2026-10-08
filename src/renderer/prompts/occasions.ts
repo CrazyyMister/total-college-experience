@@ -1,5 +1,5 @@
 import type { ExamPeriod } from '@shared/academics'
-import { FINAL_DATE, slotOf } from '@shared/classes'
+import { FINAL_DATE, LAST_CLASS_DATE, slotOf } from '@shared/classes'
 import { jobDefOf, slotFromId } from '@shared/jobs'
 import { locationDefOf } from '@shared/locations'
 import type { ClassSlot, HauntKind, Occasion, TimeSlot } from '@shared/types'
@@ -217,8 +217,8 @@ const ACADEMIC: readonly Occasion[] = [
     title: 'Last day of classes',
     description:
       'The last day of classes. Every lecture hall on campus is holding its final ordinary meeting of the semester, professors are cramming a term of loose ends into fifty minutes, and people keep saying goodbye to rooms they will not sit in again.',
-    startDate: 108, // Thursday, May 7
-    endDate: 108,
+    startDate: LAST_CLASS_DATE, // Thursday, May 7
+    endDate: LAST_CLASS_DATE,
     time: null,
     cancelsClasses: false,
     kind: 'academic'
