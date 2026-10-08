@@ -190,6 +190,10 @@ You will need externally kept data for testing:
 - [ ] Play a scene at the courts during a volleyball session, from the map, with a player who has a uniform and one who does not. Verify the first wears the uniform and the second her gym clothes, an outfit the model picks is not overridden, and the Cast modal does not list the uniform.
 - [ ] Play a scene at the pool during a swim team session in winter and verify the members wear their swimsuits, not their winter outfits.
 - [ ] In New Game setup, mark a woman on one team card and verify she is disabled on the other, and that each card's maximum discounts the women taken by the other.
+- [ ] In New Game setup with men on the roster, verify the basketball and football cards take 1 to 3 men, a man ticked on one is disabled on the other, and with no men on the roster both cards say the team is only the unnamed.
+- [ ] Go to a team tryout and verify data/app.log has the [groups] verdict line before the scene, the scene does not change it, and after a reload the Profile's Groups card and F9 show the same verdict.
+- [ ] With one of your shifts on top of a team practice, press the tryout button and verify it refuses, naming the shift, and the clock does not move.
+- [ ] On a team, press Leave on the Profile's Groups card and verify it asks first, Never mind changes nothing, and Leave removes the team while F9 keeps the tryout's verdict.
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 
