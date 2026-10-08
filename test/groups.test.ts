@@ -177,14 +177,14 @@ describe('placeGroupEvents', () => {
       avoid: [{ startDate: 40, endDate: 46 }],
       freeCount: everyoneFree
     })
-    // 33 and 40 are both lost for meet 1; 82 and 89 for meet 2, so 75 is the one left.
-    expect(placed.map((o) => o.startDate)).toEqual([75])
+    // 33 and 40 are both lost for meet 1, which takes 19; 82 and 89 are lost for meet 2, which takes 75.
+    expect(placed.map((o) => o.startDate)).toEqual([19, 75])
   })
 
   it('sends an event that no day can hold to the left-out list with the reason', () => {
     const closed = placeGroupEvents({
       members,
-      occasions: [held(33), held(40)],
+      occasions: [held(33), held(40), held(19)],
       avoid: [],
       freeCount: everyoneFree
     })

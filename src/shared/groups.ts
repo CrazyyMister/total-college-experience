@@ -96,9 +96,10 @@ export const GROUPS: Readonly<Record<GroupId, GroupDef>> = {
     maxMembers: 5,
     eventName: 'swim meet',
     pointsTotal: 300,
-    // Saturday nights: February 21 and April 11, then the nearest free Saturdays.
+    // Saturday nights: February 21 and April 11, then the nearest free Saturdays. The first meet
+    // keeps February 7 as its last resort, for a team too thin on the later Saturdays.
     events: [
-      { id: 'swimming-meet-1', rival: 'port_calder', candidates: [33, 40] },
+      { id: 'swimming-meet-1', rival: 'port_calder', candidates: [33, 40, 19] },
       { id: 'swimming-meet-2', rival: 'port_calder', candidates: [82, 89, 75] }
     ]
   }
