@@ -184,6 +184,9 @@ You will need externally kept data for testing:
 - [ ] Load a save with her after March 16 and verify she wears her usual clothes, and that a character without a winter outfit wears her usual clothes all semester.
 - [ ] Start a New Game with the swim team filled in (pick one member by hand), leave before Finalize, resume and verify the pick is kept. After Finalize, verify F9's Groups section lists the members and two weekly sessions, with no session left out.
 - [ ] At a swim team session, verify the map shows the members at the pool, a scene there brings at most three of them, and the coach and the other teammates are never named.
+- [ ] On the night of a swim meet, verify the map shows the free team members at the pool, press "Go to the … swim meet" and verify the scene has at most three of them, the coach and the other swimmers are never named, and the score said in the scene is the same after a reload.
+- [ ] Accept a swim team member's invitation to the meet by text, press Begin hangout, and verify the scene opens at the pool with the same score the button gives.
+- [ ] Skip a swim meet and play on. The next morning verify F9's Groups section lists the meet with a score, and that a team member mentions the result only after the meet's night.
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 
