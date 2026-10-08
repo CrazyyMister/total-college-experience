@@ -88,6 +88,9 @@ import { resetPhotos, showPhoto } from './photoStore'
 import { noNsfwImagesOf, textPhotosOf, useSettingsStore } from './settingsStore'
 import { useSetupStore } from './setupStore'
 import { useGameStore } from './gameStore'
+import { GROUP_EVENT_TIME } from '@shared/groups'
+import type { Verdict } from './loop/classify'
+import { groupEventVerdict } from './loop/groups'
 import { prefetchHangoutScene, startHangoutScene } from './loop/hooks'
 import { createRetryGate } from './retryGate'
 import { createTextExtractor } from './textingStream'
@@ -751,6 +754,7 @@ function textingRequestOf(
       ex: game.ex,
       roster: others,
       homeMoves: game.homeMoves,
+      groupResults: game.groupResults,
       charInfo: game.charInfo,
       npcRelationships: game.npcRelationships,
       npcRomance: game.npcRomance,
@@ -1038,18 +1042,18 @@ function handleHangout(charId: string, hangout: HangoutVerdict | null): void {
  * Puts an agreed hangout behind a "Begin hangout" button and puts that button in front of
  * the player, whichever tab they wandered to.
  */
-function armHangout(charId: string, description: string): void {
+function armHangout(charId: string, description: string, preset?: Verdict): void {
   // Both arm paths land here: an invitation raised before she left can be answered after.
   if (charAwayNow(charId)) return
   // He is coming, so whatever she was counting against him is spent.
   useGameStore.getState().resetDeclined(charId)
   const ui = useBunnyboardStore.getState()
-  ui.setArmedHangout({ charId, description })
+  ui.setArmedHangout({ charId, description, ...(preset ? { preset } : {}) })
   ui.openApp()
   ui.viewChar(charId)
   // The scene starts being written now, behind the reply the player is reading.
   // Never awaited: Begin consumes it if it is there and does the work itself if it is not.
-  void prefetchHangoutScene(charId, description)
+  void prefetchHangoutScene(charId, description, preset)
 }
 
 /**
@@ -1065,7 +1069,17 @@ export async function beginHangout(): Promise<void> {
   // The game view's own spinner is the loading state from here.
   useBunnyboardStore.getState().closeApp()
   useBunnyboardStore.getState().setLocked(false)
-  await startHangoutScene(armed.charId, armed.description)
+  await startHangoutScene(armed.charId, armed.description, armed.preset)
+}
+
+/** The verdict of the group event an invitation asked him to, while it is that event's night. */
+function groupEventPreset(occasionId: string | undefined): Verdict | undefined {
+  if (!occasionId) return undefined
+  const game = useGameStore.getState()
+  const occasion = game.occasions.find((entry) => entry.id === occasionId)
+  if (!occasion?.group || occasion.startDate !== game.date) return undefined
+  if ((occasion.time ?? GROUP_EVENT_TIME) !== game.time) return undefined
+  return groupEventVerdict(occasion)
 }
 
 /** The Yes/No footer under her pending ask-out. */
@@ -1091,8 +1105,9 @@ export function answerHangout(charId: string, yes: boolean): void {
       )
       return
     }
-    // The same armed button the player's own ask gets.
-    armHangout(charId, pending.description)
+    // The same armed button the player's own ask gets; an invitation to a group's event, on the
+    // night it is held, opens that event's scene with no classifier.
+    armHangout(charId, pending.description, groupEventPreset(pending.occasionId))
     return
   }
 
@@ -1406,7 +1421,8 @@ export function pickOccasionAsker(
   day: number,
   half: TimeSlot,
   view: SlotAskerView,
-  overlay: NpcSlotOverlay | null = null
+  overlay: NpcSlotOverlay | null = null,
+  occasion: Occasion | null = null
 ): string | null {
   const game = useGameStore.getState()
   const conversations = game.bunnyboard.conversations
@@ -1422,6 +1438,8 @@ export function pickOccasionAsker(
   for (const charId of game.chars) {
     if (askChanceFor(charId, day, view, 1) <= 0) continue
     if (charUnavailableNow(charId, day, half)) continue
+    // A group's event is asked by one of its members.
+    if (occasion?.group && !game.charInfo[charId]?.groups?.includes(occasion.group)) continue
     // She is already asking him something else.
     if (conversations[charId]?.pendingHangout) continue
     // Her own backoff still counts; the roster's spell of quiet does not.

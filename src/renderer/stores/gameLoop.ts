@@ -220,6 +220,7 @@ import {
 } from './loop/ledgerView'
 import { registerLoopHooks } from './loop/hooks'
 import { failTurn, runSceneTurn } from './loop/turn'
+import { groupEventIdFor, planGroupEvent, settleGroupResults } from './loop/groups'
 import { resolveProject, settleShifts } from './loop/jobs'
 import {
   applyNewFriendships,
@@ -750,7 +751,7 @@ async function fetchSlotIntro(
   const askerKeys = pickSlotAskers(date, time, view)
   // Somebody asks him to the occasion even on a slot the dice picked nobody for.
   if (occasion && askerKeys.length === 0) {
-    const fallback = pickOccasionAsker(date, time, view, npcOverlay)
+    const fallback = pickOccasionAsker(date, time, view, npcOverlay, occasion)
     if (fallback) askerKeys.push(fallback)
   }
 
@@ -1362,13 +1363,16 @@ async function castTurn(
     return null
   }
 
-  const plan = actionType.startsWith('goto_class:')
-    ? await castClassTurn(actionType, mentioned, trimmed, snapshot)
-    : actionType === 'job'
-      ? castJobTurn(trimmed, inPublic, snapshot)
-      : actionType.startsWith('project:')
-        ? castProjectTurn(actionType, trimmed, inPublic, sceneLocation, snapshot)
-        : castPeopleTurn(mentioned, trimmed, inPublic, sceneLocation, snapshot)
+  const eventId = groupEventIdFor(verdict)
+  const plan = eventId !== null
+    ? castGroupTurn(eventId, trimmed, snapshot)
+    : actionType.startsWith('goto_class:')
+      ? await castClassTurn(actionType, mentioned, trimmed, snapshot)
+      : actionType === 'job'
+        ? castJobTurn(trimmed, inPublic, snapshot)
+        : actionType.startsWith('project:')
+          ? castProjectTurn(actionType, trimmed, inPublic, sceneLocation, snapshot)
+          : castPeopleTurn(mentioned, trimmed, inPublic, sceneLocation, snapshot)
   if (!plan) return null
 
   // After the cast is final: the draw, the passerby roll and the admitted workers may each have
@@ -1422,6 +1426,23 @@ async function castClassTurn(
   }
 
   return { cast: resolved.cast, sceneAction, scene: { classCode: resolved.classCode }, passerby: null }
+}
+
+/**
+ * A `group:` verdict: a group's event, whose result is decided and filed here before the scene is
+ * written, so every call after it, and a reload, reads the same score.
+ */
+function castGroupTurn(
+  eventId: string,
+  sceneAction: string,
+  snapshot: TurnSnapshot
+): CastPlan | null {
+  const planned = planGroupEvent(eventId)
+  if (!planned) {
+    failTurn(rejection("That event isn't on right now."), snapshot)
+    return null
+  }
+  return { cast: planned.cast, scene: planned.scene, passerby: null, sceneAction }
 }
 
 /** A `job` verdict: one shift. */
@@ -2914,6 +2935,9 @@ async function crossSlotBoundary(): Promise<void> {
   for (const send of owedTexts) send()
 
   useGameStore.getState().advanceSlot()
+  // A group event that has just passed and was never played gets its result now; one already
+  // filed by its scene is left as it is.
+  settleGroupResults()
   // Where the ending decided he lives from here on; filing it again leaves the same record.
   const homeMove = loopState.bankedOpening?.homeMove
   if (homeMove) useGameStore.getState().moveHome(READER, homeMove)

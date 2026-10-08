@@ -50,6 +50,7 @@ const SAVE_REQUIRED: Record<
     | 'occasionsDeclined'
     | 'readerPosts'
     | 'homeMoves'
+    | 'groups'
     | 'bio'
     | 'tallies'
     | 'encounters'

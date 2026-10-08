@@ -1,4 +1,4 @@
-import type { Haunt, ShiftSlot, TimeSlot } from '@shared/types'
+import type { Haunt, Occasion, ShiftSlot, TimeSlot } from '@shared/types'
 import type { NpcGroup } from '@shared/npcRelationships'
 import { homeOf, type HomeId } from '@shared/homes'
 import { shiftSlotOf } from '@shared/jobs'
@@ -79,13 +79,35 @@ export function charUnavailableNow(charId: string, date?: number, time?: TimeSlo
   return charBusyNow(charId, date, time) || charAwayNow(charId, date)
 }
 
+/** The group event held on a half-day, or undefined for a half-day none is held on. */
+export function groupEventAt(date: number, time: TimeSlot): Occasion | undefined {
+  return useGameStore
+    .getState()
+    .occasions.find(
+      (occasion) =>
+        occasion.group !== undefined &&
+        occasion.where !== undefined &&
+        date >= occasion.startDate &&
+        date <= occasion.endDate &&
+        (occasion.time === null || occasion.time === time)
+    )
+}
+
 /**
  * Her **standing** haunt this slot, before anything the slot itself did to it, or null for a
- * slot her week says nothing about.
+ * slot her week says nothing about. On the night of her group's event that is the event's place,
+ * ahead of whatever her week holds.
  */
 export function charStandingHauntAt(charId: string, date: number, time: TimeSlot): Haunt | null {
   const game = useGameStore.getState()
-  const haunt = game.charInfo[charId]?.hiddenSchedule?.[shiftSlotOf(shiftWeekdayOf(date), time)]
+  const event = groupEventAt(date, time)
+  const inEvent =
+    event?.group !== undefined &&
+    event.where !== undefined &&
+    game.charInfo[charId]?.groups?.includes(event.group) === true
+  const haunt = inEvent
+    ? { location: event.where as string, kind: 'team' as const }
+    : game.charInfo[charId]?.hiddenSchedule?.[shiftSlotOf(shiftWeekdayOf(date), time)]
   if (!haunt) return null
   // A class or a shift outranks a haunt: a save whose timetable moved under it (add/drop).
   if (charBusyNow(charId, date, time)) return null

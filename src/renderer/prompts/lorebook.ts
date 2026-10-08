@@ -4,7 +4,7 @@
  * plus roster characters, built per call from the save's own people.
  */
 import { yearLabel } from '@shared/classes'
-import { groupSentence } from '@shared/groups'
+import { COPPER_LANTERN_HOLDER, groupSentence, SCHOOLS } from '@shared/groups'
 import { homeOf, homeSentence, type HomeId } from '@shared/homes'
 import { jobDefOf } from '@shared/jobs'
 import { npcBestFriendOf, type NpcRelationshipMap } from '@shared/npcRelationships'
@@ -86,6 +86,16 @@ export const LOREBOOK: readonly LoreEntry[] = [
     id: 'venus_jackrabbits',
     keys: ['Jackrabbits', 'Venus Jackrabbits', 'swim team', 'swimming team', 'varsity'],
     text: `The Venus Jackrabbits are the university's varsity teams, and the hare is their mascot, a sportier cousin of the university's bunny; their colors are wine and pink. Every team plays its season in the spring semester. The swim team trains at the Palaestra pool.`
+  },
+  {
+    id: 'port_calder',
+    keys: ['Port Calder', 'Port Calder College', 'Port Calder Seals'],
+    text: `Port Calder College is a small college on the coast, the Venus Jackrabbits' rival in volleyball and swimming. Its teams are the Seals, and its colors are navy and coral.`
+  },
+  {
+    id: 'veridan_state',
+    keys: ['Veridan State', 'Veridan State University', 'Veridan State Wardens', 'Copper Lantern'],
+    text: `Veridan State University is the giant public university on the other side of the city and the Venus Jackrabbits' great rival; its teams are the Wardens, and its colors are forest green and silver. The Copper Lantern is a lantern of beaten copper put on display on the campus of whoever wins the Venus-State classic; this semester it is on display on the ${SCHOOLS[COPPER_LANTERN_HOLDER].short} campus. The Jackrabbits' calendar this semester has no game against the State.`
   },
   {
     id: 'elysium_village',

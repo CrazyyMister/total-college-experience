@@ -1,6 +1,15 @@
-import { groupAtPlace, groupsOfChar, type GroupDef } from '@shared/groups'
+import {
+  GROUP_EVENT_TIME,
+  groupAtPlace,
+  groupEventOf,
+  groupsOfChar,
+  type GroupDef,
+  type GroupResult
+} from '@shared/groups'
 import { andList } from '@shared/sentences'
-import { loreEntryById } from './lorebook'
+import type { Occasion, TimeSlot } from '@shared/types'
+import { formatGameDate } from './gameDate'
+import { loreEntryById, loreTextForKey } from './lorebook'
 
 /** What the prompts say about the groups a call touches. */
 
@@ -29,4 +38,84 @@ export function groupFigurantLine(groups: readonly GroupDef[]): string {
   if (groups.length === 0) return ''
   const teams = andList(groups.map((def) => def.nickname))
   return `The coach and every member of ${teams} who has not been named above are unnamed background: never give any of them a name, only "the coach" or "a teammate".`
+}
+
+/** What a group's events are told from: the calendar's occasions and how each one ended. */
+export interface GroupNewsState {
+  date: number
+  time: TimeSlot
+  occasions: readonly Occasion[]
+  groupResults?: Readonly<Record<string, GroupResult>>
+}
+
+/** How an event ended, in the words of a line about the team. */
+function resultSentence(eventId: string, result: GroupResult, date: number): string | null {
+  const found = groupEventOf(eventId)
+  if (!found) return null
+  const { group, school } = found
+  const team = `${group.name.charAt(0).toUpperCase()}${group.name.slice(1)}`
+  const [high, low] = [Math.max(result.home, result.away), Math.min(result.home, result.away)]
+  const ending = result.won
+    ? `beat ${school.name} ${high}–${low}`
+    : `lost to ${school.name} ${high}–${low}`
+  return `${team} ${ending} in the ${group.eventName} on ${formatGameDate(date)}.`
+}
+
+/**
+ * The finished events of the groups a character is on, one ` | …` sentence each, oldest first.
+ * An event is told only once its night is over, and never before it has a result.
+ */
+export function groupNewsClause(
+  ids: readonly string[] | undefined,
+  state: GroupNewsState
+): string {
+  const done = groupsOfChar(ids)
+    .flatMap((def) => def.events.map((event) => event.id))
+    .flatMap((eventId) => {
+      const occasion = state.occasions.find((entry) => entry.id === eventId)
+      const result = state.groupResults?.[eventId]
+      if (!occasion || !result) return []
+      const last = occasion.time ?? GROUP_EVENT_TIME
+      const over =
+        occasion.endDate < state.date || (occasion.endDate === state.date && last < state.time)
+      return over ? [{ occasion, result }] : []
+    })
+    .sort((a, b) => a.occasion.startDate - b.occasion.startDate)
+  return done
+    .flatMap(({ occasion, result }) => {
+      const sentence = resultSentence(occasion.id, result, occasion.endDate)
+      return sentence ? [` | ${sentence}`] : []
+    })
+    .join('')
+}
+
+/**
+ * The block that tells a scene it is a group's event and how it ends. The result is the game's:
+ * the writer shows the event, and never decides it.
+ */
+export function groupEventLines(eventId: string | null | undefined, state: GroupNewsState): string[] {
+  if (!eventId) return []
+  const occasion = state.occasions.find((entry) => entry.id === eventId)
+  const result = state.groupResults?.[eventId]
+  const found = groupEventOf(eventId)
+  if (!occasion || !result || !found) return []
+  const { group, school } = found
+  const team = `${group.name.charAt(0).toUpperCase()}${group.name.slice(1)}`
+  const [high, low] = [Math.max(result.home, result.away), Math.min(result.home, result.away)]
+  const ending = result.won
+    ? `${team} beats ${school.name} ${high}–${low}`
+    : `${school.name} beats ${group.name} ${high}–${low}`
+  return [
+    'GROUP EVENT',
+    `${occasion.title}: ${occasion.description}`,
+    `The result is already decided and is not the writer's to change: ${ending}. The event can be shown whole or in part, but nothing in the scene may contradict that result or leave it open.`,
+    ''
+  ]
+}
+
+/** The rival school's lorebook entry for an event, to be stated outright rather than matched. */
+export function groupEventLore(eventId: string | null | undefined): string[] {
+  const found = eventId ? groupEventOf(eventId) : undefined
+  const text = found ? loreTextForKey(found.school.short) : null
+  return text ? [text] : []
 }

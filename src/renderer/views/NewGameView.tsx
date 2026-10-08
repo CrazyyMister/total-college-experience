@@ -10,14 +10,18 @@ import {
   placeNpcShifts,
   rollFreshmanJobStart,
   rollJobClosures,
-  shiftSlotFullLabel
+  shiftSlotFullLabel,
+  shiftSlotOf
 } from '@shared/jobs'
 import {
   dealGroups,
   eligibleFor,
+  GROUP_EVENT_TIME,
   GROUP_IDS,
   GROUPS,
+  placeGroupEvents,
   type GroupId,
+  type GroupsRecord,
   type TeamsChoice
 } from '@shared/groups'
 import { rollSemesterWeather } from '@shared/weather'
@@ -55,8 +59,9 @@ import { ConfirmModal } from '../components/ConfirmModal'
 import { ExPickerModal } from './ExPickerModal'
 import { LlmFailureModal } from '../components/LlmFailureModal'
 import { useWindowKeydown } from '../components/useWindowKeydown'
-import { slotHalf } from '../prompts/gameDate'
-import { MOOD_CYCLE_LENGTH } from '../prompts/moods'
+import { formatGameDate, shiftWeekdayOf, slotHalf } from '../prompts/gameDate'
+import { FINALS_WEEK, MIDTERM_WEEK, SPRING_BREAK, STATIC_OCCASIONS } from '../prompts/occasions'
+import { isMoodHomebound, MOOD_CYCLE_LENGTH } from '../prompts/moods'
 import { dryOccasionDates } from '../prompts/weather'
 import { type ScheduleResult } from '../stores/classScheduler'
 import {
@@ -864,6 +869,45 @@ export function NewGameView(): JSX.Element {
     // One shuffled permutation of the cycle, dealt out one each, so no two start in phase.
     const moodOffsets = shuffle([...Array(MOOD_CYCLE_LENGTH).keys()])
 
+    // The teams' events, dated around every fixed and generated occasion; the ones no day can
+    // hold go on the record beside the team's sessions and are logged, never dropped.
+    const moodOffsetOf = (charId: string): number => {
+      const at = roster.findIndex((c) => c.charId === charId)
+      return moodOffsets[Math.max(at, 0) % MOOD_CYCLE_LENGTH]
+    }
+    const eventDeal = placeGroupEvents({
+      members: groupDeal.members,
+      occasions: [...STATIC_OCCASIONS, ...occasions],
+      avoid: [MIDTERM_WEEK, SPRING_BREAK, FINALS_WEEK],
+      freeCount: (members, date, time) => {
+        const slot = shiftSlotOf(shiftWeekdayOf(date), time)
+        return members.filter((charId) => {
+          const gender = roster.find((c) => c.charId === charId)?.gender ?? 'woman'
+          return (
+            perChar[charId]?.schedule?.[slot] === undefined &&
+            !(charJobs[charId]?.shifts ?? []).includes(slot) &&
+            !isMoodHomebound(date, moodOffsetOf(charId), gender)
+          )
+        }).length
+      }
+    })
+    const groupAgendas: GroupsRecord = Object.fromEntries(
+      Object.entries(groupDeal.agendas).map(([id, agenda]) => {
+        const left = eventDeal.leftOut[id as GroupId] ?? []
+        return [id, left.length > 0 ? { ...agenda, leftOutEvents: left } : agenda]
+      })
+    )
+    for (const event of eventDeal.placed) {
+      console.log(
+        `[groups] ${event.title}: day ${event.startDate} (${formatGameDate(event.startDate)}), ${GROUP_EVENT_TIME === event.time ? 'night' : 'day'}.`
+      )
+    }
+    for (const [id, left] of Object.entries(eventDeal.leftOut)) {
+      for (const event of left ?? []) {
+        console.warn(`[groups] ${id}: ${event.id} left out (${event.reason}).`)
+      }
+    }
+
     // Who already knows whom; after the schedules, since it reads the year off them.
     const npcRelationships = rollInitialNpcRelationships(
       roster.map((c) => ({ charId: c.charId, year: perChar[c.charId]?.year ?? 1 }))
@@ -917,12 +961,12 @@ export function NewGameView(): JSX.Element {
         playerFirstName: playerName.first,
         playerLastName: playerName.last,
         classes,
-        occasions,
+        occasions: [...occasions, ...eventDeal.placed],
         // Each all-hours employer's two closed slots, rolled above off the fixed timetable.
         jobClosures,
         weather,
         profiles,
-        ...(Object.keys(groupDeal.agendas).length > 0 ? { groups: groupDeal.agendas } : {}),
+        ...(Object.keys(groupAgendas).length > 0 ? { groups: groupAgendas } : {}),
         ...(exSeed && activeEx ? { ex: activeEx } : {}),
         ...(courseChoice ? { playerCourse: courseChoice } : {})
       },

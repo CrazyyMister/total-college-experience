@@ -48,7 +48,8 @@ import {
 } from './lorebook'
 import { encounterLines } from './encounters'
 import { factLines } from './facts'
-import { groupFigurantLine, groupsInPlay } from './groupPrompt'
+import { groupFigurantLine, groupNewsClause, groupsInPlay } from './groupPrompt'
+import type { GroupResult } from '@shared/groups'
 import { occasionLoreLines } from './occasions'
 import { objectSchema } from './schema'
 import { memoryLines, profileLines, scheduleLines, yearMajorLine } from './scenePrompt'
@@ -123,6 +124,8 @@ export interface TextingPromptState {
   playerJob: JobState | null
   /** The save's generated occasions; the fixed calendar is merged in on read. */
   occasions: readonly Occasion[]
+  /** How each group event ended, by occasion id; absent reads as none. */
+  groupResults?: Readonly<Record<string, GroupResult>>
   /**
    * The whole semester's sky, one reading per slot — the NOW line walks back through it for how
    * long the weather has held. Absent means nothing is said about it.
@@ -419,7 +422,12 @@ export function buildTextingPrompt(
   const characterBlock = [
     'CHARACTER',
     `${name} ${character.lastName}.`,
-    ...(info?.major ? [yearMajorLine(info, character.gender, homeOf(state, character.charId))] : []),
+    ...(info?.major ? [yearMajorLine(
+          info,
+          character.gender,
+          homeOf(state, character.charId),
+          groupNewsClause(info.groups, state)
+        )] : []),
     // The phone takes the one-character budget.
     ...profileLines(character, info?.flags ?? emptyFlags(), 1, state.ex),
     ...relationshipLines(

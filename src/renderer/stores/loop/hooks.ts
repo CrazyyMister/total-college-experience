@@ -31,7 +31,7 @@ interface SlotCycle {
 
 interface HangoutEntry {
   /** Starts an armed hangout's scene while the player is still reading. */
-  prefetchHangoutScene: (charId: string, description: string) => Promise<void>
+  prefetchHangoutScene: (charId: string, description: string, preset?: Verdict) => Promise<void>
   /**
    * Opens the scene an agreed hangout became — the Begin button, and a
    * retry, which carries back the verdict the failed attempt settled.
@@ -88,8 +88,12 @@ export function claimTextLedger(date: number, time: TimeSlot): Promise<LedgerRes
   return need(slotCycle, 'the slot cycle').claimTextLedger(date, time)
 }
 
-export function prefetchHangoutScene(charId: string, description: string): Promise<void> {
-  return need(hangoutEntry, 'the hangout entry').prefetchHangoutScene(charId, description)
+export function prefetchHangoutScene(
+  charId: string,
+  description: string,
+  preset?: Verdict
+): Promise<void> {
+  return need(hangoutEntry, 'the hangout entry').prefetchHangoutScene(charId, description, preset)
 }
 
 export function startHangoutScene(

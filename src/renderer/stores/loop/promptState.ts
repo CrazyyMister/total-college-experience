@@ -377,6 +377,8 @@ export function promptState(): PromptState {
     projectClass: game.sceneProject,
     jobId: game.sceneJob,
     visitJobId: game.sceneVisitJob,
+    groupEvent: game.sceneGroupEvent,
+    groupResults: game.groupResults,
     // Whoever the action named without bringing along, and where it set the scene — both scanned
     // into the lorebook. Characters, not names, so two sharing a first name stay apart.
     mentions: game.sceneMentions

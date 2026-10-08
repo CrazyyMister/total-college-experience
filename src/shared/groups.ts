@@ -9,12 +9,54 @@ import { SHIFT_SLOTS } from './jobs'
 import { isLocationOpen, locationLabel } from './locations'
 import { pronounsOf } from './pronouns'
 import { shuffle } from './shuffle'
-import type { Gender, ShiftSlot } from './types'
+import type { Gender, Occasion, ShiftSlot, TimeSlot } from './types'
 
 /** Every group there is. Only the swim team exists so far. */
 export type GroupId = 'swimming'
 
 export const GROUP_IDS: readonly GroupId[] = ['swimming']
+
+/** A school the groups meet in the field. */
+export type SchoolId = 'port_calder' | 'veridan_state'
+
+export interface SchoolDef {
+  id: SchoolId
+  /** What the prompts call it in full. */
+  name: string
+  /** What its teams are called. */
+  nickname: string
+  /** What a button or a title calls it. */
+  short: string
+}
+
+export const SCHOOLS: Readonly<Record<SchoolId, SchoolDef>> = {
+  port_calder: {
+    id: 'port_calder',
+    name: 'Port Calder College',
+    nickname: 'Seals',
+    short: 'Port Calder'
+  },
+  veridan_state: {
+    id: 'veridan_state',
+    name: 'Veridan State University',
+    nickname: 'Wardens',
+    short: 'Veridan State'
+  }
+}
+
+/** Whose campus the Copper Lantern is on display at this semester. Nothing in the game moves it. */
+export const COPPER_LANTERN_HOLDER: SchoolId = 'veridan_state'
+
+/** The half of the day a group's events are held in: the night. */
+export const GROUP_EVENT_TIME: TimeSlot = 1
+
+/** One event a group holds against a school, dated at New Game out of its candidate days. */
+export interface GroupEventDef {
+  id: string
+  rival: SchoolId
+  /** The day indices it may fall on, best first. */
+  candidates: readonly number[]
+}
 
 /** One group's fixed facts. */
 export interface GroupDef {
@@ -34,6 +76,11 @@ export interface GroupDef {
   /** How many of the roster belong, at least and at most. */
   minMembers: number
   maxMembers: number
+  /** What its event is called after the school, in the button and the title. */
+  eventName: string
+  /** How many points an event hands out between the two sides. */
+  pointsTotal: number
+  events: readonly GroupEventDef[]
 }
 
 export const GROUPS: Readonly<Record<GroupId, GroupDef>> = {
@@ -46,7 +93,14 @@ export const GROUPS: Readonly<Record<GroupId, GroupDef>> = {
     location: 'palaestra_pool',
     gender: 'woman',
     minMembers: 3,
-    maxMembers: 5
+    maxMembers: 5,
+    eventName: 'swim meet',
+    pointsTotal: 300,
+    // Saturday nights: February 21 and April 11, then the nearest free Saturdays.
+    events: [
+      { id: 'swimming-meet-1', rival: 'port_calder', candidates: [33, 40] },
+      { id: 'swimming-meet-2', rival: 'port_calder', candidates: [82, 89, 75] }
+    ]
   }
 }
 
@@ -81,6 +135,28 @@ export interface GroupAgenda {
   sessions: ShiftSlot[]
   /** How many sessions found no period with enough members free, when any did not. */
   leftOutSessions?: number
+  /** The events no candidate day could hold, when any could not. */
+  leftOutEvents?: LeftOutEvent[]
+}
+
+/** Why an event found no day. */
+export type LeftOutEventReason = 'no_date' | 'too_few_free'
+
+export interface LeftOutEvent {
+  id: string
+  reason: LeftOutEventReason
+}
+
+/** How an event ended, as the side that hosts it (home) and the visitors (away) scored. */
+export interface GroupResult {
+  won: boolean
+  home: number
+  away: number
+}
+
+/** What a save keeps of the groups: how each decided event ended, keyed by event id. */
+export interface GroupsSave {
+  results: Record<string, GroupResult>
 }
 
 /** Every group's agenda in a playthrough, keyed by group id. */
@@ -251,4 +327,135 @@ export function groupSentence(ids: readonly string[] | undefined, gender: Gender
   return belongingSentences(ids, gender)
     .map((sentence) => ` ${sentence}`)
     .join('')
+}
+
+/** The odds of winning with nobody free, and what every member free adds to them. */
+export const WIN_BASE = 0.4
+export const WIN_PER_STRENGTH = 0.3
+
+/** How many of the members are free to be there, from 0 to 1. */
+export function eventStrength(
+  members: readonly string[],
+  isFree: (charId: string) => boolean
+): number {
+  if (members.length === 0) return 0
+  return members.filter(isFree).length / members.length
+}
+
+/** The odds a group wins an event at this strength. */
+export function winChance(strength: number): number {
+  return WIN_BASE + WIN_PER_STRENGTH * Math.min(1, Math.max(0, strength))
+}
+
+/**
+ * How an event ends: won by the odds and the seed, and scored out of the group's points with the
+ * winner on 52% to 64% of them. The same group, strength and seed always end it the same way.
+ */
+export function gameResult(group: GroupDef, strength: number, seed: string): GroupResult {
+  const rand = seededRand(seed)
+  const won = rand() < winChance(strength)
+  const winner = Math.round(group.pointsTotal * (0.52 + rand() * 0.12))
+  const loser = group.pointsTotal - winner
+  return won ? { won, home: winner, away: loser } : { won, home: loser, away: winner }
+}
+
+/** The group, event and school an event id names, or `undefined` for an id that is not one. */
+export function groupEventOf(
+  eventId: string
+): { group: GroupDef; event: GroupEventDef; school: SchoolDef } | undefined {
+  for (const id of GROUP_IDS) {
+    const group = GROUPS[id]
+    const event = group.events.find((entry) => entry.id === eventId)
+    if (event) return { group, event, school: SCHOOLS[event.rival] }
+  }
+  return undefined
+}
+
+/** The title of an event, as the calendar writes it. */
+export function groupEventTitle(group: GroupDef, school: SchoolDef): string {
+  const name = group.eventName
+  return `${name.charAt(0).toUpperCase()}${name.slice(1)} vs ${school.short}`
+}
+
+/** What the button for an event says. */
+export function groupEventButton(group: GroupDef, school: SchoolDef): string {
+  return `Go to the ${school.short} ${group.eventName}`
+}
+
+/** The occasion an event becomes once it has a day. */
+function groupEventOccasion(group: GroupDef, event: GroupEventDef, date: number): Occasion {
+  const school = SCHOOLS[event.rival]
+  const team = `${group.name.charAt(0).toUpperCase()}${group.name.slice(1)}`
+  return {
+    id: event.id,
+    title: groupEventTitle(group, school),
+    description: `${team} hosts ${school.name}'s ${school.nickname} in a dual meet at ${locationLabel(group.location)}.`,
+    startDate: date,
+    endDate: date,
+    time: GROUP_EVENT_TIME,
+    cancelsClasses: false,
+    kind: 'campus',
+    group: group.id,
+    where: group.location
+  }
+}
+
+/** Whether an occasion holds the half-day. */
+function occupies(occasion: Occasion, date: number, time: TimeSlot): boolean {
+  return (
+    date >= occasion.startDate &&
+    date <= occasion.endDate &&
+    (occasion.time === null || occasion.time === time)
+  )
+}
+
+/** What {@link placeGroupEvents} reads. */
+export interface EventPlacementInput {
+  /** Each group that has a team, with its members. */
+  members: Partial<Record<GroupId, readonly string[]>>
+  /** Every fixed and generated occasion the semester has. */
+  occasions: readonly Occasion[]
+  /** The weeks no event may fall in: the exam weeks and spring break. */
+  avoid: readonly { startDate: number; endDate: number }[]
+  /** How many of `members` are free at a half-day. */
+  freeCount: (members: readonly string[], date: number, time: TimeSlot) => number
+}
+
+/**
+ * Gives every event of every group with a team its day: the first candidate whose half-day no
+ * occasion and no other event holds, outside the weeks to avoid, with at least
+ * {@link MIN_SESSION_ATTENDEES} members free. An event no candidate can hold is returned with
+ * the reason and never dropped; the same input always places the same days.
+ */
+export function placeGroupEvents(input: EventPlacementInput): {
+  placed: Occasion[]
+  leftOut: Partial<Record<GroupId, LeftOutEvent[]>>
+} {
+  const placed: Occasion[] = []
+  const leftOut: Partial<Record<GroupId, LeftOutEvent[]>> = {}
+  for (const id of GROUP_IDS) {
+    const members = input.members[id]
+    if (!members || members.length === 0) continue
+    for (const event of GROUPS[id].events) {
+      const open = event.candidates.filter(
+        (date) =>
+          !input.avoid.some((range) => date >= range.startDate && date <= range.endDate) &&
+          ![...input.occasions, ...placed].some((occasion) =>
+            occupies(occasion, date, GROUP_EVENT_TIME)
+          )
+      )
+      const day = open.find(
+        (date) => input.freeCount(members, date, GROUP_EVENT_TIME) >= MIN_SESSION_ATTENDEES
+      )
+      if (day !== undefined) {
+        placed.push(groupEventOccasion(GROUPS[id], event, day))
+        continue
+      }
+      leftOut[id] = [
+        ...(leftOut[id] ?? []),
+        { id: event.id, reason: open.length === 0 ? 'no_date' : 'too_few_free' }
+      ]
+    }
+  }
+  return { placed, leftOut }
 }

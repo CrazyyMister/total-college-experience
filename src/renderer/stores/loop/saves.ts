@@ -194,6 +194,10 @@ export function queuedScene(
   else delete scene.jobStats
   if (game.sceneVisitJob) scene.visitJobId = game.sceneVisitJob
   else delete scene.visitJobId
+  if (game.sceneGroup) scene.groupId = game.sceneGroup
+  else delete scene.groupId
+  if (game.sceneGroupEvent) scene.groupEvent = game.sceneGroupEvent
+  else delete scene.groupEvent
   if (game.sceneTextLedgerSkip) scene.textLedgerSkip = game.sceneTextLedgerSkip
   else delete scene.textLedgerSkip
   if (game.sceneTextLedger) scene.textLedger = { ...game.sceneTextLedger }

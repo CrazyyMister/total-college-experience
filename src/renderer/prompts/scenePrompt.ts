@@ -1,7 +1,7 @@
 import { BREAKTHROUGH_MEMORY_TYPE } from '@shared/breakthrough'
 import { romancesReader, SUBJECT_TAGS } from '@shared/characterRules'
 import { slotFullLabel, yearLabel } from '@shared/classes'
-import { groupClause } from '@shared/groups'
+import { groupClause, type GroupResult } from '@shared/groups'
 import { homeClause, homeOf, type HomeId } from '@shared/homes'
 import { EMOTIONS } from '@shared/emotions'
 import { isStockOutfitSet, outfitTagsFor, spriteRefsFor, STOCK_OUTFIT_SETS } from '@shared/outfits'
@@ -85,7 +85,13 @@ import {
 } from './lorebook'
 import { farewellNowLines, graduationCastLines } from './graduation'
 import { encounterLines } from './encounters'
-import { groupFigurantLine, groupsInPlay } from './groupPrompt'
+import {
+  groupEventLines,
+  groupEventLore,
+  groupFigurantLine,
+  groupNewsClause,
+  groupsInPlay
+} from './groupPrompt'
 import { factLines } from './facts'
 import { moodLine } from './moods'
 import { springBreakLines } from './springBreak'
@@ -286,6 +292,10 @@ export interface PromptState {
    * null when it is not one.
    */
   visitJobId: string | null
+  /** The group event this scene is, by occasion id, or null when it is not one. */
+  groupEvent?: string | null
+  /** How each group event ended, by occasion id. */
+  groupResults?: Readonly<Record<string, GroupResult>>
   /**
    * One finished paragraph per gift given this scene, built by `giftLoreNote`
    * (`shared/shop.ts`) from `gameStore.sceneGifts`.
@@ -535,7 +545,14 @@ function castBlock(cast: readonly Character[], state: PromptState): string[] {
     lines.push('', `${key} — ${fullNameOf(character)}.`)
 
     if (info?.major) {
-      lines.push(yearMajorLine(info, character.gender, homeOf(state, character.charId)))
+      lines.push(
+        yearMajorLine(
+          info,
+          character.gender,
+          homeOf(state, character.charId),
+          groupNewsClause(info.groups, state)
+        )
+      )
     }
 
     // Appearance and main outfit as their booru tags.
@@ -745,8 +762,13 @@ export function spaced(lines: readonly string[]): string[] {
 }
 
 /** Her year and major, with the dorm clause where she has one. */
-export function yearMajorLine(info: CharInfo, gender: Gender, home: HomeId | undefined): string {
-  return `Year: ${yearLabel(info.year)} | Major: ${info.major}.${home ? homeClause(home, gender) : ''}${groupClause(info.groups, gender)}`
+export function yearMajorLine(
+  info: CharInfo,
+  gender: Gender,
+  home: HomeId | undefined,
+  news = ''
+): string {
+  return `Year: ${yearLabel(info.year)} | Major: ${info.major}.${home ? homeClause(home, gender) : ''}${groupClause(info.groups, gender)}${news}`
 }
 
 /** Everything written about who a character *is*, shared by the cast block and the phone. */
@@ -1034,7 +1056,8 @@ function whoBlock(cast: readonly Character[], state: PromptState, reader: string
     '',
     ...castBlock(cast, state),
     '',
-    ...figurantLines(cast, state)
+    ...figurantLines(cast, state),
+    ...groupEventLines(state.groupEvent, state)
   ]
 }
 
@@ -1271,7 +1294,13 @@ function giftLore(state: PromptState): string[] {
 
 /** Every always-on source, in the order the `LOREBOOK` block prints them. */
 function alwaysLore(state: PromptState): string[] {
-  return [...occasionLore(state), ...projectLore(state), ...workplaceLore(state), ...giftLore(state)]
+  return [
+    ...occasionLore(state),
+    ...projectLore(state),
+    ...workplaceLore(state),
+    ...groupEventLore(state.groupEvent),
+    ...giftLore(state)
+  ]
 }
 
 /**

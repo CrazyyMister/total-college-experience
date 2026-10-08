@@ -13,7 +13,7 @@ import type { GossipPost, GossipTopic, NpcGossip } from './npcRomanceGossip'
 import type { PromptKind } from './promptKinds'
 import type { RumorPassOutcome } from './rumors'
 import type { DormId } from './dorms'
-import type { GroupId, GroupsRecord, TeamsChoice } from './groups'
+import type { GroupId, GroupsRecord, GroupsSave, TeamsChoice } from './groups'
 import type { HomeId } from './homes'
 import type { AudioGroup } from './audio'
 import type { ComfyGpu } from './setupManifest'
@@ -1177,6 +1177,10 @@ export interface Occasion {
    */
   cancelsClasses: boolean
   kind: 'holiday' | 'academic' | 'campus'
+  /** The group whose event this is, when it is one. */
+  group?: GroupId
+  /** The `LOCATIONS` id it is held at, when it is a group's event. */
+  where?: string
 }
 
 /**
@@ -1326,6 +1330,10 @@ export interface SceneState {
    * or absent when it is not one.
    */
   visitJobId?: string
+  /** The group whose event this scene is, or absent when it is not one. */
+  groupId?: GroupId
+  /** The id of the event this scene is, whose result the game decided, or absent. */
+  groupEvent?: string
   /**
    * Roster charIds the action named without their being in the scene — bought for, thought
    * about, asked after — or absent when it named nobody absent.
@@ -1687,6 +1695,8 @@ export interface GameSave {
    * move, which reads as no move.
    */
   homeMoves?: Record<string, HomeId>
+  /** How the groups' events ended. Absent in a save written before any was decided. */
+  groups?: GroupsSave
   /** The graduation-morning narration has played. */
   graduationSeen: boolean
   /** Who the reader has already said goodbye to, as charIds — each a button spent off the epilogue's menu. */

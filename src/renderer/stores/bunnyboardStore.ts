@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { Verdict } from './loop/classify'
 
 /**
  * Which Bunnyboard tab is showing. Profile is the reader's own page — his picture, the
@@ -12,6 +13,8 @@ interface ArmedHangout {
   charId: string
   /** The plan, as the reply described it — the scene's opening action. */
   description: string
+  /** The verdict the plan already has, where it is a group's event and needs no classifier. */
+  preset?: Verdict
 }
 
 /** Transient UI state for the Bunnyboard modal. */

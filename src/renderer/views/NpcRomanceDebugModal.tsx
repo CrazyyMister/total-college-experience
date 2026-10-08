@@ -122,6 +122,24 @@ function sectionsOf(): DebugSection[] {
         who: def.name,
         facts: `${members.length} members · sessions at ${locationLabel(def.location)}: ${slotsLabel}${lost}`
       },
+      ...def.events.map((event) => {
+        const occasion = game.occasions.find((entry) => entry.id === event.id)
+        const result = game.groupResults[event.id]
+        const left = agenda.leftOutEvents?.find((entry) => entry.id === event.id)
+        const when = occasion
+          ? `${dated(occasion.startDate)}, ${occasion.time === 0 ? 'day' : 'night'}`
+          : left
+            ? `left out: ${left.reason === 'too_few_free' ? 'too few members free' : 'no free day'}`
+            : 'no record'
+        const ended = result
+          ? `${result.won ? 'won' : 'lost'} ${Math.max(result.home, result.away)}–${Math.min(result.home, result.away)}`
+          : 'not decided'
+        return {
+          key: `${id}:${event.id}`,
+          who: occasion?.title ?? event.id,
+          facts: `${when}${occasion ? ` · ${ended}` : ''}`
+        }
+      }),
       ...members.map((charId) => {
         const info = game.charInfo[charId]
         const kept = agenda.sessions.filter(

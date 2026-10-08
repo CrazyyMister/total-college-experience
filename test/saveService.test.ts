@@ -253,17 +253,39 @@ describe('a playthrough with a team', () => {
       record({
         chars: ['a'],
         profiles: { a: { ...profile } },
-        groups: { swimming: { sessions: [10, 12], leftOutSessions: 1 } }
+        groups: {
+          swimming: {
+            sessions: [10, 12],
+            leftOutSessions: 1,
+            leftOutEvents: [{ id: 'swimming-meet-2', reason: 'too_few_free' }]
+          }
+        }
       }),
       draft()
     )
     const read = await saveService.readSave(withTeam.save.playthroughId, withTeam.save.saveId)
-    expect(read.record.groups).toEqual({ swimming: { sessions: [10, 12], leftOutSessions: 1 } })
+    expect(read.record.groups).toEqual({
+      swimming: {
+        sessions: [10, 12],
+        leftOutSessions: 1,
+        leftOutEvents: [{ id: 'swimming-meet-2', reason: 'too_few_free' }]
+      }
+    })
     expect(read.record.profiles.a.groups).toEqual(['swimming'])
 
     const older = await saveService.createPlaythrough(record(), draft())
     const readOlder = await saveService.readSave(older.save.playthroughId, older.save.saveId)
     expect(readOlder.record.groups).toBeUndefined()
+  })
+
+  it('reads back how an event ended from a save, and an older save as none', async () => {
+    const results = { 'swimming-meet-1': { won: true, home: 171, away: 129 } }
+    await saveService.writeManualSave('1', 3, draft({ groups: { results } }))
+    await saveService.writeManualSave('1', 4, draft())
+    await expect(saveService.loadSave('1', 'manual03')).resolves.toMatchObject({
+      groups: { results }
+    })
+    expect((await saveService.loadSave('1', 'manual04')).groups).toBeUndefined()
   })
 
   it('reads an enrollment with the teams it asked for, and one without', async () => {

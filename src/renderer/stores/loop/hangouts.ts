@@ -19,6 +19,7 @@ import {
   type ClassifyAttempt,
   type Verdict
 } from './classify'
+import { groupEventIdFor, planGroupEvent } from './groups'
 import { registerHangoutEntry } from './hooks'
 import { applyCast, reader, scenePromptState } from './promptState'
 import { currentRun, loopState, runStale, type TurnSnapshot } from './state'
@@ -48,7 +49,11 @@ export interface HangoutPrefetch {
  * Starts an armed hangout's scene while the player is still reading the reply that agreed to
  * it, so **Begin** has lines in hand.
  */
-async function prefetchHangoutScene(charId: string, description: string): Promise<void> {
+async function prefetchHangoutScene(
+  charId: string,
+  description: string,
+  known?: Verdict
+): Promise<void> {
   const game = useGameStore.getState()
   if (game.busy || loopState.hangoutPrefetch) return
 
@@ -61,7 +66,8 @@ async function prefetchHangoutScene(charId: string, description: string): Promis
   loopState.hangoutPrefetch = token
 
   const attempt = buildClassifyAttempt(description)
-  const result = await classifyOnce(attempt)
+  // A plan that already has its verdict, a group's event, asks the classifier nothing.
+  const result = known ? { ok: true as const, verdict: known } : await classifyOnce(attempt)
   if (loopState.hangoutPrefetch !== token) return
   if (!result.ok) {
     console.warn('[hangout] the prefetched classify failed, parking it until Begin:', result.error)
@@ -191,6 +197,20 @@ async function castHangout(
   verdict: Verdict
 ): Promise<{ cast: string[]; action: string }> {
   const { mentioned, inPublic, sceneLocation } = verdict
+
+  // A group's event: whoever of the team is free is there with her, and the result is filed.
+  const eventId = groupEventIdFor(verdict)
+  const planned = eventId !== null ? planGroupEvent(eventId, charId) : null
+  if (planned) {
+    console.log(`[cast] hangout at ${eventId}: cast: ${planned.cast.map(nameOf).join(', ')}`)
+    await applyCast(planned.cast, {
+      ...planned.scene,
+      textLedgerSkip: charId,
+      location: sceneLocation || null,
+      inPublic
+    })
+    return { cast: planned.cast, action: description }
+  }
 
   // A girl at work where they are meeting is available rather than busy.
   const workers = workersAtLocation(sceneLocation).map((worker) => worker.charId)

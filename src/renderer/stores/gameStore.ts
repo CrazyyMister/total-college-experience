@@ -56,7 +56,7 @@ import {
   type ReaderTallies
 } from '@shared/tallies'
 import { FALLBACK_DORM } from '@shared/dorms'
-import type { GroupsRecord } from '@shared/groups'
+import type { GroupId, GroupResult, GroupsRecord } from '@shared/groups'
 import { withHomeMove, type HomeId } from '@shared/homes'
 import {
   giftMemoryCapFor,
@@ -199,6 +199,10 @@ export interface SceneKind {
    * Never set beside {@link jobId}.
    */
   visitJobId?: string | null
+  /** The group whose event the scene is. */
+  groupId?: GroupId | null
+  /** The event the scene is, whose result is in the store's `groupResults`. */
+  groupEvent?: string | null
   /** The stats the shift's rolled gain moves, when the employer has more than one to roll. */
   jobStats?: readonly StatKey[]
   /** Roster charIds the action named without bringing along. */
@@ -223,6 +227,8 @@ function sceneKindFields(scene: SceneKind | null | undefined) {
     sceneIgnoredInvites: [...(scene?.ignoredInvites ?? [])],
     sceneTurnedDown: [...(scene?.turnedDownInvites ?? [])],
     sceneVisitJob: scene?.visitJobId ?? null,
+    sceneGroup: scene?.groupId ?? null,
+    sceneGroupEvent: scene?.groupEvent ?? null,
     sceneJobStats: [...(scene?.jobStats ?? [])],
     sceneMentions: [...(scene?.mentions ?? [])],
     sceneLocation: scene?.location ?? null,
@@ -354,6 +360,8 @@ interface GameStoreState {
   readerPosts: ReaderPost[]
   /** Where the save says somebody lives now, by `'player'` or charId. Persisted. */
   homeMoves: Record<string, HomeId>
+  /** How each group event ended, by event id; a result is never decided twice. Persisted. */
+  groupResults: Record<string, GroupResult>
   /** The graduation narration has played. Persisted. */
   graduationSeen: boolean
   /** Who the reader has already said goodbye to. Persisted. */
@@ -404,6 +412,10 @@ interface GameStoreState {
    * when it is not one.
    */
   sceneVisitJob: string | null
+  /** The group whose event this scene is, or null when it is not one. */
+  sceneGroup: GroupId | null
+  /** The event this scene is, or null. */
+  sceneGroupEvent: string | null
   /**
    * Who this scene is *about* without their being in it — the classifier's mentioned-only
    * list, resolved to charIds.
@@ -985,6 +997,8 @@ interface GameStoreState {
   setSlotRumor: (rumor: SlotRumor | null) => void
   /** Files an occasion he was asked to and did not go to. Appends once; a repeat is a no-op. */
   markOccasionDeclined: (occasionId: string) => void
+  /** Files how a group event ended; an event that already has a result keeps it. */
+  setGroupResult: (eventId: string, result: GroupResult) => void
   /**
    * Snapshots the finishing slot's scene cast for the ask-out roll. Must run before
    * the clock or the cast moves — just ahead of `advanceSlot`.
@@ -1435,6 +1449,7 @@ const initialState = {
   feedExtras: null as FeedExtras | null,
   readerPosts: [] as ReaderPost[],
   homeMoves: {} as Record<string, HomeId>,
+  groupResults: {} as Record<string, GroupResult>,
   graduationSeen: false,
   farewellsDone: [] as string[],
   endingArtWanted: false,
@@ -1451,6 +1466,8 @@ const initialState = {
   sceneIgnoredInvites: [] as string[],
   sceneTurnedDown: [] as string[],
   sceneVisitJob: null as string | null,
+  sceneGroup: null as GroupId | null,
+  sceneGroupEvent: null as string | null,
   sceneMentions: [] as string[],
   sceneLocation: null as string | null,
   sceneInPublic: true,
@@ -1567,6 +1584,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       feedExtras: save.feedExtras,
       readerPosts: save.readerPosts ?? [],
       homeMoves: save.homeMoves ?? {},
+      groupResults: save.groups?.results ?? {},
       graduationSeen: save.graduationSeen,
       farewellsDone: save.farewellsDone,
       endingArtWanted: save.endingArtWanted,
@@ -1644,6 +1662,8 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
         ? { turnedDownInvites: [...state.sceneTurnedDown] }
         : {}),
       ...(state.sceneVisitJob ? { visitJobId: state.sceneVisitJob } : {}),
+      ...(state.sceneGroup ? { groupId: state.sceneGroup } : {}),
+      ...(state.sceneGroupEvent ? { groupEvent: state.sceneGroupEvent } : {}),
       ...(state.sceneMentions.length > 0 ? { mentions: [...state.sceneMentions] } : {}),
       ...(state.sceneLocation ? { location: state.sceneLocation } : {}),
       // Written only when *false*: absent is the classifier's own default.
@@ -2995,6 +3015,13 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       return { occasionsDeclined: [...state.occasionsDeclined, occasionId] }
     }),
 
+  setGroupResult: (eventId, result) =>
+    set((state) =>
+      state.groupResults[eventId]
+        ? {}
+        : { groupResults: { ...state.groupResults, [eventId]: { ...result } } }
+    ),
+
   recordLastSlotCast: () =>
     set((state) => ({
       lastSlotCast: { date: state.date, time: state.time, charIds: [...state.cast] }
@@ -3121,6 +3148,9 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       feedExtras: state.feedExtras,
       ...(state.readerPosts.length > 0 ? { readerPosts: state.readerPosts } : {}),
       ...(Object.keys(state.homeMoves).length > 0 ? { homeMoves: state.homeMoves } : {}),
+      ...(Object.keys(state.groupResults).length > 0
+        ? { groups: { results: state.groupResults } }
+        : {}),
       graduationSeen: state.graduationSeen,
       farewellsDone: state.farewellsDone,
       endingArtWanted: state.endingArtWanted,
