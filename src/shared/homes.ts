@@ -12,6 +12,7 @@ import {
   dormIcon,
   dormLabel,
   dormSentence,
+  isDorm,
   type DormBuilding,
   type DormId
 } from './dorms'
@@ -26,23 +27,50 @@ export type HomeBuilding = DormBuilding
 /** Where the reader lives when he arrives, and until something moves him. */
 export const STARTING_HOME: HomeId = 'lowrise_4'
 
-/** Asks {@link homeOf} about the reader himself rather than a character. */
-export const READER = 'reader'
+/**
+ * Asks {@link homeOf} about the reader himself rather than a character. It is also the key his
+ * move is filed under in {@link HomeSource.homeMoves}.
+ */
+export const READER = 'player'
 
-/** What {@link homeOf} reads: the characters' records, where each one's dorm is filed. */
+/** Whether `value` names a place somebody can live. */
+export function isHome(value: string): value is HomeId {
+  return isDorm(value)
+}
+
+/** What {@link homeOf} reads: the moves a save holds, and the characters' records. */
 export interface HomeSource {
+  /** Where the save says somebody lives now, by {@link READER} or charId. */
+  homeMoves: Readonly<Record<string, HomeId>>
+  /** Where each character's dorm is filed, which is her home until a move says otherwise. */
   charInfo: Readonly<Record<string, Pick<CharInfo, 'dorm'> | undefined>>
 }
 
 /**
- * Where `who` lives: the reader (by {@link READER}) or a character (by charId). A character the
- * source holds no record of has no home, and the answer is `undefined`.
+ * Where `who` lives: the reader (by {@link READER}) or a character (by charId). A move the save
+ * holds wins; a value it holds that names no place is not one. Failing that, the reader is where
+ * he starts and a character is where her record files her, and a character the source holds no
+ * record of has no home, so the answer is `undefined`.
  */
 export function homeOf(source: HomeSource, who: typeof READER): HomeId
 export function homeOf(source: HomeSource, who: string): HomeId | undefined
 export function homeOf(source: HomeSource, who: string): HomeId | undefined {
+  const moved = source.homeMoves[who]
+  if (moved !== undefined && isHome(moved)) return moved
   if (who === READER) return STARTING_HOME
   return source.charInfo[who]?.dorm
+}
+
+/**
+ * `moves` with `who` living in `home`. Setting a move that is already there answers `moves`
+ * itself, so a boundary that runs twice leaves the same record.
+ */
+export function withHomeMove(
+  moves: Readonly<Record<string, HomeId>>,
+  who: string,
+  home: HomeId
+): Readonly<Record<string, HomeId>> {
+  return moves[who] === home ? moves : { ...moves, [who]: home }
 }
 
 /** What a home is called everywhere it is printed. */

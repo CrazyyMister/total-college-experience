@@ -443,6 +443,7 @@ function measureTexting(charId: string): Measure {
       stats: game.stats,
       roster: game.chars.filter((id) => id !== charId).map(byId),
       charInfo: game.charInfo,
+      homeMoves: game.homeMoves,
       npcRelationships: game.npcRelationships,
       npcRomance: game.npcRomance,
       classes: game.classes,

@@ -1,3 +1,4 @@
+import type { HomeId } from '@shared/homes'
 import { mayHaveAdultArt } from '@shared/characterRules'
 import { SENIOR_YEAR, slotFullLabel } from '@shared/classes'
 import { feedExchangesOf } from '@shared/feedReplies'
@@ -236,6 +237,7 @@ function logExesIn(cast: readonly string[]): void {
 export function reader(view?: {
   stats: PlayerStats
   charInfo: Readonly<Record<string, CharInfo>>
+  homeMoves?: Readonly<Record<string, HomeId>>
 }): string {
   return readerBlockOf(useGameStore.getState(), view)
 }
@@ -347,6 +349,7 @@ export function promptState(): PromptState {
     time: game.time,
     backgrounds: useAssetStore.getState().backgrounds,
     charInfo: game.charInfo,
+    homeMoves: game.homeMoves,
     npcRelationships: game.npcRelationships,
     npcRomance: game.npcRomance,
     encounters: game.encounters,

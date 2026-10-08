@@ -29,7 +29,7 @@ function resolvedSaves(): ResolvedSave[] {
   return ['s1', 's2'].map((saveId) => ({
     saveId,
     savedAt: 0,
-    summary: { date: 3, time: 0, graduationSeen: false, midScene: false, bg: null },
+    summary: { date: 3, time: 0, graduationSeen: false, midScene: false, bg: 'lowrise_dorm_room' },
     record: playthroughRecord({ chars: ['char-1'] }),
     characters: [],
     unloadable: null

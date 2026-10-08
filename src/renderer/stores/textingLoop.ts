@@ -750,6 +750,7 @@ function textingRequestOf(
       stats: game.stats,
       ex: game.ex,
       roster: others,
+      homeMoves: game.homeMoves,
       charInfo: game.charInfo,
       npcRelationships: game.npcRelationships,
       npcRomance: game.npcRomance,

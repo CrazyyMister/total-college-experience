@@ -4,7 +4,7 @@
  * plus roster characters, built per call from the save's own people.
  */
 import { yearLabel } from '@shared/classes'
-import { homeOf, homeSentence } from '@shared/homes'
+import { homeOf, homeSentence, type HomeId } from '@shared/homes'
 import { jobDefOf } from '@shared/jobs'
 import { npcBestFriendOf, type NpcRelationshipMap } from '@shared/npcRelationships'
 import { affectionFor } from '@shared/relationship'
@@ -260,6 +260,7 @@ export function characterLore(
   scanned: string,
   roster: readonly Character[],
   charInfo: Record<string, CharInfo>,
+  homeMoves: Record<string, HomeId>,
   date: number,
   relations?: LoreRelations
 ): string[] {
@@ -268,6 +269,7 @@ export function characterLore(
       new RegExp(keyPattern(character.firstName, false), 'iu').test(scanned)
     ),
     charInfo,
+    homeMoves,
     date,
     relations
   )
@@ -277,10 +279,11 @@ export function characterLore(
 export function characterLoreForIds(
   mentions: readonly Character[],
   charInfo: Record<string, CharInfo>,
+  homeMoves: Record<string, HomeId>,
   date: number,
   relations?: LoreRelations
 ): string[] {
-  return characterParagraphs(mentions, charInfo, date, relations)
+  return characterParagraphs(mentions, charInfo, homeMoves, date, relations)
 }
 
 /**
@@ -345,6 +348,7 @@ function appearanceSentence(character: Character): string {
 function characterParagraphs(
   characters: readonly Character[],
   charInfo: Record<string, CharInfo>,
+  homeMoves: Record<string, HomeId>,
   date: number,
   relations?: LoreRelations
 ): string[] {
@@ -354,7 +358,7 @@ function characterParagraphs(
     if (!info) continue
     const employer =
       info.job && (info.job.startsOn ?? 0) <= date ? jobDefOf(info.job.jobId)?.employer : undefined
-    const home = homeOf({ charInfo }, character.charId)
+    const home = homeOf({ charInfo, homeMoves }, character.charId)
     const affection = affectionFor(info, date, character)
     const reader = readerStandingLine(character.firstName, info.flags, affection)
     lines.push(

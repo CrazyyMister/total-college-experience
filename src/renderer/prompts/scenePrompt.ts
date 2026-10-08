@@ -178,6 +178,8 @@ export interface PromptState {
   backgrounds: BackgroundSets
   /** Per-character save state, keyed by charId. */
   charInfo: Record<string, CharInfo>
+  /** Where the save says somebody lives now, by `'player'` or charId. */
+  homeMoves: Record<string, HomeId>
   /** What the roster thinks of each other, keyed by `pairKeyOf`. */
   npcRelationships: NpcRelationshipMap
   /** The roster's romances with each other; absent reads as none. */
@@ -1281,8 +1283,14 @@ function characterLoreFor(
   // Where each of them stands with the cast in the room.
   const relations = { relationships: state.npcRelationships, present: cast }
   return [
-    ...characterLore(scanned, state.roster, state.charInfo, state.date, relations),
-    ...characterLoreForIds([...mentions, ...ambient], state.charInfo, state.date, relations)
+    ...characterLore(scanned, state.roster, state.charInfo, state.homeMoves, state.date, relations),
+    ...characterLoreForIds(
+      [...mentions, ...ambient],
+      state.charInfo,
+      state.homeMoves,
+      state.date,
+      relations
+    )
   ]
 }
 
@@ -1453,7 +1461,7 @@ export function buildSoloPrompt(
   const lore = lorebookBlock(
     scanned,
     alwaysLore(state),
-    characterLoreForIds(state.mentions ?? [], state.charInfo, state.date),
+    characterLoreForIds(state.mentions ?? [], state.charInfo, state.homeMoves, state.date),
     // A solo scene is an opening too, and the only one it has.
     state.slotRumor
   )

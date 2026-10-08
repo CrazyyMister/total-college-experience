@@ -1,7 +1,7 @@
 import { affectionFor, dedupedMemoriesFor, emptyFlags } from '@shared/relationship'
 import { encountersOf, PHONE_ENCOUNTER_CAP } from '@shared/encounters'
 import { factsKnownBy, PHONE_FACT_CAP } from '@shared/facts'
-import { homeOf } from '@shared/homes'
+import { homeOf, type HomeId } from '@shared/homes'
 import { ROOM_LOCATION } from '@shared/locations'
 import type { NpcRelationshipMap } from '@shared/npcRelationships'
 import type { NpcRomanceMap } from '@shared/npcRomance'
@@ -101,6 +101,8 @@ export interface TextingPromptState {
   roster: readonly Character[]
   /** Per-character save state, keyed by charId — read for the roster's entries. */
   charInfo: Record<string, CharInfo>
+  /** Where the save says somebody lives now, by `'player'` or charId. */
+  homeMoves: Record<string, HomeId>
   /**
    * What the roster thinks of each other: read for the friend her `CHARACTER` block
    * names and for the standing every lorebook character entry closes with.
@@ -392,8 +394,8 @@ export function buildTextingPrompt(
     (other) => !new RegExp(keyPattern(other.firstName, false), 'iu').test(scan)
   )
   const lore = lorebookBlock(scan, today, [
-    ...characterLore(scan, state.roster, state.charInfo, state.date, relations),
-    ...characterLoreForIds(ambient, state.charInfo, state.date, relations)
+    ...characterLore(scan, state.roster, state.charInfo, state.homeMoves, state.date, relations),
+    ...characterLoreForIds(ambient, state.charInfo, state.homeMoves, state.date, relations)
   ])
 
   // The roster's love lives, and what she alone knows of her own.

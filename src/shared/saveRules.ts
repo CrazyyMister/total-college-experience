@@ -1,3 +1,4 @@
+import { homeOf, homeRoomBg, READER } from './homes'
 import { appError } from './errors'
 import { assertSafeId, type ValidateRecordOptions } from './jsonValidate'
 import {
@@ -48,6 +49,7 @@ const SAVE_REQUIRED: Record<
     | 'bunnybotSeenTipSent'
     | 'occasionsDeclined'
     | 'readerPosts'
+    | 'homeMoves'
     | 'bio'
     | 'tallies'
     | 'encounters'
@@ -318,7 +320,10 @@ function lastBgOf(lines: readonly SceneLine[]): string | null {
   return bg
 }
 
-/** What the load grid shows of one save. */
+/**
+ * What the load grid shows of one save. The room it draws between scenes is the reader's, which
+ * no character's record has a say in.
+ */
 export function summaryOf(save: GameSave): SaveSummary {
   const summary: SaveSummary = {
     date: save.date,
@@ -329,7 +334,7 @@ export function summaryOf(save: GameSave): SaveSummary {
       (save.scene ? lastBgOf(openingLinesOf(save.scene)) : null) ??
       save.scene?.bgOverride ??
       save.scene?.bg ??
-      null
+      homeRoomBg(homeOf({ charInfo: {}, homeMoves: save.homeMoves ?? {} }, READER))
   }
   if (save.thumbnail) summary.thumbnail = save.thumbnail
   return summary

@@ -64,8 +64,8 @@ export function bgKindOf(base: string): 'interior' | 'exterior' | null {
 }
 
 /**
- * What the background layer falls back to between scenes — the reader's own room. A save's card
- * carries no source to read it from and draws the room he starts in.
+ * What the background layer falls back to between scenes — the reader's own room. Without a
+ * source it is the room he starts in.
  */
 export function readerRoomBg(source?: HomeSource): string {
   return homeRoomBg(source ? homeOf(source, READER) : STARTING_HOME)
@@ -96,5 +96,5 @@ export function bgThumbUrl(base: string, suffix: 'day' | 'night'): string | null
 export function saveThumbUrl(summary: SaveSummary): string | null {
   if (summary.thumbnail) return `data:image/jpeg;base64,${summary.thumbnail}`
   const half = summary.graduationSeen || summary.time === 1 ? 'night' : 'day'
-  return bgThumbUrl(summary.bg ?? readerRoomBg(), half) ?? bgThumbUrl(readerRoomBg(), half)
+  return bgThumbUrl(summary.bg, half) ?? bgThumbUrl(readerRoomBg(), half)
 }

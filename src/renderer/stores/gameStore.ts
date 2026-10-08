@@ -56,6 +56,7 @@ import {
   type ReaderTallies
 } from '@shared/tallies'
 import { FALLBACK_DORM } from '@shared/dorms'
+import { withHomeMove, type HomeId } from '@shared/homes'
 import {
   giftMemoryCapFor,
   giftMemoryDesc,
@@ -348,6 +349,8 @@ interface GameStoreState {
   feedExtras: FeedExtras | null
   /** The reader's own posts on the feed, oldest first. Persisted. */
   readerPosts: ReaderPost[]
+  /** Where the save says somebody lives now, by `'player'` or charId. Persisted. */
+  homeMoves: Record<string, HomeId>
   /** The graduation narration has played. Persisted. */
   graduationSeen: boolean
   /** Who the reader has already said goodbye to. Persisted. */
@@ -1014,6 +1017,8 @@ interface GameStoreState {
   toggleGossipLike: (postId: string) => void
   /** Files the day's transient feed items, stamped with the day they belong to. */
   setFeedExtras: (extras: FeedExtras | null) => void
+  /** Files where somebody lives from now on; filing what is already filed changes nothing. */
+  moveHome: (who: string, home: HomeId) => void
   /** Files a post of the reader's, stamped with this slot. */
   addReaderPost: (text: string) => void
   /** Takes back a post of the reader's that is still waiting on its likes. */
@@ -1424,6 +1429,7 @@ const initialState = {
   springBreakAway: null as string[] | null,
   feedExtras: null as FeedExtras | null,
   readerPosts: [] as ReaderPost[],
+  homeMoves: {} as Record<string, HomeId>,
   graduationSeen: false,
   farewellsDone: [] as string[],
   endingArtWanted: false,
@@ -1554,6 +1560,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       springBreakAway: save.springBreakAway,
       feedExtras: save.feedExtras,
       readerPosts: save.readerPosts ?? [],
+      homeMoves: save.homeMoves ?? {},
       graduationSeen: save.graduationSeen,
       farewellsDone: save.farewellsDone,
       endingArtWanted: save.endingArtWanted,
@@ -2566,6 +2573,12 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
 
   setFeedExtras: (extras) => set({ feedExtras: extras }),
 
+  moveHome: (who, home) =>
+    set((state) => {
+      const moves = withHomeMove(state.homeMoves, who, home)
+      return moves === state.homeMoves ? {} : { homeMoves: { ...moves } }
+    }),
+
   addReaderPost: (text) =>
     set((state) => ({
       readerPosts: [
@@ -3101,6 +3114,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       springBreakAway: state.springBreakAway,
       feedExtras: state.feedExtras,
       ...(state.readerPosts.length > 0 ? { readerPosts: state.readerPosts } : {}),
+      ...(Object.keys(state.homeMoves).length > 0 ? { homeMoves: state.homeMoves } : {}),
       graduationSeen: state.graduationSeen,
       farewellsDone: state.farewellsDone,
       endingArtWanted: state.endingArtWanted,

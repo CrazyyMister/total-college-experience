@@ -33,6 +33,7 @@ function promptState() {
     seedWord: 'aspen',
     backgrounds: { interior: ['library'], exterior: ['quad'] },
     charInfo: {},
+    homeMoves: {},
     npcRelationships: {},
     roster: [],
     classes: {},

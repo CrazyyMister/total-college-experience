@@ -1,4 +1,6 @@
 import { useEffect, useState, type JSX } from 'react'
+import { DORM_IDS } from '@shared/dorms'
+import { homeLabel } from '@shared/homes'
 import { PHOTO_KINDS, type PhotoKind } from '@shared/photos'
 import { motion } from 'motion/react'
 import { SelectField } from '../components/SelectField'
@@ -35,6 +37,7 @@ import {
   debugHomeForPhotos,
   photoRowsOf
 } from '../stores/photoDebugActions'
+import { debugMoveReader } from '../stores/homeDebugActions'
 import { usePhotoStore } from '../stores/photoStore'
 import { readerPostDebugRows } from '../stores/loop/readerPosts'
 import { sendWorstCaseRequests } from '../stores/worstCaseDebug'
@@ -101,7 +104,13 @@ const TOOLS: readonly Tool[] = [
     label: 'X comments on Y’s post at the next ending',
     run: (x, y) => debugNpcComment(x, y)
   },
-  { label: 'Y posts a test line this slot', run: (_x, y) => debugTestPost(y) }
+  { label: 'Y posts a test line this slot', run: (_x, y) => debugTestPost(y) },
+  ...DORM_IDS.map(
+    (home): Tool => ({
+      label: `Move the reader to ${homeLabel(home)}`,
+      run: () => debugMoveReader(home)
+    })
+  )
 ]
 
 /** Pickers for the two characters and the number, and a button for each thing to set up. */

@@ -1,7 +1,7 @@
 import { breakthroughReady, breakthroughsOfTurn } from '@shared/breakthrough'
 import { checkFacts } from '@shared/facts'
 import { gameOverLines, gameOverReasonOf } from '@shared/gameOver'
-import { homeOf, READER } from '@shared/homes'
+import { homeOf, READER, withHomeMove } from '@shared/homes'
 import { earnLine, spendLine, spentOf } from '@shared/money'
 import {
   globalSlotOf,
@@ -863,6 +863,7 @@ async function fetchSlotIntro(
   const backgroundLore = characterLoreForIds(
     ambientLoreCharacters(absent, present, view.npcRelationships),
     view.charInfo,
+    view.homeMoves,
     date,
     { relationships: view.npcRelationships, present }
   )
@@ -897,7 +898,7 @@ async function fetchSlotIntro(
       playthroughId: game.playthroughId ?? 'unsaved',
       date,
       time,
-      readerHome: homeOf(game, READER),
+      readerHome: homeOf(view, READER),
       stats: game.stats,
       ex: game.ex,
       opening,
@@ -1811,8 +1812,14 @@ async function fetchEndingOpening(
   const parted = withReaderLosses(seen, readerBreakups, rivals, wingmanMemories)
   const bankedMemories = wingmanMemories.length > 0 ? { wingmanMemories } : {}
 
+  // Where the reader moves at the boundary this ending leads into, if anywhere: the opening is
+  // narrated from there, and the boundary files it.
+  const homeMove = loopState.debugHomeMove ?? undefined
+  const homeMoves = homeMove ? withHomeMove(game.homeMoves, READER, homeMove) : game.homeMoves
+
   const view: PostLedgerView = {
     charInfo: withCrushes(parted, crushes),
+    homeMoves,
     stats,
     // The calendar plus what the scene just agreed to.
     events: [...game.events, ...plans.events],
@@ -1849,7 +1856,8 @@ async function fetchEndingOpening(
       readerBreakups,
       rivals,
       ...bankedMemories,
-      ...silentBreakups
+      ...silentBreakups,
+      ...(homeMove ? { homeMove } : {})
     }
   }
 
@@ -1897,7 +1905,8 @@ async function fetchEndingOpening(
         readerBreakups,
         rivals,
         ...bankedMemories,
-        ...silentBreakups
+        ...silentBreakups,
+        ...(homeMove ? { homeMove } : {})
       }
     : null
 }
@@ -2895,6 +2904,10 @@ async function crossSlotBoundary(): Promise<void> {
   for (const send of owedTexts) send()
 
   useGameStore.getState().advanceSlot()
+  // Where the ending decided he lives from here on; filing it again leaves the same record.
+  const homeMove = loopState.bankedOpening?.homeMove
+  if (homeMove) useGameStore.getState().moveHome(READER, homeMove)
+  loopState.debugHomeMove = null
   // What the ending decided for his posts and comments, stamped with the slot they land in and
   // inside the boundary save, so a reload of it keeps them; idempotent.
   useGameStore.getState().answerReaderPosts(loopState.bankedOpening?.readerPostAnswers ?? [])

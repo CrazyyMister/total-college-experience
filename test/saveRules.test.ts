@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { homeRoomBg, READER, STARTING_HOME } from '@shared/homes'
 import {
   assertSafeSaveId,
   atLocation,
@@ -109,8 +110,20 @@ describe('summaryOf', () => {
 
   it('reads a save between scenes as having no scene and no picture', () => {
     const summary = summaryOf(save())
-    expect(summary).toEqual({ date: 5, time: 1, graduationSeen: false, midScene: false, bg: null })
+    expect(summary).toEqual({
+      date: 5,
+      time: 1,
+      graduationSeen: false,
+      midScene: false,
+      bg: homeRoomBg(STARTING_HOME)
+    })
     expect(summary).not.toHaveProperty('thumbnail')
+  })
+
+  it('draws a save between scenes in the room it says he lives in, and lists one it cannot read', () => {
+    expect(summaryOf(save({ homeMoves: { [READER]: 'lowrise_1' } })).bg).toBe(homeRoomBg('lowrise_1'))
+    const broken = { [READER]: 'the_moon' } as unknown as GameSave['homeMoves']
+    expect(summaryOf(save({ homeMoves: broken })).bg).toBe(homeRoomBg(STARTING_HOME))
   })
 
   it('takes the player’s own background over the scene’s, and the picture if any', () => {

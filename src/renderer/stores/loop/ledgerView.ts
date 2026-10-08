@@ -2,6 +2,7 @@ import { emptyFlags, leftTheReader } from '@shared/relationship'
 import { upsertJealousyMemory, type RumorPassOutcome } from '@shared/rumors'
 import type { NpcRelationshipMap } from '@shared/npcRelationships'
 import { rivalMemoryOf, type ReaderBreakup } from '@shared/npcRomance'
+import type { HomeId } from '@shared/homes'
 import type { PlayerStats } from '@shared/playerStats'
 import type { CalendarEvent, CharInfo, CharMemory } from '@shared/types'
 import { blankCharInfo, useGameStore } from '../gameStore'
@@ -10,6 +11,8 @@ import { blankCharInfo, useGameStore } from '../gameStore'
 export interface PostLedgerView {
   /** The roster's entries as {@link projectLedger} will leave them. */
   charInfo: Readonly<Record<string, CharInfo>>
+  /** Where everybody lives once the boundary has filed the move the ending decided on. */
+  homeMoves: Readonly<Record<string, HomeId>>
   /** The reader's stats with the finished scene's deltas already in them. */
   stats: PlayerStats
   /** The calendar plus the plans the finished scene just settled. */
@@ -26,6 +29,7 @@ export function liveView(): PostLedgerView {
   const game = useGameStore.getState()
   return {
     charInfo: game.charInfo,
+    homeMoves: game.homeMoves,
     stats: game.stats,
     events: game.events,
     npcRelationships: game.npcRelationships

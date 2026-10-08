@@ -90,6 +90,7 @@ describe('the PLANS half of the ledger request', () => {
       seedWord: 'aspen',
       backgrounds: { interior: ['library'], exterior: ['quad'] },
       charInfo: {},
+      homeMoves: {},
       npcRelationships: {},
       roster: [],
       classes: {},

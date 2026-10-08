@@ -318,6 +318,7 @@ describe('the ledger request for a scene that used a Breakthrough', () => {
     seedWord: 'aspen',
     backgrounds: { interior: ['library'], exterior: ['quad'] },
     charInfo: {},
+    homeMoves: {},
     npcRelationships: {},
     roster: [],
     classes: {},

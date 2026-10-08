@@ -551,6 +551,7 @@ export function GameView(): JSX.Element {
     return question ? quizAnswers(question) : []
   }, [quiz])
   const charInfo = useGameStore((s) => s.charInfo)
+  const homeMoves = useGameStore((s) => s.homeMoves)
   const graduationSeen = useGameStore((s) => s.graduationSeen)
   // The whole semester's sky; the slot's own reading is resolved out of it below.
   const weather = useGameStore((s) => s.weather)
@@ -818,8 +819,8 @@ export function GameView(): JSX.Element {
     ? null
     : roomCharId
       ? roomUrl(roomCharId, half, roomVersion)
-      : (bgUrl(shownBg ?? readerRoomBg({ charInfo }), half, wet) ??
-        bgUrl(readerRoomBg({ charInfo }), half, wet))
+      : (bgUrl(shownBg ?? readerRoomBg({ charInfo, homeMoves }), half, wet) ??
+        bgUrl(readerRoomBg({ charInfo, homeMoves }), half, wet))
   // Which picture the stage is showing, which the URL showing it is not: a character's room
   // arrives under a URL of its own once her images have been read, and that is not a change
   // of background.

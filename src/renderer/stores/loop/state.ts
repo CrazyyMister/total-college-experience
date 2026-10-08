@@ -7,6 +7,7 @@ import type {
   SceneLine,
   SceneState
 } from '@shared/types'
+import type { HomeId } from '@shared/homes'
 import type { JobShift } from '@shared/jobs'
 import type { NpcRomanceLogEntry, NpcRomanceMap, NpcWingmanEvent } from '@shared/npcRomance'
 import type { ExamPeriod } from '@shared/academics'
@@ -109,6 +110,12 @@ export const loopState = {
    * the chance but never the rules; never saved.
    */
   debugReaderTagger: null as string | null,
+
+  /**
+   * The home the development build's button has the reader move to at the boundary after the next
+   * scene; never saved.
+   */
+  debugHomeMove: null as HomeId | null,
 
   /** What the latest scene ending decided of a post tagging the reader, for the development read-out. */
   readerTagReport: [] as string[],
@@ -363,6 +370,7 @@ export function resetLoopState(): void {
   loopState.debugFeedRepliesFail = false
   loopState.feedRepliesReport = []
   loopState.debugReaderTagger = null
+  loopState.debugHomeMove = null
   loopState.readerTagReport = []
   loopState.debugNpcComment = null
   loopState.npcCommentReport = []

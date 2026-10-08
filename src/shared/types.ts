@@ -13,6 +13,7 @@ import type { GossipPost, GossipTopic, NpcGossip } from './npcRomanceGossip'
 import type { PromptKind } from './promptKinds'
 import type { RumorPassOutcome } from './rumors'
 import type { DormId } from './dorms'
+import type { HomeId } from './homes'
 import type { AudioGroup } from './audio'
 import type { ComfyGpu } from './setupManifest'
 import type { Weather } from './weather'
@@ -1481,6 +1482,12 @@ export interface SlotOpening {
    * pass, so the narration above describes her as she now feels.
    */
   crushes?: string[]
+  /**
+   * Where the reader lives from this boundary on, when the ending decided he moves. The opening
+   * is narrated from the new home, and the boundary files it under his key in
+   * {@link GameSave.homeMoves}. Absent when he stays where he is.
+   */
+  homeMove?: HomeId
 }
 
 /** A {@link SlotOpening} an ending banked: the three settles it rolled are always on it. */
@@ -1671,6 +1678,12 @@ export interface GameSave {
    * post, which reads as none.
    */
   readerPosts?: ReaderPost[]
+  /**
+   * Where the save says somebody lives now, by `'player'` or charId; whoever is not here lives
+   * where the playthrough's record files them. Absent in a save written before anybody could
+   * move, which reads as no move.
+   */
+  homeMoves?: Record<string, HomeId>
   /** The graduation-morning narration has played. */
   graduationSeen: boolean
   /** Who the reader has already said goodbye to, as charIds — each a button spent off the epilogue's menu. */
@@ -1815,8 +1828,11 @@ export interface SaveSummary {
   graduationSeen: boolean
   /** A scene was in progress when it was written. */
   midScene: boolean
-  /** The scene's background base name, the player's own pick winning; null between scenes. */
-  bg: string | null
+  /**
+   * The scene's background base name, the player's own pick winning; between scenes, the room
+   * the save says the reader lives in.
+   */
+  bg: string
   /** The save's {@link GameSave.thumbnail}, where it carries one. */
   thumbnail?: string
 }

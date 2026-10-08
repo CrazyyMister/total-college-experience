@@ -121,6 +121,8 @@ export interface ReaderView {
   gradesStanding: 'good' | 'bad' | null
   chars: readonly string[]
   charInfo: Readonly<Record<string, CharInfo>>
+  /** Where the save says somebody lives now, by `'player'` or charId. */
+  homeMoves: Readonly<Record<string, HomeId>>
   characters: Readonly<Record<string, Character>>
   ex: ExChoice | null
   /** The course he picked at New Game, or null where he picked none. */
@@ -137,10 +139,17 @@ function firstNamesOf(view: ReaderView): Record<string, string> {
   return firstNames
 }
 
-/** The `READER` block for a playthrough; `override` is the ending's projection of stats and charInfo. */
+/**
+ * The `READER` block for a playthrough; `override` is the ending's projection of stats, charInfo
+ * and, where the reader is about to move, homes.
+ */
 export function readerBlockOf(
   view: ReaderView,
-  override?: { stats: PlayerStats; charInfo: Readonly<Record<string, CharInfo>> }
+  override?: {
+    stats: PlayerStats
+    charInfo: Readonly<Record<string, CharInfo>>
+    homeMoves?: Readonly<Record<string, HomeId>>
+  }
 ): string {
   const { ex } = view
   const exCharacter = ex ? view.characters[ex.charId] : undefined
@@ -157,7 +166,10 @@ export function readerBlockOf(
     standing: view.gradesStanding,
     ...(ex && exCharacter ? { exOrigin: exOriginForReader(exCharacter, ex) } : {}),
     ...(view.playerCourse ? { course: view.playerCourse } : {}),
-    home: homeOf(view, READER),
+    home: homeOf(
+      { charInfo: view.charInfo, homeMoves: override?.homeMoves ?? view.homeMoves },
+      READER
+    ),
     ...readerStandingOf(view.chars, override?.charInfo ?? view.charInfo, firstNamesOf(view))
   })
 }
