@@ -215,6 +215,8 @@ You will need externally kept data for testing:
 - [ ] Pledge a fraternity, miss three meetings and verify the house texts after each, you are put out on the third, still in Lowrise 4, and no member has a new memory.
 - [ ] As a pledge, verify no meeting falls on Presidents' Day or on a night of the house's party or mixer, and that the calendar, the job board and add/drop keep clear of the meetings.
 - [ ] Once put out, verify the house's members no longer ask you to its events and a scene at the house carries the put-out line in data/app.log.
+- [ ] Pledge until day 41 and verify the house texts the initiation night, the card, the calendar and the job board show it, the initiation makes you a member at the next boundary and you wake up in the house's room; skipping it puts you out.
+- [ ] Leave the house from the Profile, as a pledge and as a member, and verify it asks first, sends you to Lowrise 4 and leaves a disliked memory only on the house's cast members.
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 
