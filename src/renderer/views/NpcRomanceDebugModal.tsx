@@ -4,7 +4,14 @@ import { motion } from 'motion/react'
 import { breakthroughMeterNow, lastBreakthroughUse, METER_MAX } from '@shared/breakthrough'
 import { factsKnownBy } from '@shared/facts'
 import { GROUP_IDS, GROUPS } from '@shared/groups'
-import { HOUSE_IDS, HOUSES, OFFICE_IDS, OFFICE_NAMES } from '@shared/houses'
+import {
+  HOUSE_IDS,
+  HOUSES,
+  OFFICE_IDS,
+  OFFICE_NAMES,
+  rushEventsOf,
+  type HouseId
+} from '@shared/houses'
 import { MAX_STRIKES, shiftSlotFullLabel } from '@shared/jobs'
 import { locationLabel } from '@shared/locations'
 import { pairKeyOf } from '@shared/npcRelationships'
@@ -210,6 +217,39 @@ function sectionsOf(): DebugSection[] {
       facts: `${HOUSES[id].nickname}, a ${HOUSES[id].kind}: ${
         named.length === 0 ? 'nobody from the roster' : `${named.length} of the roster (${named.join(', ')})`
       } · ${offices}`
+    })
+  }
+  // The fraternities' own: when they meet, their rush events and whether he went, and the bid.
+  for (const id of HOUSE_IDS) {
+    const agenda = game.houseAgendas[id]
+    if (!agenda) continue
+    const meets = agenda.sessions.map(shiftSlotFullLabel).join(', ') || 'none'
+    groupRows.push({
+      key: `${id}:meetings`,
+      who: `${HOUSES[id].nickname} meetings`,
+      facts: `${meets}${agenda.leftOutSessions ? ` · ${agenda.leftOutSessions} left out` : ''}`
+    })
+    for (const event of rushEventsOf(id)) {
+      const occasion = game.occasions.find((entry) => entry.id === event.id)
+      const left = agenda.leftOutEvents?.find((entry) => entry.id === event.id)
+      const when = occasion
+        ? `${dated(occasion.startDate)}, ${occasion.time === 0 ? 'day' : 'night'}`
+        : left
+          ? 'left out: no free day'
+          : 'no record'
+      groupRows.push({
+        key: `${id}:${event.id}`,
+        who: occasion?.title ?? event.title,
+        facts: `${when}${occasion ? (game.groupRush.attended.includes(event.id) ? ' · gone to' : ' · not gone to') : ''}`
+      })
+    }
+  }
+  const bid = game.groupRush.bid
+  if (bid) {
+    groupRows.push({
+      key: 'bid',
+      who: 'The bid',
+      facts: `invited: ${bid.invited.map((id) => HOUSES[id].nickname).join(', ') || 'none'} · clashed: ${bid.clashed.map((id) => HOUSES[id].nickname).join(', ') || 'none'} · scores ${Object.entries(bid.scores).map(([id, score]) => `${HOUSES[id as HouseId].nickname} ${score}`).join(', ')} · ${bid.answer === undefined ? 'waiting for his answer' : bid.answer === null ? 'he turned them down' : `he pledged ${HOUSES[bid.answer].nickname}`}`
     })
   }
   if (groupRows.length === 0) {

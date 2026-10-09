@@ -1,0 +1,86 @@
+/* The end of rush: the houses that bid, each with the one button that answers it, and a line for
+   each that would have bid but for its meetings. Imported from the component module, never from
+   index.css. The veil, the buttons and the foot are base.css's. */
+
+.vu-bid {
+  --paper-shadow: var(--vu-panel-shadow);
+  --paper-offset: 11px 10px;
+  --paper-tilt: -1.2deg;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: min(760px, 100%);
+  max-height: calc(100% - 100px);
+  padding: 52px 44px 32px 84px;
+  border-radius: 70px 0 0 70px;
+  color: var(--vu-text);
+  font-family: var(--font-body);
+}
+
+/* Whatever sits under the tab's corner owes it clearance. */
+.vu-bid-lead {
+  margin: 0;
+  color: var(--vu-text-body);
+  font: 500 17px/1.45 var(--font-body);
+}
+
+.vu-bid-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A house: its names, what he did there and the answer, on one row that wraps on a narrow stage. */
+.vu-bid-house {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+  padding: 14px 22px;
+  border-radius: 22px;
+  background: var(--vu-recessed);
+}
+
+.vu-bid-name {
+  display: flex;
+  flex: 1 1 220px;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.vu-bid-nick {
+  color: var(--vu-text);
+  font: 400 26px var(--font-display);
+}
+
+.vu-bid-full {
+  color: var(--vu-text-muted);
+  font: 500 12.5px var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.vu-bid-note {
+  flex: 1 1 200px;
+  color: var(--vu-text-muted);
+  font: 500 14px/1.4 var(--font-body);
+}
+
+/* A house that would have bid: said plainly under the ones that did, quieter than they are. */
+.vu-bid-clashes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vu-bid-clash {
+  color: var(--vu-text-muted);
+  font: 500 14px/1.45 var(--font-body);
+}

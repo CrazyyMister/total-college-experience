@@ -59,6 +59,7 @@ import { FALLBACK_DORM } from '@shared/dorms'
 import {
   coachChatIdOf,
   teamOfSave,
+  type GroupAgenda,
   type GroupId,
   type GroupResult,
   type GroupsRecord,
@@ -67,7 +68,7 @@ import {
   type SessionSettle,
   type TryoutResult
 } from '@shared/groups'
-import type { HouseOffices } from '@shared/houses'
+import type { BidOffer, HouseId, HouseOffices, HouseStanding, RushSave } from '@shared/houses'
 import type { CoachTexts } from './loop/coach'
 import { withHomeMove, type HomeId } from '@shared/homes'
 import {
@@ -321,6 +322,8 @@ interface GameStoreState {
   groups: GroupsRecord
   /** The offices of each Greek house nobody of the roster holds, from the record. */
   houseOffices: HouseOffices
+  /** When each fraternity meets, from the record. */
+  houseAgendas: Partial<Record<HouseId, GroupAgenda>>
   /** What the reader has bought and not yet given away. Persisted. */
   inventory: OwnedItem[]
   /** What each of his classes has accumulated, keyed by class code. Persisted. */
@@ -383,6 +386,10 @@ interface GameStoreState {
   groupTryouts: Record<string, TryoutResult>
   /** The team he is on, or null. Persisted. */
   groupTeam: GroupTeam | null
+  /** The rush events he went to and the bid they led to. Persisted. */
+  groupRush: RushSave
+  /** The house he has said yes to, or null. Persisted. */
+  groupHouse: HouseStanding | null
   /** The graduation narration has played. Persisted. */
   graduationSeen: boolean
   /** Who the reader has already said goodbye to. Persisted. */
@@ -1039,6 +1046,18 @@ interface GameStoreState {
    * once.
    */
   recordPracticeAttended: (slotId: number) => void
+  /** Files a rush event he went to, so the bid counts it. An event is filed once. */
+  recordRushAttended: (eventId: string) => void
+  /**
+   * Files the bid the end of rush decided. The first one stays: a replayed boundary finds the
+   * decision made and leaves it.
+   */
+  fileBid: (offer: BidOffer) => void
+  /**
+   * Answers the bid: a house he pledges, or null for none. Answered once; the first answer stays.
+   * `since` is the slot id he answers in.
+   */
+  answerBid: (house: HouseId | null, since: number) => void
   /**
    * Applies a pass of {@link settleSessions}: his strikes, the slot judged through and the
    * coach's texts for each strike, in one write, and takes him off the team when the pass put
@@ -1482,6 +1501,7 @@ const initialState = {
   playerCourse: null as string | null,
   groups: {} as GroupsRecord,
   houseOffices: {} as HouseOffices,
+  houseAgendas: {} as Partial<Record<HouseId, GroupAgenda>>,
   inventory: [] as OwnedItem[],
   classRecords: {} as Record<string, ClassRecord>,
   gradesStanding: null as 'good' | 'bad' | null,
@@ -1516,6 +1536,8 @@ const initialState = {
   groupResults: {} as Record<string, GroupResult>,
   groupTryouts: {} as Record<string, TryoutResult>,
   groupTeam: null as GroupTeam | null,
+  groupRush: { attended: [] } as RushSave,
+  groupHouse: null as HouseStanding | null,
   graduationSeen: false,
   farewellsDone: [] as string[],
   endingArtWanted: false,
@@ -1621,6 +1643,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       playerCourse: courseOf(record.playerCourse),
       groups: record.groups ?? {},
       houseOffices: record.houseOffices ?? {},
+      houseAgendas: record.houseAgendas ?? {},
       inventory: save.inventory,
       classRecords: save.classRecords,
       gradesStanding: save.gradesStanding,
@@ -1654,6 +1677,8 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       homeMoves: save.homeMoves ?? {},
       groupResults: save.groups?.results ?? {},
       groupTryouts: save.groups?.tryouts ?? {},
+      groupRush: save.groups?.rush ?? { attended: [] },
+      groupHouse: save.groups?.house ?? null,
       groupTeam: save.groups?.team
         ? teamOfSave(save.groups.team, globalSlotOf(save.date, save.time))
         : null,
@@ -3128,6 +3153,36 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
           }
     ),
 
+  recordRushAttended: (eventId) =>
+    set((state) =>
+      state.groupRush.attended.includes(eventId)
+        ? {}
+        : { groupRush: { ...state.groupRush, attended: [...state.groupRush.attended, eventId] } }
+    ),
+
+  fileBid: (offer) =>
+    set((state) =>
+      state.groupRush.bid
+        ? {}
+        : {
+            groupRush: {
+              ...state.groupRush,
+              bid: { ...offer, invited: [...offer.invited], clashed: [...offer.clashed], scores: { ...offer.scores } }
+            }
+          }
+    ),
+
+  answerBid: (house, since) =>
+    set((state) => {
+      const bid = state.groupRush.bid
+      if (!bid || bid.answer !== undefined) return {}
+      if (house !== null && !bid.invited.includes(house)) return {}
+      return {
+        groupRush: { ...state.groupRush, bid: { ...bid, answer: house } },
+        ...(house !== null ? { groupHouse: { id: house, stage: 'pledge' as const, since } } : {})
+      }
+    }),
+
   settleTeam: (settle, texts) =>
     set((state) => {
       const team = state.groupTeam
@@ -3275,14 +3330,21 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       ...(Object.keys(state.homeMoves).length > 0 ? { homeMoves: state.homeMoves } : {}),
       ...(Object.keys(state.groupResults).length > 0 ||
       Object.keys(state.groupTryouts).length > 0 ||
-      state.groupTeam
+      state.groupTeam ||
+      state.groupRush.attended.length > 0 ||
+      state.groupRush.bid ||
+      state.groupHouse
         ? {
             groups: {
               results: state.groupResults,
               ...(Object.keys(state.groupTryouts).length > 0
                 ? { tryouts: state.groupTryouts }
                 : {}),
-              ...(state.groupTeam ? { team: state.groupTeam } : {})
+              ...(state.groupTeam ? { team: state.groupTeam } : {}),
+              ...(state.groupRush.attended.length > 0 || state.groupRush.bid
+                ? { rush: state.groupRush }
+                : {}),
+              ...(state.groupHouse ? { house: state.groupHouse } : {})
             }
           }
         : {}),

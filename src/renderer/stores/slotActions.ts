@@ -1,5 +1,6 @@
 import { kindOf } from '@shared/academics'
 import { groupEventButton, groupEventOf, tryoutButton, tryoutOf } from '@shared/groups'
+import { rushEventOf } from '@shared/houses'
 import { jobDefOf } from '@shared/jobs'
 import { LOWRISE_LOCATION } from '@shared/locations'
 import { statsLowestFirst, type StatKey } from '@shared/playerStats'
@@ -89,7 +90,15 @@ function commitments(): SlotAction[] {
   const meet = groupEventAt(game.date, game.time)
   const found = meet ? groupEventOf(meet.id) : undefined
   const tryout = meet ? tryoutOf(meet.id) : undefined
-  if (meet && found) {
+  const rush = meet ? rushEventOf(meet.id) : undefined
+  if (meet && rush) {
+    actions.push({
+      key: `group:${meet.id}`,
+      text: `Go to the ${rush.title}`,
+      tone: 'plan',
+      verdict: groupEventVerdict(meet)
+    })
+  } else if (meet && found) {
     actions.push({
       key: `group:${meet.id}`,
       text: groupEventButton(found.group, found.school),

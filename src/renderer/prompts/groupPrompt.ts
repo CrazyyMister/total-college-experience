@@ -16,6 +16,7 @@ import {
   houseAccess,
   isHouse,
   OFFICE_NAMES,
+  rushEventOf,
   type HouseId,
   type HouseOffices
 } from '@shared/houses'
@@ -102,17 +103,21 @@ export function houseFigurantLine(location: string | null | undefined): string {
 /**
  * What a scene set at a Greek house is told about the door, with its blank line, or nothing
  * anywhere else: where the reader stands, and who holds an office of the house that no named
- * character does, so the writer gives them no name. Said below the cached prefix.
+ * character does, so the writer gives them no name. Said below the cached prefix. `event` is the
+ * event the scene is, which is the one thing that lets him in.
  */
 export function houseDoorLines(
   location: string | null | undefined,
-  offices: HouseOffices | undefined
+  offices: HouseOffices | undefined,
+  event?: string | null
 ): string[] {
   const id = houseAtPlace(location)
-  if (!id || houseAccess(id) !== 'door') return []
+  if (!id) return []
   const def = HOUSES[id]
   const lines = [
-    `The reader is outside ${def.nickname}, the ${def.kind} house on Laurel Row: this scene stays on the porch or in the street, and he does not go inside. Nothing in this scene takes place in the living room, the party space or the bedrooms.`
+    houseAccess(id, { event }) === 'inside'
+      ? `The reader is at ${def.nickname}'s rush event, at the ${def.kind} house on Laurel Row, and the door is open to him for this event: this scene may take place on the porch, in the living room and in the party space. The bedrooms stay shut: nothing in this scene takes place in a bedroom.`
+      : `The reader is outside ${def.nickname}, the ${def.kind} house on Laurel Row: this scene stays on the porch or in the street, and he does not go inside. Nothing in this scene takes place in the living room, the party space or the bedrooms.`
   ]
   const unnamed = offices?.[id] ?? []
   if (unnamed.length > 0) {
@@ -189,6 +194,16 @@ export function groupNewsClause(
 export function groupEventLines(eventId: string | null | undefined, state: GroupNewsState): string[] {
   if (!eventId) return []
   const occasion = state.occasions.find((entry) => entry.id === eventId)
+  const rush = rushEventOf(eventId)
+  if (rush) {
+    if (!occasion) return []
+    return [
+      'GROUP EVENT',
+      `${occasion.title}: ${occasion.description}`,
+      `The reader is a guest at ${HOUSES[rush.house].nickname}'s rush event, not a member: the brothers are sizing him up and he is sizing them up. Whether any house bids on him is decided later by the game and is not the writer's to decide, hint at or promise. Nothing in this scene may say he has been, or will be, offered a bid.`,
+      ''
+    ]
+  }
   if (tryoutOf(eventId)) {
     const verdict = state.groupTryouts?.[eventId]
     if (!occasion || !verdict) return []

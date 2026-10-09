@@ -37,6 +37,7 @@ import { readerHolding, STARTING_HOME } from '@shared/homes'
 import type { NpcFriendship } from '@shared/npcRelationships'
 import { gpaOf, gradedCourses } from '@shared/academics'
 import { GROUPS, groupOfCoachChat } from '@shared/groups'
+import { HOUSES } from '@shared/houses'
 import { leaveTeamNow } from '../stores/loop/groups'
 import { globalSlotOf, jobDefForChat, shiftSlotFullLabel, shiftSlotOf } from '@shared/jobs'
 import { locationLabel, ROOM_LOCATION } from '@shared/locations'
@@ -1849,6 +1850,7 @@ function ProfilePage({ theme }: { theme: 'day' | 'night' }): JSX.Element {
 
         <div className="vu-bb-section">Groups</div>
         <TeamCard theme={theme} />
+        <HouseCard />
 
         <div className="vu-bb-section">Stats</div>
         <motion.div className="vu-bb-tallies" variants={LIST_DEAL}>
@@ -1917,6 +1919,23 @@ function TeamCard({ theme }: { theme: 'day' | 'night' }): JSX.Element {
           />
         )}
       </AnimatePresence>
+    </div>
+  )
+}
+
+/**
+ * The house he has said yes to and where he stands in it, or nothing at all for a reader who has
+ * pledged none. There is no way out of it here yet.
+ */
+function HouseCard(): JSX.Element | null {
+  const house = useGameStore((s) => s.groupHouse)
+  if (!house) return null
+  return (
+    <div className="vu-bb-team">
+      <span className="vu-bb-team-main">
+        <span className="vu-bb-team-name">{HOUSES[house.id].nickname}</span>
+        <span className="vu-bb-team-hours">Pledge</span>
+      </span>
     </div>
   )
 }

@@ -142,9 +142,11 @@ export function createSceneSanitizer(options: SanitizerOptions = {}): {
   const game = useGameStore.getState()
   const knownKeys = new Set(Object.keys(game.charKeyToId))
   // Flat across categories.
-  // The insides of the Greek houses are closed to every scene until a house lets the reader in.
+  // The insides of the Greek houses are closed to every scene but the one of the house's own event.
   const backgrounds = new Set(
-    withoutClosedHouseBgs(allBackgrounds(useAssetStore.getState().backgrounds))
+    withoutClosedHouseBgs(allBackgrounds(useAssetStore.getState().backgrounds), {
+      event: game.sceneGroupEvent
+    })
   )
   // Cast members' room bgs are legal exactly when the prompt offered them: both images on disk.
   for (const charId of game.cast) {

@@ -6,8 +6,20 @@
 
 import { LAST_CLASS_DATE } from './classes'
 import { seededRand } from './hash'
-import { MAX_STRIKES, SHIFT_SLOTS, shiftSlotFullLabel } from './jobs'
+import { MAX_STRIKES, SHIFT_SLOTS, shiftSlotFullLabel, shiftSlotOf } from './jobs'
 import { isLocationOpen, locationLabel } from './locations'
+import {
+  HOUSE_IDS,
+  HOUSES,
+  RUSH_EVENTS,
+  rushCandidates,
+  rushEventOf,
+  rushOccasion,
+  type HouseId,
+  type HouseMembers,
+  type HouseStanding,
+  type RushSave
+} from './houses'
 import { MAX_TIER, tierOf, type ShiftGain } from './playerStats'
 import { pronounsOf } from './pronouns'
 import { shuffle } from './shuffle'
@@ -282,6 +294,9 @@ export const GROUPS: Readonly<Record<GroupId, GroupDef>> = {
 /** How many sessions a team holds in a week. */
 export const TEAM_SESSIONS_PER_WEEK = 2
 
+/** How many meetings a fraternity holds in a week. */
+export const PLEDGE_SESSIONS_PER_WEEK = 2
+
 /** The fewest members who must be free for a session to be held at all. */
 export const MIN_SESSION_ATTENDEES = 2
 
@@ -383,6 +398,10 @@ export interface GroupsSave {
   results: Record<string, GroupResult>
   tryouts?: Record<string, TryoutResult>
   team?: SavedTeam
+  /** The rush events he went to and the bid they led to. */
+  rush?: RushSave
+  /** The house he has said yes to. */
+  house?: HouseStanding
 }
 
 /** Every group's agenda in a playthrough, keyed by group id. */
@@ -880,6 +899,11 @@ export interface EventPlacementInput {
   freeCount: (members: readonly string[], date: number, time: TimeSlot) => number
   /** Whether the reader has a class in a half-day, which no tryout is held in. */
   readerBusy?: (date: number, time: TimeSlot) => boolean
+  /**
+   * The weekly periods a men's team practices in. A rush event keeps off them where the week
+   * allows, since a practice he misses is a strike.
+   */
+  practiceSlots?: ReadonlySet<number>
 }
 
 /**
@@ -892,9 +916,12 @@ export interface EventPlacementInput {
 export function placeGroupEvents(input: EventPlacementInput): {
   placed: Occasion[]
   leftOut: Partial<Record<GroupId, LeftOutEvent[]>>
+  /** The rush events no half-day could hold, by house. */
+  houseLeftOut: Partial<Record<HouseId, LeftOutEvent[]>>
 } {
   const placed: Occasion[] = []
   const leftOut: Partial<Record<GroupId, LeftOutEvent[]>> = {}
+  const houseLeftOut: Partial<Record<HouseId, LeftOutEvent[]>> = {}
 
   const dayFor = (
     candidates: readonly number[],
@@ -923,6 +950,24 @@ export function placeGroupEvents(input: EventPlacementInput): {
     if (day !== undefined) placed.push(tryoutOccasion(GROUPS[id], tryout, day))
     else leave(id, tryout.id, reason)
   }
+  // The rush comes second: it has the fewest half-days to choose from, and nothing else of the
+  // first two weeks competes with it for them.
+  for (const event of RUSH_EVENTS) {
+    const free = (half: { date: number; time: TimeSlot }): boolean =>
+      !input.avoid.some((range) => half.date >= range.startDate && half.date <= range.endDate) &&
+      ![...input.occasions, ...placed].some((occasion) => occupies(occasion, half.date, half.time))
+    const practicing = (half: { date: number; time: TimeSlot }): boolean =>
+      input.practiceSlots?.has(shiftSlotOf(half.date % 7, half.time)) === true
+    const options = rushCandidates(event)
+    const half = options.find((entry) => free(entry) && !practicing(entry)) ?? options.find(free)
+    if (half) placed.push(rushOccasion(event, half))
+    else {
+      houseLeftOut[event.house] = [
+        ...(houseLeftOut[event.house] ?? []),
+        { id: event.id, reason: 'no_date' }
+      ]
+    }
+  }
   for (const id of GROUP_IDS) {
     const members = input.members[id] ?? []
     const reads = GROUPS[id].readerPlays
@@ -939,7 +984,155 @@ export function placeGroupEvents(input: EventPlacementInput): {
       else leave(id, event.id, found.reason)
     }
   }
-  return { placed, leftOut }
+  return { placed, leftOut, houseLeftOut }
+}
+
+// ─── The fraternities' meetings and the bid ───────────────────────────────────
+
+/** What {@link dealHouseSessions} reads. */
+export interface HouseSessionInput {
+  members: HouseMembers
+  /** The `ShiftSlot`s each person of the roster owes to a class or a shift, keyed by charId. */
+  busy: Readonly<Record<string, ReadonlySet<number>>>
+  /** The `ShiftSlot`s the reader has a class in, which are never a meeting. */
+  playerClassSlots: ReadonlySet<number>
+  /** The periods the men's teams practice in, which a meeting keeps off where the week allows. */
+  practiceSlots: ReadonlySet<number>
+  seed: string
+}
+
+/** The houses the reader can join: the fraternities. */
+export const BID_HOUSES: readonly HouseId[] = HOUSE_IDS.filter(
+  (id) => HOUSES[id].kind === 'fraternity'
+)
+
+/**
+ * When each fraternity meets: {@link PLEDGE_SESSIONS_PER_WEEK} periods a week, none in a class of
+ * the reader's and, where the week has room, none in a period a men's team practices in. A house
+ * always finds its meetings: the periods with the most of its roster free come first, and one
+ * with too few free is the last choice rather than none.
+ */
+export function dealHouseSessions(
+  input: HouseSessionInput
+): Partial<Record<HouseId, GroupAgenda>> {
+  const agendas: Partial<Record<HouseId, GroupAgenda>> = {}
+  for (const house of BID_HOUSES) {
+    const base = {
+      location: house,
+      members: input.members[house] ?? [],
+      busy: input.busy,
+      playerClassSlots: input.playerClassSlots,
+      count: PLEDGE_SESSIONS_PER_WEEK,
+      lenient: true,
+      seed: `${input.seed}:${house}:sessions`
+    }
+    const slots = [...groupSessionSlots({ ...base, taken: input.practiceSlots }).slots]
+    if (slots.length < PLEDGE_SESSIONS_PER_WEEK) {
+      slots.push(
+        ...groupSessionSlots({
+          ...base,
+          count: PLEDGE_SESSIONS_PER_WEEK - slots.length,
+          taken: new Set(slots)
+        }).slots
+      )
+    }
+    slots.sort((a, b) => a - b)
+    agendas[house] = {
+      sessions: slots,
+      ...(slots.length < PLEDGE_SESSIONS_PER_WEEK
+        ? { leftOutSessions: PLEDGE_SESSIONS_PER_WEEK - slots.length }
+        : {})
+    }
+  }
+  return agendas
+}
+
+/** The day the bid is decided: the Sunday that ends the second week. */
+export const BID_DAY = 13
+
+/** What each part of a fraternity's score is worth. */
+export const BID_WEIGHT_EVENTS = 0.5
+export const BID_WEIGHT_LIKING = 0.3
+export const BID_WEIGHT_STAT = 0.2
+
+/** How many of its events he must have gone to for that part of the score to be full. */
+export const BID_EVENTS_FOR_FULL = 3
+
+/** The affection at which a member of the house likes him as much as the score counts. */
+export const BID_AFFECTION_FULL = 30
+
+/** The score a house needs to bid, with somebody of the roster in it and with nobody. */
+export const BID_THRESHOLD_CAST = 0.4
+export const BID_THRESHOLD_UNNAMED = 0.5
+
+/** What the bid reads about one fraternity. */
+export interface BidHouseInput {
+  house: HouseId
+  /** How many of the house's rush events he went to. */
+  events: number
+  /** What each member of the roster living in it feels for him, as an affection score. */
+  affections: readonly number[]
+  /** His tier in the stat the house values. */
+  tier: number
+  /** The periods the house meets in. */
+  sessions: readonly ShiftSlot[]
+}
+
+/** Who bids on him, who would have but for the clash, and what each house scored. */
+export interface BidVerdict {
+  invited: HouseId[]
+  clashed: HouseId[]
+  scores: Partial<Record<HouseId, number>>
+}
+
+/** How much a member likes him, from −1 (she hates him) to 1 (she is as fond as the score counts). */
+function likingOf(affection: number): number {
+  return Math.max(-1, Math.min(affection / BID_AFFECTION_FULL, 1))
+}
+
+/**
+ * A fraternity's score: half for the events he went to (full at three), three tenths for how much
+ * its members of the roster like him on average (none, where it has nobody of the roster), and
+ * two tenths for his tier in the stat it values.
+ */
+export function bidScore(input: BidHouseInput): number {
+  const liking =
+    input.affections.length === 0
+      ? 0
+      : input.affections.reduce((sum, value) => sum + likingOf(value), 0) / input.affections.length
+  return (
+    BID_WEIGHT_EVENTS * Math.min(input.events / BID_EVENTS_FOR_FULL, 1) +
+    BID_WEIGHT_LIKING * liking +
+    BID_WEIGHT_STAT * ((input.tier - 1) / (MAX_TIER - 1))
+  )
+}
+
+/**
+ * Which fraternities bid on the reader: those that score past their threshold, which is higher
+ * where the house has nobody of the roster, and never for one whose events he went to none of. A
+ * house that would bid but meets in a period his team practices in does not, and is named apart.
+ * `teamSessions` is the periods of the team he is on, or none. The same input gives the same
+ * answer.
+ */
+export function bidVerdict(
+  houses: readonly BidHouseInput[],
+  teamSessions: readonly ShiftSlot[]
+): BidVerdict {
+  const verdict: BidVerdict = { invited: [], clashed: [], scores: {} }
+  for (const input of houses) {
+    const score = bidScore(input)
+    verdict.scores[input.house] = Math.round(score * 1000) / 1000
+    const needed = input.affections.length === 0 ? BID_THRESHOLD_UNNAMED : BID_THRESHOLD_CAST
+    if (input.events < 1 || score < needed) continue
+    if (input.sessions.some((slot) => teamSessions.includes(slot))) verdict.clashed.push(input.house)
+    else verdict.invited.push(input.house)
+  }
+  return verdict
+}
+
+/** How many of a house's rush events he went to. */
+export function rushEventsAttended(attended: readonly string[], house: HouseId): number {
+  return attended.filter((id) => rushEventOf(id)?.house === house).length
 }
 
 // ─── The reader's practices ────────────────────────────────────────────────────

@@ -392,6 +392,8 @@
 - The course picker is the screen's own in-screen layer on the registrar, inheriting the theme, and is portalled from the add/drop modal.
 - The phone's photo viewer is a modal with no panel, tab or foot: the picture alone on the dimming, rounded and unshadowed, which a click anywhere or Escape puts away — a picture is its own answer.
 - The hand preview, the prompt editor and a busy or one-way confirm ignore Escape, a right-click and the dimming alike, there being nothing a dismissal could answer.
+- The end of rush is the same kind of modal: a titled panel with one row per house that bid, each with the button that pledges it, a quiet line for each house whose meetings clash with his team, and a foot of one answer, the quiet "Turn them all down" or, where no house bid, the primary "Close". It is answered on the landing it arrives on and only by its buttons.
+- A pledged house is a second card under the team's on the profile's Groups section, wearing the team card's own classes: the house's name and its stage.
 - Hair labels, the repairs' chroma green and the merchants' colours are literals and do not follow the theme: each is a key or a brand rather than a job on a screen.
 - A merchant's two extra faces reach one element each, and the goods stay in the app's own three.
 - A shop's shelf overrides the app's scrollbar with the merchant's own, a shop being a website whose bar belongs to its page.

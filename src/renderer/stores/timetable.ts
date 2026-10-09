@@ -182,7 +182,7 @@ export function groupEventAt(date: number, time: TimeSlot): Occasion | undefined
     .getState()
     .occasions.find(
       (occasion) =>
-        occasion.group !== undefined &&
+        (occasion.group !== undefined || occasion.house !== undefined) &&
         occasion.where !== undefined &&
         date >= occasion.startDate &&
         date <= occasion.endDate &&

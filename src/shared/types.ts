@@ -13,8 +13,8 @@ import type { GossipPost, GossipTopic, NpcGossip } from './npcRomanceGossip'
 import type { PromptKind } from './promptKinds'
 import type { RumorPassOutcome } from './rumors'
 import type { DormId } from './dorms'
-import type { GroupId, GroupsRecord, GroupsSave, TeamsChoice } from './groups'
-import type { HouseId, HouseMembers, HouseOffices, HousesChoice, OfficeId } from './houses'
+import type { GroupAgenda, GroupId, GroupsRecord, GroupsSave, TeamsChoice } from './groups'
+import type { BidOffer, HouseId, HouseMembers, HouseOffices, HousesChoice, OfficeId } from './houses'
 import type { HomeId } from './homes'
 import type { AudioGroup } from './audio'
 import type { ComfyGpu } from './setupManifest'
@@ -1189,7 +1189,9 @@ export interface Occasion {
   kind: 'holiday' | 'academic' | 'campus'
   /** The group whose event this is, when it is one. */
   group?: GroupId
-  /** The `LOCATIONS` id it is held at, when it is a group's event. */
+  /** The Greek house whose event this is, when it is one: a rush event. */
+  house?: HouseId
+  /** The `LOCATIONS` id it is held at, when it is a group's or a house's event. */
   where?: string
 }
 
@@ -1446,6 +1448,11 @@ export interface SlotOpening {
    * the slot opens. Absent for an opening with none.
    */
   npcComments?: NpcCommentAnswer[]
+  /**
+   * The bid the end of rush decided, kept with the opening it leads into so that a replayed
+   * ending reads the same one. Absent for every opening but the one after the last night of rush.
+   */
+  bid?: BidOffer
   /** The plans the merged ledger found, normalized and attendance-filtered. */
   events: CalendarEvent[]
   /** Who that filtering took off an event, announced by text at step 1. */
@@ -1931,6 +1938,8 @@ export interface PlaythroughRecord {
   groups?: GroupsRecord
   /** The offices of each Greek house that nobody of the roster holds; absent where every one is held. */
   houseOffices?: HouseOffices
+  /** When each fraternity meets, keyed by house id; absent where New Game dealt none. */
+  houseAgendas?: Partial<Record<HouseId, GroupAgenda>>
 }
 
 /** The record as New Game hands it over; `saveService` stamps the version. */

@@ -19,6 +19,7 @@ import {
   GROUP_EVENT_TIME,
   GROUP_IDS,
   GROUPS,
+  dealHouseSessions,
   placeGroupEvents,
   type GroupId,
   type GroupsRecord,
@@ -968,21 +969,41 @@ export function NewGameView(): JSX.Element {
     // The teams: who is on each, and when each meets. After the shifts, since a member's class or
     // shift is what keeps her from a session, and after the reader's timetable, since a session
     // never lands on one of his classes.
+    const busyOf = Object.fromEntries(
+      roster.map((c) => [
+        c.charId,
+        new Set<number>([
+          ...Object.keys(perChar[c.charId]?.schedule ?? {}).map(Number),
+          ...(charJobs[c.charId]?.shifts ?? [])
+        ])
+      ])
+    )
+    const playerClassSlots = new Set(Object.keys(playerSchedule).map(Number))
     const groupDeal = dealGroups({
       choice: teamsChoice,
       roster: roster.map((c) => ({ charId: c.charId, gender: c.gender })),
-      busy: Object.fromEntries(
-        roster.map((c) => [
-          c.charId,
-          new Set<number>([
-            ...Object.keys(perChar[c.charId]?.schedule ?? {}).map(Number),
-            ...(charJobs[c.charId]?.shifts ?? [])
-          ])
-        ])
-      ),
-      playerClassSlots: new Set(Object.keys(playerSchedule).map(Number)),
+      busy: busyOf,
+      playerClassSlots,
       seed: playthroughId ?? 'new-game'
     })
+    // When each fraternity meets, around the practices of the two men's teams the reader may join.
+    const practiceSlots = new Set<number>(
+      GROUP_IDS.filter((id) => GROUPS[id].readerPlays).flatMap(
+        (id) => groupDeal.agendas[id]?.sessions ?? []
+      )
+    )
+    const houseDeal = dealHouseSessions({
+      members: houses,
+      busy: busyOf,
+      playerClassSlots,
+      practiceSlots,
+      seed: playthroughId ?? 'new-game'
+    })
+    for (const [id, agenda] of Object.entries(houseDeal)) {
+      console.log(
+        `[groups] ${id}: meetings ${agenda.sessions.map(shiftSlotFullLabel).join(', ') || 'none'}${agenda.leftOutSessions ? `; ${agenda.leftOutSessions} left out` : ''}.`
+      )
+    }
     const memberOf = (charId: string): GroupId[] =>
       GROUP_IDS.filter((id) => groupDeal.members[id]?.includes(charId))
     for (const id of GROUP_IDS) {
@@ -1065,6 +1086,7 @@ export function NewGameView(): JSX.Element {
       members: groupDeal.members,
       occasions: [...STATIC_OCCASIONS, ...occasions],
       avoid: [MIDTERM_WEEK, SPRING_BREAK, FINALS_WEEK],
+      practiceSlots,
       readerBusy: (date, time) => {
         const slot = classSlotOf(date, time, occasions)
         return slot !== null && playerSchedule[slot] !== undefined
@@ -1087,6 +1109,17 @@ export function NewGameView(): JSX.Element {
         return [id, left.length > 0 ? { ...agenda, leftOutEvents: left } : agenda]
       })
     )
+    const houseAgendas = Object.fromEntries(
+      Object.entries(houseDeal).map(([id, agenda]) => {
+        const left = eventDeal.houseLeftOut[id as HouseId] ?? []
+        return [id, left.length > 0 ? { ...agenda, leftOutEvents: left } : agenda]
+      })
+    )
+    for (const [id, left] of Object.entries(eventDeal.houseLeftOut)) {
+      for (const event of left ?? []) {
+        console.warn(`[groups] ${id}: ${event.id} left out (${event.reason}).`)
+      }
+    }
     for (const event of eventDeal.placed) {
       console.log(
         `[groups] ${event.title}: day ${event.startDate} (${formatGameDate(event.startDate)}), ${GROUP_EVENT_TIME === event.time ? 'night' : 'day'}.`
@@ -1168,6 +1201,7 @@ export function NewGameView(): JSX.Element {
         profiles,
         ...(Object.keys(groupAgendas).length > 0 ? { groups: groupAgendas } : {}),
         ...(Object.keys(officeDeal.unnamed).length > 0 ? { houseOffices: officeDeal.unnamed } : {}),
+        ...(Object.keys(houseAgendas).length > 0 ? { houseAgendas } : {}),
         ...(exSeed && activeEx ? { ex: activeEx } : {}),
         ...(courseChoice ? { playerCourse: courseChoice } : {})
       },

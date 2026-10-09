@@ -104,7 +104,7 @@ import {
   readerTeamLines
 } from './groupPrompt'
 import { factLines } from './facts'
-import { withoutClosedHouseBgs, type HouseOffices } from '@shared/houses'
+import { rushEventOf, withoutClosedHouseBgs, type HouseOffices } from '@shared/houses'
 import { moodLine } from './moods'
 import { springBreakLines } from './springBreak'
 import {
@@ -1028,7 +1028,10 @@ function sceneSchema(
     // Cast room ids ride on the enum, never on the cached-prefix background lines.
     bg: {
       type: 'string',
-      enum: [...withoutClosedHouseBgs(allBackgrounds(backgrounds)), ...castRoomBgs(cast, state)]
+      enum: [
+        ...withoutClosedHouseBgs(allBackgrounds(backgrounds), { event: state.groupEvent }),
+        ...castRoomBgs(cast, state)
+      ]
     },
     text: { type: 'string' }
   }
@@ -1117,7 +1120,7 @@ function figurantLines(cast: readonly Character[], state: PromptState): string[]
     )
   )
   const house = houseFigurantLine(state.sceneLocation)
-  const door = houseDoorLines(state.sceneLocation, state.houseOffices)
+  const door = houseDoorLines(state.sceneLocation, state.houseOffices, state.groupEvent)
   return [...door, ...(line ? [line] : []), ...(house ? [house] : []), ...(line || house ? [''] : [])]
 }
 
@@ -1565,9 +1568,14 @@ export function buildSoloPrompt(
     groupOfEvent(state.groupEvent) ??
     (state.groupPractice && state.playerTeam ? GROUPS[state.playerTeam] : undefined)
   const inPlay = groupsInPlay([], state.sceneLocation)
-  const figurant = groupFigurantLine(
-    eventGroup && !inPlay.includes(eventGroup) ? [eventGroup, ...inPlay] : inPlay
-  )
+  // A rush event is a house's own, with a result nobody decides yet and brothers nobody names.
+  const rushScene = rushEventOf(state.groupEvent) !== undefined
+  const figurant = [
+    groupFigurantLine(eventGroup && !inPlay.includes(eventGroup) ? [eventGroup, ...inPlay] : inPlay),
+    ...(rushScene ? [houseFigurantLine(state.sceneLocation)] : [])
+  ]
+    .filter((line) => line !== '')
+    .join('\n')
 
   const user = [
     // With no cast, `nowBlock` is the date and semester lines.
@@ -1578,11 +1586,11 @@ export function buildSoloPrompt(
     ...readerTeamLines(state.playerTeam),
     '',
     ...groupEventLines(state.groupEvent, state),
-    ...houseDoorLines(state.sceneLocation, state.houseOffices),
+    ...houseDoorLines(state.sceneLocation, state.houseOffices, state.groupEvent),
     ...(figurant ? [figurant, ''] : []),
     'YOUR TURN',
     'Solo mission, RITA! The reader is on their own for this one, so write it start to finish in one go.',
-    `Open by rewording what the reader decided to do in a fun narration, then play it out to the end. ${eventGroup ? 'No named characters will show up.' : 'No other characters will show up.'}`,
+    `Open by rewording what the reader decided to do in a fun narration, then play it out to the end. ${eventGroup || rushScene ? 'No named characters will show up.' : 'No other characters will show up.'}`,
     'Keep it tight. This is a slice of their day, not an epic.',
     'DON\'T leave a decision point, a cliffhanger, or a question for the reader.',
     '',
@@ -1613,7 +1621,7 @@ export function buildSoloPrompt(
     // Routable: an hour by himself has nobody in it to be written badly, which is what
     // keeps every other scene call off the secondary model. A group's event has a result the
     // code decided and the writer must not contradict, so it is never routed.
-    ...(eventGroup ? {} : { kind: 'solo' as const })
+    ...(eventGroup || rushScene ? {} : { kind: 'solo' as const })
   }
 }
 

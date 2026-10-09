@@ -1084,7 +1084,7 @@ function groupEventPreset(occasionId: string | undefined): Verdict | undefined {
   if (!occasionId) return undefined
   const game = useGameStore.getState()
   const occasion = game.occasions.find((entry) => entry.id === occasionId)
-  if (!occasion?.group || occasion.startDate !== game.date) return undefined
+  if (!(occasion?.group || occasion?.house) || occasion.startDate !== game.date) return undefined
   if ((occasion.time ?? GROUP_EVENT_TIME) !== game.time) return undefined
   return groupEventVerdict(occasion)
 }
@@ -1451,8 +1451,9 @@ export function pickOccasionAsker(
   for (const charId of game.chars) {
     if (askChanceFor(charId, day, view, 1) <= 0) continue
     if (charUnavailableNow(charId, day, half)) continue
-    // A group's event is asked by one of its members.
+    // A group's event is asked by one of its members, and a house's by one who lives in it.
     if (occasion?.group && !game.charInfo[charId]?.groups?.includes(occasion.group)) continue
+    if (occasion?.house && game.charInfo[charId]?.house !== occasion.house) continue
     // She is already asking him something else.
     if (conversations[charId]?.pendingHangout) continue
     // Her own backoff still counts; the roster's spell of quiet does not.

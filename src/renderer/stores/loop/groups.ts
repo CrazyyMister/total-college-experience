@@ -1,5 +1,14 @@
-import { tierOf } from '@shared/playerStats'
+import { affectionFor } from '@shared/relationship'
+import { HOUSES, rushEventOf, rushEventsOf, type BidOffer } from '@shared/houses'
+import { tierOf, type PlayerStats } from '@shared/playerStats'
 import {
+  BID_DAY,
+  BID_HOUSES,
+  bidScore,
+  bidVerdict,
+  rushEventsAttended,
+  BID_THRESHOLD_CAST,
+  BID_THRESHOLD_UNNAMED,
   GROUP_EVENT_TIME,
   GROUPS,
   gameResult,
@@ -17,7 +26,7 @@ import {
 import { classSlotForShift, globalSlotOf, shiftSlotFullLabel } from '@shared/jobs'
 import { shuffle } from '@shared/shuffle'
 import { wornSetOf } from '@shared/wardrobe'
-import type { Occasion, OutfitSet, TimeSlot } from '@shared/types'
+import type { CharInfo, Occasion, OutfitSet, TimeSlot } from '@shared/types'
 import { isMoodHomebound } from '../../prompts/moods'
 import { PORTRAIT_SLOTS, useGameStore, type SceneKind } from '../gameStore'
 import {
@@ -243,6 +252,53 @@ export function planPractice(): { cast: string[]; scene: SceneKind; slotId: numb
   }
 }
 
+/**
+ * The bid the end of rush decides, for the opening of the slot after its last night, or undefined
+ * for any other slot, for a game that dealt no rush and for one whose bid is already decided. Read
+ * off the store and the post-scene projection the ending narrates from, and kept with the opening.
+ */
+export function decideBid(
+  date: number,
+  time: TimeSlot,
+  charInfo: Readonly<Record<string, CharInfo>>,
+  stats: PlayerStats
+): BidOffer | undefined {
+  const game = useGameStore.getState()
+  if (date !== BID_DAY + 1 || time !== 0) return undefined
+  if (game.groupRush.bid) return undefined
+  if (!game.occasions.some((occasion) => rushEventOf(occasion.id))) return undefined
+
+  const team = game.groupTeam
+  const teamSessions = team ? (game.groups[team.id]?.sessions ?? []) : []
+  const inputs = BID_HOUSES.map((house) => {
+    const members = game.chars.filter((charId) => game.charInfo[charId]?.house === house)
+    return {
+      house,
+      events: rushEventsAttended(game.groupRush.attended, house),
+      affections: members.map((charId) =>
+        affectionFor(charInfo[charId], BID_DAY, game.characters[charId])
+      ),
+      tier: tierOf(stats[HOUSES[house].values]),
+      sessions: game.houseAgendas[house]?.sessions ?? []
+    }
+  })
+  const verdict = bidVerdict(inputs, teamSessions)
+  for (const input of inputs) {
+    const needed = input.affections.length === 0 ? BID_THRESHOLD_UNNAMED : BID_THRESHOLD_CAST
+    const outcome = verdict.invited.includes(input.house)
+      ? 'bids'
+      : verdict.clashed.includes(input.house)
+        ? 'would bid but its meetings clash with his team'
+        : input.events < 1
+          ? 'does not bid: he went to none of its events'
+          : 'does not bid'
+    console.log(
+      `[bid] ${input.house}: ${input.events} of ${rushEventsOf(input.house).length} events, ${input.affections.length === 0 ? 'nobody of the roster' : `affection ${input.affections.map((a) => a.toFixed(0)).join(', ')}`}, ${HOUSES[input.house].values} tier ${input.tier}, score ${bidScore(input).toFixed(2)} (needs ${needed.toFixed(2)}) → ${outcome}.`
+    )
+  }
+  return { day: BID_DAY, ...verdict }
+}
+
 /** The verdict that opens an event's scene, naming nobody and setting it at the event's place. */
 export function groupEventVerdict(occasion: Occasion): Verdict {
   return {
@@ -324,6 +380,20 @@ export interface GroupEventPlan {
 export function planGroupEvent(eventId: string, required?: string): GroupEventPlan | null {
   const game = useGameStore.getState()
   const occasion = game.occasions.find((entry) => entry.id === eventId)
+  if (rushEventOf(eventId)) {
+    // A house's own event: whoever lives in it and is free is there, and nothing is decided.
+    if (!occasion?.house || occasion.startDate !== game.date) return null
+    if ((occasion.time ?? GROUP_EVENT_TIME) !== game.time) return null
+    const home = shuffle(
+      game.chars.filter(
+        (charId) =>
+          game.charInfo[charId]?.house === occasion.house &&
+          memberFreeAt(charId, game.date, game.time)
+      )
+    )
+    const cast = [...new Set([...(required ? [required] : []), ...home])].slice(0, PORTRAIT_SLOTS)
+    return { cast, scene: { groupEvent: occasion.id } }
+  }
   if (!occasion?.group || occasion.startDate !== game.date) return null
   const tryout = tryoutOf(eventId)
   if ((occasion.time ?? (tryout ? TRYOUT_TIME : GROUP_EVENT_TIME)) !== game.time) return null

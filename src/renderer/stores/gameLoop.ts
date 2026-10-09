@@ -3,6 +3,7 @@ import { checkFacts } from '@shared/facts'
 import { gameOverLines, gameOverReasonOf } from '@shared/gameOver'
 import { GAME_GAIN, GROUPS, PRACTICE_GAIN } from '@shared/groups'
 import { homeOf, READER, withHomeMove } from '@shared/homes'
+import { rushEventOf } from '@shared/houses'
 import { locationLabel } from '@shared/locations'
 import { earnLine, spendLine, spentOf } from '@shared/money'
 import {
@@ -223,6 +224,7 @@ import {
 import { registerLoopHooks } from './loop/hooks'
 import { failTurn, runSceneTurn } from './loop/turn'
 import {
+  decideBid,
   groupEventIdFor,
   isPracticeVerdict,
   NO_PRACTICE_MESSAGE,
@@ -1904,6 +1906,11 @@ async function fetchEndingOpening(
     npcRelationships
   }
 
+  // The bid the end of rush decides, for the one opening it leads into: read off the same
+  // projection the opening is narrated from, and kept with it so a replayed ending decides again
+  // the same.
+  const bid = decideBid(date, time, view.charInfo, stats)
+
   // The lovers who left him with no way to text him, and what the slot's gossip is about.
   const { topic: gossipTopic, silent } = slotGossipOf(npcRomance, readerBreakups, parted, date)
   const silentBreakups = silent.length > 0 ? { silentBreakups: silent } : {}
@@ -1984,7 +1991,8 @@ async function fetchEndingOpening(
         rivals,
         ...bankedMemories,
         ...silentBreakups,
-        ...(homeMove ? { homeMove } : {})
+        ...(homeMove ? { homeMove } : {}),
+        ...(bid ? { bid } : {})
       }
     : null
 }
@@ -2874,6 +2882,11 @@ async function crossSlotBoundary(): Promise<void> {
   if (useGameStore.getState().sceneGroupPractice) {
     useGameStore.getState().recordPracticeAttended(globalSlotOf(game.date, game.time))
   }
+  // A rush event he went to is filed as the boundary closes it; an event is filed once.
+  const rushEventId = useGameStore.getState().sceneGroupEvent
+  if (rushEventId && rushEventOf(rushEventId)) {
+    useGameStore.getState().recordRushAttended(rushEventId)
+  }
   // Independent of the ledger: being in the scene is the whole of this claim.
   useGameStore.getState().markMet(useGameStore.getState().cast)
   // The same claim filed by the slot of the week, which the map reads; before
@@ -3006,6 +3019,9 @@ async function crossSlotBoundary(): Promise<void> {
   // Where the ending decided he lives from here on; filing it again leaves the same record.
   const homeMove = loopState.bankedOpening?.homeMove
   if (homeMove) useGameStore.getState().moveHome(READER, homeMove)
+  // The bid the ending decided; filing it again leaves the first.
+  const bid = loopState.bankedOpening?.bid
+  if (bid) useGameStore.getState().fileBid(bid)
   loopState.debugHomeMove = null
   // What the ending decided for his posts and comments, stamped with the slot they land in and
   // inside the boundary save, so a reload of it keeps them; idempotent.

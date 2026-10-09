@@ -8,7 +8,7 @@ import { seededRand } from './hash'
 import type { StatKey } from './playerStats'
 import { pronounsOf } from './pronouns'
 import { shuffle } from './shuffle'
-import type { Gender } from './types'
+import type { Gender, Occasion, TimeSlot } from './types'
 
 export const HOUSE_IDS = ['kappa_row', 'xi_delt', 'sig_lam', 'pi_theta'] as const
 
@@ -113,13 +113,19 @@ export const HOUSE_INSIDE_BGS: readonly string[] = [
 /** Whether the reader is let in a house, or kept at its door. */
 export type HouseAccess = 'door' | 'inside'
 
+/** What the answer to "how far does he get" depends on: the event the scene is, if it is one. */
+export interface HouseDoor {
+  event?: string | null
+}
+
 /**
- * How far the reader gets in a house: the front is always his, and the inside is for a house
- * that lets him in, which nothing does yet. The one answer the scene's line and the backgrounds
- * it may use both ask, so that opening the inside is changing this function and nothing else.
+ * How far the reader gets in a house: the front is always his, and the inside is for the house
+ * whose own event the scene is. The one answer the scene's line and the backgrounds it may use
+ * both ask, so that opening the inside for another reason is changing this function and nothing
+ * else.
  */
-export function houseAccess(_house: HouseId): HouseAccess {
-  return 'door'
+export function houseAccess(house: HouseId, door: HouseDoor = {}): HouseAccess {
+  return rushEventOf(door.event)?.house === house ? 'inside' : 'door'
 }
 
 /**
@@ -127,11 +133,136 @@ export function houseAccess(_house: HouseId): HouseAccess {
  * space of a house that lets the reader in. A member's room is never among them until the house
  * is his.
  */
-export function withoutClosedHouseBgs(bgs: readonly string[]): string[] {
+export function withoutClosedHouseBgs(bgs: readonly string[], door: HouseDoor = {}): string[] {
   const open = new Set(
-    HOUSE_IDS.filter((id) => houseAccess(id) === 'inside').flatMap((id) => HOUSES[id].insideBgs)
+    HOUSE_IDS.filter((id) => houseAccess(id, door) === 'inside').flatMap((id) => HOUSES[id].insideBgs)
   )
   return bgs.filter((bg) => !HOUSE_INSIDE_BGS.includes(bg) || open.has(bg))
+}
+
+// ─── Rush ──────────────────────────────────────────────────────────────────────
+
+/** One half of one day. */
+export interface HalfDay {
+  date: number
+  time: TimeSlot
+}
+
+/** One rush event a fraternity holds, dated at New Game out of its candidates. */
+export interface RushEventDef {
+  id: string
+  house: HouseId
+  /** What the event is called after the house's name. */
+  title: string
+  /** What the calendar's card says it is. */
+  description: string
+  /** The night it is held on if nothing else holds it. */
+  first: HalfDay
+}
+
+/** The Thursday, Friday and Saturday nights of the first two weeks, in the order they fall. */
+const RUSH_NIGHTS: readonly number[] = [3, 4, 5, 10, 11, 12]
+
+/** The fraternities that rush, in the order their events alternate. */
+const RUSH_HOUSES: readonly HouseId[] = ['kappa_row', 'xi_delt']
+
+const RUSH_TITLES: readonly string[] = ['Open House', 'Meet the Brothers', 'Rush Social']
+
+const RUSH_BLURBS: readonly string[] = [
+  '{house} opens its doors to anybody curious about pledging, with food and music going and the brothers talking to whoever comes in.',
+  '{house} holds an evening for anybody curious about pledging, where the brothers take turns introducing themselves and the house is open to meet them in.',
+  '{house} throws a social for anybody curious about pledging, a relaxed one where the brothers look over who comes and who comes looking.'
+]
+
+/** Every rush event there is, alternating between the two fraternities. */
+export const RUSH_EVENTS: readonly RushEventDef[] = RUSH_NIGHTS.map((date, at) => {
+  const house = RUSH_HOUSES[at % RUSH_HOUSES.length]
+  const nth = Math.floor(at / RUSH_HOUSES.length)
+  return {
+    id: `rush-${house}-${nth + 1}`,
+    house,
+    title: `${HOUSES[house].nickname} ${RUSH_TITLES[nth]}`,
+    description: RUSH_BLURBS[nth].replace('{house}', HOUSES[house].nickname),
+    first: { date, time: 1 as TimeSlot }
+  }
+})
+
+/** The rush event an occasion id names, or `undefined` for any other id. */
+export function rushEventOf(eventId: string | null | undefined): RushEventDef | undefined {
+  return eventId ? RUSH_EVENTS.find((event) => event.id === eventId) : undefined
+}
+
+/** The rush events one house holds. */
+export function rushEventsOf(house: HouseId): RushEventDef[] {
+  return RUSH_EVENTS.filter((event) => event.house === house)
+}
+
+/** The weekend half-days a rush event falls back on when no night can hold it, in order. */
+const RUSH_FALLBACKS: readonly HalfDay[] = [
+  { date: 5, time: 0 },
+  { date: 12, time: 0 },
+  { date: 6, time: 0 },
+  { date: 13, time: 0 },
+  { date: 6, time: 1 }
+]
+
+/**
+ * The half-days a rush event may be held on, best first: its own night, then the other nights
+ * nearest to it, then the weekend's days. Never the night the bid is decided on.
+ */
+export function rushCandidates(event: RushEventDef): HalfDay[] {
+  const nights: HalfDay[] = RUSH_NIGHTS.map((date) => ({ date, time: 1 as TimeSlot }))
+  const others = nights
+    .filter((half) => half.date !== event.first.date)
+    .sort((a, b) => Math.abs(a.date - event.first.date) - Math.abs(b.date - event.first.date))
+  return [event.first, ...others, ...RUSH_FALLBACKS]
+}
+
+/** The occasion a rush event becomes once it has a day. */
+export function rushOccasion(event: RushEventDef, half: HalfDay): Occasion {
+  return {
+    id: event.id,
+    title: event.title,
+    description: event.description,
+    startDate: half.date,
+    endDate: half.date,
+    time: half.time,
+    cancelsClasses: false,
+    kind: 'campus',
+    house: event.house,
+    where: event.house
+  }
+}
+
+/** What the reader's bid on a house is kept as: the day it was decided, who bid and the answer. */
+export interface BidOffer {
+  /** The day the bid was decided on, the last night of rush. */
+  day: number
+  /** The houses that bid on him. */
+  invited: HouseId[]
+  /** The houses that would have bid if their meetings did not clash with his team's. */
+  clashed: HouseId[]
+  /** What each fraternity scored, for the log and the development build. */
+  scores: Partial<Record<HouseId, number>>
+}
+
+/** The bid and how it was answered: a house, `null` for none, absent while the window waits. */
+export interface BidRecord extends BidOffer {
+  answer?: HouseId | null
+}
+
+/** What a save keeps of rush: the events he went to, and the bid once it is decided. */
+export interface RushSave {
+  attended: string[]
+  bid?: BidRecord
+}
+
+/** The house he has said yes to, and where he stands in it. */
+export interface HouseStanding {
+  id: HouseId
+  stage: 'pledge'
+  /** The slot id he said yes in. */
+  since: number
 }
 
 /** The four offices of a house, the president first. */

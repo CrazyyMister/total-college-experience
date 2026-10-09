@@ -2,9 +2,16 @@ import { mkdtemp, mkdir, readdir, rm, utimes, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { AUTOSAVE_ID, MAX_SLOT_SAVES, type CharProfile, type SaveDraft } from '@shared/types'
+import {
+  AUTOSAVE_ID,
+  MAX_SLOT_SAVES,
+  type CharProfile,
+  type SaveDraft,
+  type ShiftSlot
+} from '@shared/types'
 import { useGameStore } from '../src/renderer/stores/gameStore'
 import { exSeedOf } from '@shared/exGirlfriend'
+import { RUSH_EVENTS, rushOccasion } from '@shared/houses'
 import { character, charInfo, enrollment, lcg, record } from './fixtures'
 
 /**
@@ -344,6 +351,47 @@ describe('a playthrough with a team', () => {
       houses
     })
     expect((await saveService.readEnrollment(without.playthroughId)).houses).toBeUndefined()
+  })
+
+  it('reads back the fraternities\' meetings and rush events from a record, and the bid and the house he pledged from a save', async () => {
+    const houseAgendas = {
+      kappa_row: { sessions: [3, 8] as ShiftSlot[], leftOutEvents: [{ id: 'rush-kappa_row-3', reason: 'no_date' as const }] },
+      xi_delt: { sessions: [5, 10] as ShiftSlot[] }
+    }
+    const event = rushOccasion(RUSH_EVENTS[0], { date: 3, time: 1 })
+    const dealt = await saveService.createPlaythrough(
+      record({ occasions: [event], houseAgendas }),
+      draft()
+    )
+    const read = await saveService.readSave(dealt.save.playthroughId, dealt.save.saveId)
+    expect(read.record.houseAgendas).toEqual(houseAgendas)
+    expect(read.record.occasions.find((entry) => entry.id === event.id)).toMatchObject({
+      house: 'kappa_row',
+      where: 'kappa_row'
+    })
+
+    // Answered with a house, answered with none, and still waiting: each is its own save.
+    const bid = {
+      day: 13,
+      invited: ['kappa_row' as const],
+      clashed: ['xi_delt' as const],
+      scores: { kappa_row: 0.52, xi_delt: 0.47 }
+    }
+    const pledged = {
+      results: {},
+      rush: { attended: ['rush-kappa_row-1', 'rush-kappa_row-2'], bid: { ...bid, answer: 'kappa_row' as const } },
+      house: { id: 'kappa_row' as const, stage: 'pledge' as const, since: 29 }
+    }
+    const declined = { results: {}, rush: { attended: [], bid: { ...bid, answer: null } } }
+    const waiting = { results: {}, rush: { attended: ['rush-xi_delt-1'], bid } }
+    await saveService.writeManualSave('1', 5, draft({ groups: pledged }))
+    await saveService.writeManualSave('1', 6, draft({ groups: declined }))
+    await saveService.writeManualSave('1', 7, draft({ groups: waiting }))
+    await expect(saveService.loadSave('1', 'manual05')).resolves.toMatchObject({ groups: pledged })
+    const readDeclined = await saveService.loadSave('1', 'manual06')
+    expect(readDeclined.groups?.rush?.bid?.answer).toBeNull()
+    const readWaiting = await saveService.loadSave('1', 'manual07')
+    expect(readWaiting.groups?.rush?.bid?.answer).toBeUndefined()
   })
 
   it('reads an enrollment with the teams it asked for, and one without', async () => {

@@ -103,7 +103,7 @@ const SAVE_REQUIRED: Record<
 }
 
 /** What a playthrough record must carry; where it is kept names the playthrough. */
-const RECORD_REQUIRED: Record<keyof Omit<PlaythroughRecord, 'ex' | 'playerCourse' | 'groups' | 'houseOffices'>, true> = {
+const RECORD_REQUIRED: Record<keyof Omit<PlaythroughRecord, 'ex' | 'playerCourse' | 'groups' | 'houseOffices' | 'houseAgendas'>, true> = {
   schemaVersion: true,
   chars: true,
   playerFirstName: true,

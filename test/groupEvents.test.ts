@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { gameResult, GROUPS, placeGroupEvents, tryoutVerdict, type GroupResult } from '@shared/groups'
 import { classSlotForShift, globalSlotOf, JOB_CATALOG, newJobState } from '@shared/jobs'
+import { rushOccasion, RUSH_EVENTS } from '@shared/houses'
 import type { GameSave, Occasion, ShiftSlot } from '@shared/types'
 import { groupNewsClause } from '../src/renderer/prompts/groupPrompt'
 import { SPRING_BREAK } from '../src/renderer/prompts/occasions'
@@ -123,6 +124,85 @@ describe('how a group event ends', () => {
     expect(told(MEET_NIGHT, 0)).toBe('')
     expect(told(MEET_NIGHT, 1)).toBe('')
     expect(told(MEET_NIGHT + 1, 0)).toContain(result.won ? 'beat' : 'lost to')
+  })
+})
+
+describe('the rush and the bid', () => {
+  const offer = {
+    day: 13,
+    invited: ['kappa_row' as const],
+    clashed: ['xi_delt' as const],
+    scores: { kappa_row: 0.52, xi_delt: 0.47 }
+  }
+  beforeEach(() => {
+    useGameStore.getState().reset()
+  })
+
+  it('files a rush event he went to once, however many times the boundary runs', () => {
+    useGameStore.getState().recordRushAttended('rush-kappa_row-1')
+    useGameStore.getState().recordRushAttended('rush-kappa_row-1')
+    useGameStore.getState().recordRushAttended('rush-xi_delt-1')
+    expect(useGameStore.getState().groupRush.attended).toEqual(['rush-kappa_row-1', 'rush-xi_delt-1'])
+  })
+
+  it('keeps the first bid decided, and answers it once, with a house it named', () => {
+    const game = useGameStore.getState()
+    game.fileBid(offer)
+    game.fileBid({ ...offer, invited: ['xi_delt'], clashed: [] })
+    expect(useGameStore.getState().groupRush.bid?.invited).toEqual(['kappa_row'])
+
+    // A house that did not bid cannot be pledged.
+    useGameStore.getState().answerBid('xi_delt', 29)
+    expect(useGameStore.getState().groupHouse).toBeNull()
+    expect(useGameStore.getState().groupRush.bid?.answer).toBeUndefined()
+
+    useGameStore.getState().answerBid('kappa_row', 29)
+    useGameStore.getState().answerBid(null, 31)
+    expect(useGameStore.getState().groupHouse).toEqual({ id: 'kappa_row', stage: 'pledge', since: 29 })
+    expect(useGameStore.getState().groupRush.bid?.answer).toBe('kappa_row')
+  })
+
+  it('leaves him in no house when he turns them down, and does not ask again', () => {
+    useGameStore.getState().fileBid(offer)
+    useGameStore.getState().answerBid(null, 29)
+    useGameStore.getState().answerBid('kappa_row', 30)
+    expect(useGameStore.getState().groupHouse).toBeNull()
+    expect(useGameStore.getState().groupRush.bid?.answer).toBeNull()
+  })
+
+  it('goes through the save and back, a bid still waiting among it, and an older save has none', () => {
+    useGameStore.getState().recordRushAttended('rush-kappa_row-1')
+    useGameStore.getState().fileBid(offer)
+    const save = JSON.parse(JSON.stringify(useGameStore.getState().toGameSave())) as GameSave
+    expect(save.groups?.rush).toEqual({ attended: ['rush-kappa_row-1'], bid: offer })
+
+    useGameStore.getState().reset()
+    useGameStore.getState().loadSave(save, playthroughRecord(), {})
+    const { groupRush } = useGameStore.getState()
+    expect(groupRush.bid?.answer).toBeUndefined()
+
+    const older = { ...save, groups: { results: {} } } as GameSave
+    useGameStore.getState().reset()
+    useGameStore.getState().loadSave(older, playthroughRecord(), {})
+    expect(useGameStore.getState().groupRush).toEqual({ attended: [] })
+    expect(useGameStore.getState().groupHouse).toBeNull()
+  })
+
+  it('opens the scene of a rush event only on its half-day, with the free ones who live in the house', () => {
+    const event = rushOccasion(RUSH_EVENTS[0], { date: 3, time: 1 })
+    useGameStore.setState({
+      occasions: [event],
+      date: 3,
+      time: 1,
+      chars: ['a', 'b'],
+      characters: charactersById(character({ charId: 'a' }), character({ charId: 'b' })),
+      charInfo: { a: charInfo({ house: 'kappa_row' }), b: charInfo({ house: 'xi_delt' }) }
+    })
+    const plan = planGroupEvent(event.id)
+    expect(plan?.cast).toEqual(['a'])
+    expect(plan?.scene.groupEvent).toBe(event.id)
+    useGameStore.setState({ time: 0 })
+    expect(planGroupEvent(event.id)).toBeNull()
   })
 })
 

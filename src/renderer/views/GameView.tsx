@@ -141,6 +141,9 @@ import { EditPromptModal } from './EditPromptModal'
 import { FeedbackModal } from './FeedbackModal'
 import { GameMenuModal } from './GameMenuModal'
 import { LoadGameModal } from './LoadGameModal'
+import { BID_HOUSES, rushEventsAttended } from '@shared/groups'
+import { globalSlotOf } from '@shared/jobs'
+import { BidModal } from './BidModal'
 import { MilestoneModal } from './MilestoneModal'
 import { RankUpModal } from './RankUpModal'
 import { SaveGameModal } from './SaveGameModal'
@@ -1130,6 +1133,14 @@ export function GameView(): JSX.Element {
    */
   const shopReady = landingHeld && !sceneActive
 
+  /**
+   * The end of rush is waiting for an answer: decided at the boundary, answered on the landing it
+   * leads to. A game that is saved and loaded with it unanswered asks again; one answered never
+   * does.
+   */
+  const rushBid = useGameStore((s) => s.groupRush.bid)
+  const rushAttended = useGameStore((s) => s.groupRush.attended)
+
   /** Who the reader could hand something to: whoever is standing on the stage that he can name. */
   const giftTargets = stageNow.filter((charId) => charInfo[charId]?.nameKnown)
   /** A gift has already been given this scene — the one disabled reason that carries a notice. */
@@ -1177,6 +1188,13 @@ export function GameView(): JSX.Element {
   const epilogue = isGraduationSlot(date, time) && !gameOver
   /** A screen the game wrote end to end; each leaves at most `BASE_REVEAL` standing. */
   const authored = cinematic || epilogue || Boolean(gameOver)
+
+  const bidWaiting =
+    shopReady &&
+    !authored &&
+    rushBid !== undefined &&
+    rushBid.answer === undefined &&
+    (rushBid.invited.length > 0 || rushBid.clashed.length > 0)
 
   /**
    * Who is standing in the scene with a full Breakthrough: only a scene on screen that is
@@ -2120,6 +2138,23 @@ export function GameView(): JSX.Element {
             scale={characters[statusModal.charId]?.height ?? 1}
             theme={half}
             onClose={dismissStatusModal}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* The one-way answer of the end of rush: nothing dismisses it but its buttons. */}
+      <AnimatePresence>
+        {bidWaiting && rushBid && (
+          <BidModal
+            key="bid"
+            bid={rushBid}
+            events={Object.fromEntries(
+              BID_HOUSES.map((house) => [house, rushEventsAttended(rushAttended, house)])
+            )}
+            theme={half}
+            onAnswer={(house) =>
+              useGameStore.getState().answerBid(house, globalSlotOf(date, time))
+            }
           />
         )}
       </AnimatePresence>
