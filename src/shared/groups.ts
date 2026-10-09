@@ -1007,7 +1007,8 @@ export function placeGroupEvents(input: EventPlacementInput): {
 
 /**
  * Gives every party and every mixer its night: the first of its candidates that is outside the
- * weeks to avoid and that nothing else holds, parties first and each in the order of the dates.
+ * weeks to avoid and that nothing else holds and, where the week allows, that no men's team
+ * practices in (as rush does), parties first and each in the order of the dates.
  * The fraternities take the parties in turn, and the two houses of a pair take its mixers in turn,
  * over the ones that found a night, so that a lost weekend moves nobody's turn. What no night can
  * hold is returned under the house whose turn it would have been, and a mixer's under its pair's
@@ -1023,10 +1024,14 @@ function placeHouseNights(
   const free = (day: number): boolean =>
     !avoid.some((range) => day >= range.startDate && day <= range.endDate) &&
     ![...input.occasions, ...before, ...placed].some((occasion) => occupies(occasion, day, 1))
+  const practicing = (day: number): boolean =>
+    input.practiceSlots?.has(shiftSlotOf(day % 7, 1)) === true
+  const nightFor = (candidates: readonly number[]): number | undefined =>
+    candidates.find((day) => free(day) && !practicing(day)) ?? candidates.find(free)
   const nights = houseNights()
   let parties = 0
   for (const night of nights.filter((entry) => entry.kind === 'party')) {
-    const day = night.candidates.find(free)
+    const day = nightFor(night.candidates)
     const host = partyHost(parties)
     if (day === undefined) {
       leftOut[host] = [...(leftOut[host] ?? []), { id: partyEventId(host, night.week), reason: 'no_date' }]
@@ -1039,7 +1044,7 @@ function placeHouseNights(
   for (const night of nights.filter((entry) => entry.kind === 'mixer')) {
     const pair = night.pair as HouseId
     const host = mixerHost(pair, mixers[pair] ?? 0)
-    const day = night.candidates.find(free)
+    const day = nightFor(night.candidates)
     if (day === undefined) {
       leftOut[pair] = [...(leftOut[pair] ?? []), { id: mixerEventId(host, night.week), reason: 'no_date' }]
       continue
