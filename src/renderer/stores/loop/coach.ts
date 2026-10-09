@@ -64,13 +64,13 @@ export function coachTexts(
 export function houseTexts(
   house: HouseId,
   sessions: readonly ShiftSlot[],
-  sends: ReadonlyArray<{ kind: PledgeKind; strikes?: number }>
+  sends: ReadonlyArray<{ kind: PledgeKind; strikes?: number; when?: string }>
 ): CoachTexts {
   const game = useGameStore.getState()
-  const messages: ChatMessage[] = sends.map(({ kind, strikes }) => ({
+  const messages: ChatMessage[] = sends.map(({ kind, strikes, when }) => ({
     id: crypto.randomUUID(),
     sender: 'contact' as const,
-    text: pledgeText(house, kind, sessions, strikes),
+    text: pledgeText(house, kind, sessions, strikes, when),
     date: game.date,
     time: game.time
   }))

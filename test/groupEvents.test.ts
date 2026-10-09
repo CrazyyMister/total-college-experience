@@ -1,18 +1,23 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { gameResult, GROUPS, placeGroupEvents, tryoutVerdict, type GroupResult } from '@shared/groups'
 import { classSlotForShift, globalSlotOf, JOB_CATALOG, newJobState } from '@shared/jobs'
+import { homeOf, READER, STARTING_HOME } from '@shared/homes'
 import { mixerOccasion, partyOccasion, rushOccasion, RUSH_EVENTS } from '@shared/houses'
 import type { GameSave, Occasion, ShiftSlot } from '@shared/types'
 import { groupNewsClause } from '../src/renderer/prompts/groupPrompt'
 import { SPRING_BREAK } from '../src/renderer/prompts/occasions'
-import { playerGroupNow } from '../src/renderer/stores/timetable'
+import { initiationAt, playerGroupNow } from '../src/renderer/stores/timetable'
 import { useGameStore } from '../src/renderer/stores/gameStore'
+import { houseTexts } from '../src/renderer/stores/loop/coach'
+import { settleShifts } from '../src/renderer/stores/loop/jobs'
 import {
+  applyLeaving,
   canTryOut,
   leaveTeamNow,
   planGroupEvent,
   resultOfEvent,
   settleGroupResults,
+  settleInitiation,
   settlePledge,
   settleSessions,
   tryoutRefusal
@@ -827,5 +832,198 @@ describe('the pledge meetings of the house he has said yes to', () => {
     })
     settlePledge()
     expect(useGameStore.getState().groupHouse?.strikes).toBe(0)
+  })
+})
+
+describe('the initiation, the move into the house and leaving it', () => {
+  // The house meets in periods 2 and 9; the initiation is a night of week 7. Day 46 is a Friday,
+  // so its night is slot 93; the Sunday that ends the pledge is day 41, whose night is slot 83.
+  const SESSIONS: ShiftSlot[] = [2, 9]
+  const CHAT = 'house:kappa_row'
+  const FRIDAY_NIGHT = globalSlotOf(46, 1)
+  const standing = {
+    id: 'kappa_row' as const,
+    stage: 'pledge' as const,
+    since: 28,
+    strikes: 0,
+    settledThrough: 82,
+    attendedSlots: [] as number[],
+    held: 0,
+    attended: 0
+  }
+  /** The nights of the week, as the class slots that hold them: Monday to Friday night. */
+  const WEEK_NIGHTS = [1, 3, 5, 7, 9]
+
+  function pledging(date: number, time: 0 | 1, over: Record<string, unknown> = {}): void {
+    useGameStore.getState().reset()
+    useGameStore.setState({
+      playthroughId: 'p1',
+      date,
+      time,
+      houseAgendas: { kappa_row: { sessions: SESSIONS } },
+      groupHouse: { ...standing },
+      chars: ['a', 'b', 'c'],
+      characters: charactersById(
+        character({ charId: 'a' }),
+        character({ charId: 'b', firstName: 'Mina', lastName: 'Okafor' }),
+        character({ charId: 'c', firstName: 'Kira', lastName: 'Weber' })
+      ),
+      charInfo: {
+        a: charInfo({ house: 'kappa_row' }),
+        b: charInfo({ house: 'xi_delt' }),
+        c: charInfo()
+      },
+      ...over
+    })
+  }
+  const texts = (): string[] =>
+    (useGameStore.getState().bunnyboard.conversations[CHAT]?.messages ?? []).map((m) => m.text)
+  const saved = (): GameSave => JSON.parse(JSON.stringify(useGameStore.getState().toGameSave())) as GameSave
+
+  it('sets the night once, on the first slot of the last day, with a text', () => {
+    // A class on Friday night and a shift on Thursday night: Wednesday is the latest free night.
+    pledging(41, 0, {
+      playerSchedule: { 9: 'BIO101' },
+      job: newJobState(JOB_CATALOG[0].id, [7], 0)
+    })
+    settleInitiation()
+    const first = useGameStore.getState().groupHouse?.initiation
+    expect(first).toMatchObject({ slot: globalSlotOf(44, 1) })
+    expect(first?.reminded).toBeUndefined()
+    expect(texts()).toHaveLength(1)
+
+    // Asked again, or from the save taken before, the night stays and nothing is sent twice.
+    settleInitiation()
+    expect(texts()).toHaveLength(1)
+    pledging(41, 0, { playerSchedule: { 9: 'BIO101' } })
+    useGameStore.getState().fileInitiation({ slot: 95, why: 'x' }, { messages: [], unread: 0 })
+    useGameStore.getState().fileInitiation({ slot: 89, why: 'y' }, { messages: [], unread: 0 })
+    expect(useGameStore.getState().groupHouse?.initiation?.slot).toBe(95)
+  })
+
+  it('spares the shift of the night of the last resort, however often the boundary runs', () => {
+    const everyNight = Object.fromEntries(WEEK_NIGHTS.map((slot) => [slot, 'BIO101']))
+    const job = () => ({ ...newJobState(JOB_CATALOG[0].id, [13], 0), settledThrough: 82 })
+
+    // Without the initiation set, the Sunday night's shift he did not work is a strike.
+    pledging(42, 0, { playerSchedule: everyNight, job: job() })
+    settleShifts()
+    expect(useGameStore.getState().job?.strikes).toBe(1)
+
+    pledging(41, 0, { playerSchedule: everyNight, job: job() })
+    settleInitiation()
+    expect(useGameStore.getState().groupHouse?.initiation?.slot).toBe(83)
+    useGameStore.setState({ date: 42, time: 0 })
+    settleShifts()
+    expect(useGameStore.getState().job).toMatchObject({ strikes: 0, settledThrough: 83 })
+
+    // And he is a member by then: the night is still spared when the boundary is replayed.
+    useGameStore.getState().becomeMember({ messages: [], unread: 0 })
+    useGameStore.setState({ job: job() })
+    settleShifts()
+    expect(useGameStore.getState().job?.strikes).toBe(0)
+    expect(initiationAt(83)).toBe(true)
+  })
+
+  it('makes him a member and moves him into the house once, with the welcome in the same write', () => {
+    pledging(46, 1, {
+      groupHouse: { ...standing, initiation: { slot: FRIDAY_NIGHT, why: 'Friday night free' } }
+    })
+    const welcome = houseTexts('kappa_row', [], [{ kind: 'member' }])
+    useGameStore.getState().becomeMember(welcome)
+    useGameStore.getState().moveHome(READER, 'kappa_row')
+    useGameStore.getState().becomeMember(houseTexts('kappa_row', [], [{ kind: 'member' }]))
+    useGameStore.getState().moveHome(READER, 'kappa_row')
+
+    expect(useGameStore.getState().groupHouse?.stage).toBe('member')
+    expect(texts()).toHaveLength(1)
+    expect(homeOf(useGameStore.getState(), READER)).toBe('kappa_row')
+
+    // A member is not judged for the initiation night that has passed.
+    useGameStore.setState({ date: 47, time: 0 })
+    settleInitiation()
+    expect(useGameStore.getState().groupHouse?.stage).toBe('member')
+  })
+
+  it('puts a pledge out, marked, when the night has passed and he was not there', () => {
+    pledging(47, 0, {
+      groupHouse: { ...standing, initiation: { slot: FRIDAY_NIGHT, why: 'Friday night free' } }
+    })
+    const before = saved()
+    settleInitiation()
+    const game = useGameStore.getState()
+    expect(game.groupHouse).toBeNull()
+    expect(game.groupDropped).toEqual({ house: 'kappa_row', day: 47, reason: 'initiation' })
+    expect(game.charInfo.a.jealousyMemories).toBeUndefined()
+    expect(texts()).toHaveLength(1)
+
+    settleInitiation()
+    expect(texts()).toHaveLength(1)
+    useGameStore.getState().reset()
+    useGameStore.getState().loadSave(before, playthroughRecord({ houseAgendas: { kappa_row: { sessions: SESSIONS } } }), {})
+    settleInitiation()
+    expect(useGameStore.getState().groupDropped).toEqual({ house: 'kappa_row', day: 47, reason: 'initiation' })
+  })
+
+  it('leaves a disliked memory only in the members of the roster, takes him back to the dorm, and does it once', () => {
+    pledging(50, 0, { groupHouse: { ...standing, stage: 'member' as const, initiation: { slot: FRIDAY_NIGHT, why: 'x' } } })
+    useGameStore.getState().moveHome(READER, 'kappa_row')
+    useGameStore.getState().askToLeave()
+    applyLeaving()
+    applyLeaving()
+
+    const game = useGameStore.getState()
+    expect(game.groupHouse).toBeNull()
+    expect(game.groupDropped).toEqual({ house: 'kappa_row', day: 50, reason: 'left' })
+    expect(homeOf(game, READER)).toBe(STARTING_HOME)
+    expect(game.charInfo.a.jealousyMemories).toEqual([
+      expect.objectContaining({ type: 'disliked', desc: 'the reader left the Kappa Row house' })
+    ])
+    // Another house's member and somebody of none remember nothing.
+    expect(game.charInfo.b.jealousyMemories).toBeUndefined()
+    expect(game.charInfo.c.jealousyMemories).toBeUndefined()
+  })
+
+  it('quits a pledge the same way without a move, and leaves no memory where the roster has no member', () => {
+    pledging(30, 0, { charInfo: { a: charInfo(), b: charInfo({ house: 'xi_delt' }), c: charInfo() } })
+    useGameStore.getState().askToLeave()
+    applyLeaving()
+    const game = useGameStore.getState()
+    expect(game.groupDropped).toEqual({ house: 'kappa_row', day: 30, reason: 'quit' })
+    expect(game.homeMoves).toEqual({})
+    expect(Object.values(game.charInfo).every((info) => info.jealousyMemories === undefined)).toBe(true)
+
+    pledging(30, 0)
+    useGameStore.getState().askToLeave()
+    applyLeaving()
+    expect(useGameStore.getState().charInfo.a.jealousyMemories?.[0].desc).toBe('the reader quit pledging Kappa Row')
+  })
+
+  it('goes through the save and back as a member with his night, asking to leave, and with the reason of a mark', () => {
+    pledging(50, 0, {
+      groupHouse: { ...standing, stage: 'member' as const, initiation: { slot: FRIDAY_NIGHT, why: 'Friday night free', reminded: true }, leaving: true }
+    })
+    useGameStore.getState().moveHome(READER, 'kappa_row')
+    const out = saved()
+    expect(out.groups?.house).toMatchObject({
+      stage: 'member',
+      initiation: { slot: FRIDAY_NIGHT, why: 'Friday night free', reminded: true },
+      leaving: true
+    })
+    useGameStore.getState().reset()
+    useGameStore.getState().loadSave(out, playthroughRecord(), {})
+    expect(useGameStore.getState().groupHouse).toMatchObject({
+      stage: 'member',
+      initiation: { slot: FRIDAY_NIGHT },
+      leaving: true
+    })
+    expect(homeOf(useGameStore.getState(), READER)).toBe('kappa_row')
+
+    // A mark without a reason, as the meetings left it, still reads as the meetings.
+    useGameStore.setState({ groupDropped: { house: 'kappa_row', day: 22 } })
+    const old = saved()
+    expect(old.groups?.dropped).toEqual({ house: 'kappa_row', day: 22 })
+    useGameStore.setState({ groupDropped: { house: 'kappa_row', day: 50, reason: 'quit' } })
+    expect(saved().groups?.dropped).toEqual({ house: 'kappa_row', day: 50, reason: 'quit' })
   })
 })

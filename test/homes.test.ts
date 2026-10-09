@@ -60,6 +60,20 @@ describe('the moves through the save', () => {
     expect(game.toGameSave()).not.toHaveProperty('homeMoves')
   })
 
+  it('puts the reader in a house and back in the dorm, through the save', () => {
+    useGameStore.getState().moveHome(READER, 'kappa_row')
+    const inside = JSON.parse(JSON.stringify(useGameStore.getState().toGameSave())) as GameSave
+    expect(inside.homeMoves).toEqual({ [READER]: 'kappa_row' })
+
+    useGameStore.getState().reset()
+    useGameStore.getState().loadSave(inside, playthroughRecord(), {})
+    expect(homeOf(useGameStore.getState(), READER)).toBe('kappa_row')
+
+    useGameStore.getState().moveHome(READER, STARTING_HOME)
+    useGameStore.getState().moveHome(READER, STARTING_HOME)
+    expect(homeOf(useGameStore.getState(), READER)).toBe(STARTING_HOME)
+  })
+
   it('keeps a move whole, filed once however often the boundary replays', () => {
     useGameStore.getState().moveHome(READER, 'lowrise_1')
     useGameStore.getState().moveHome(READER, 'lowrise_1')

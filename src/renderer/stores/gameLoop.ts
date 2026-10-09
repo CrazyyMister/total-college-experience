@@ -225,20 +225,27 @@ import {
 import { registerLoopHooks } from './loop/hooks'
 import { failTurn, runSceneTurn } from './loop/turn'
 import {
+  applyLeaving,
   decideBid,
   groupEventIdFor,
+  isInitiationVerdict,
   isMeetingVerdict,
   isPracticeVerdict,
+  NO_INITIATION_MESSAGE,
   NO_MEETING_MESSAGE,
   NO_PRACTICE_MESSAGE,
   planGroupEvent,
+  planInitiation,
   planMeeting,
   planPractice,
+  readerHomeMove,
   settleGroupResults,
+  settleInitiation,
   settlePledge,
   settleSessions,
   tryoutRefusal
 } from './loop/groups'
+import { houseTexts } from './loop/coach'
 import { resolveProject, settleShifts } from './loop/jobs'
 import {
   applyNewFriendships,
@@ -423,6 +430,10 @@ async function beginSlot(): Promise<void> {
 
   // And every pledge meeting, the same way: the strikes and the house's texts are one write.
   settlePledge()
+
+  // The night of his initiation, after the shifts above have taken Sunday's roster: set once, then
+  // reminded of, and judged when it has passed.
+  settleInitiation()
 
   // The two grade notifications: the standing heads the slot, the finals close it.
   const grades = settleGrades()
@@ -1403,6 +1414,8 @@ async function castTurn(
     ? castGroupTurn(eventId, trimmed, snapshot)
     : isPracticeVerdict(verdict)
       ? castPracticeTurn(trimmed, snapshot)
+      : isInitiationVerdict(verdict)
+      ? castInitiationTurn(trimmed, snapshot)
       : isMeetingVerdict(verdict)
       ? castMeetingTurn(trimmed, snapshot)
       : actionType.startsWith('goto_class:')
@@ -1531,6 +1544,28 @@ function castMeetingTurn(sceneAction: string, snapshot: TurnSnapshot): CastPlan 
     sceneAction: [
       sceneAction,
       `(He is at a pledge meeting at the ${HOUSES[planned.scene.houseMeeting].nickname} house.)`
+    ].join('\n')
+  }
+}
+
+/**
+ * His initiation, played with whoever of the house is free: refused, and costing him nothing,
+ * when it is not his night. Becoming a member is filed at the boundary.
+ */
+function castInitiationTurn(sceneAction: string, snapshot: TurnSnapshot): CastPlan | null {
+  const planned = planInitiation()
+  if (!planned || !planned.scene.houseInitiation) {
+    failTurn(rejection(NO_INITIATION_MESSAGE), snapshot)
+    return null
+  }
+  return {
+    cast: planned.cast,
+    scene: planned.scene,
+    passerby: null,
+    // Under the action, like a meeting's note, so the Chat Log shows it too.
+    sceneAction: [
+      sceneAction,
+      `(He is at his initiation at the ${HOUSES[planned.scene.houseInitiation].nickname} house.)`
     ].join('\n')
   }
 }
@@ -1935,7 +1970,7 @@ async function fetchEndingOpening(
 
   // Where the reader moves at the boundary this ending leads into, if anywhere: the opening is
   // narrated from there, and the boundary files it.
-  const homeMove = loopState.debugHomeMove ?? undefined
+  const homeMove = loopState.debugHomeMove ?? readerHomeMove()
   const homeMoves = homeMove ? withHomeMove(game.homeMoves, READER, homeMove) : game.homeMoves
 
   const view: PostLedgerView = {
@@ -2928,6 +2963,13 @@ async function crossSlotBoundary(): Promise<void> {
   if (meetingHouse) {
     useGameStore.getState().recordMeetingAttended(globalSlotOf(game.date, game.time))
   }
+  // His initiation makes him a member, with the house's welcome in the same write; a member stays one.
+  const initiationHouse = useGameStore.getState().sceneHouseInitiation
+  if (initiationHouse) {
+    owedTexts.push(() =>
+      useGameStore.getState().becomeMember(houseTexts(initiationHouse, [], [{ kind: 'member' }]))
+    )
+  }
   // A rush event he went to is filed as the boundary closes it; an event is filed once.
   const rushEventId = useGameStore.getState().sceneGroupEvent
   if (rushEventId && rushEventOf(rushEventId)) {
@@ -3063,8 +3105,10 @@ async function crossSlotBoundary(): Promise<void> {
   // filed by its scene is left as it is.
   settleGroupResults()
   // Where the ending decided he lives from here on; filing it again leaves the same record.
-  const homeMove = loopState.bankedOpening?.homeMove
+  const homeMove = loopState.bankedOpening?.homeMove ?? initiationHouse ?? undefined
   if (homeMove) useGameStore.getState().moveHome(READER, homeMove)
+  // Leaving the house he asked to leave: the memory the cast keeps, the dorm, the mark.
+  applyLeaving()
   // The bid the ending decided; filing it again leaves the first.
   const bid = loopState.bankedOpening?.bid
   if (bid) useGameStore.getState().fileBid(bid)

@@ -1,12 +1,15 @@
 import { affectionFor } from '@shared/relationship'
+import { homeOf, READER, STARTING_HOME, type HomeId } from '@shared/homes'
 import {
   HOUSES,
   houseEventOf,
+  leftHouseDesc,
   occasionHouses,
   rushEventOf,
   rushEventsOf,
   type BidOffer
 } from '@shared/houses'
+import { upsertJealousyMemory } from '@shared/rumors'
 import { tierOf, type PlayerStats } from '@shared/playerStats'
 import {
   BID_DAY,
@@ -20,6 +23,9 @@ import {
   GROUPS,
   gameResult,
   groupEventOf,
+  initiationNightName,
+  initiationSlot,
+  PLEDGE_LAST_DAY,
   practiceShareOf,
   settleSessions as settleSessions_,
   teamStrength,
@@ -30,19 +36,23 @@ import {
   type GroupResult,
   type ReaderPlay
 } from '@shared/groups'
-import { classSlotForShift, globalSlotOf, shiftSlotFullLabel } from '@shared/jobs'
+import { classSlotForShift, globalSlotOf, shiftSlotFullLabel, slotFromId } from '@shared/jobs'
 import { shuffle } from '@shared/shuffle'
 import { wornSetOf } from '@shared/wardrobe'
-import type { CharInfo, Occasion, OutfitSet, TimeSlot } from '@shared/types'
+import { memoryAt, type CharInfo, type Occasion, type OutfitSet, type TimeSlot } from '@shared/types'
+import { formatGameDate } from '../../prompts/gameDate'
 import { isMoodHomebound } from '../../prompts/moods'
+import { SPRING_BREAK_LEAVE, SPRING_BREAK_RETURN } from '../../prompts/springBreak'
 import { PORTRAIT_SLOTS, useGameStore, type SceneKind } from '../gameStore'
 import {
   charTeamSessionNow,
   charUnavailableNow,
   groupEventAt,
   houseMeetingHeldAt,
+  playerClassNow,
   playerGroupNow,
-  practiceHeldAt
+  practiceHeldAt,
+  shiftNow
 } from '../timetable'
 import type { Verdict } from './classify'
 import { resolveLocationId } from './casting'
@@ -189,6 +199,11 @@ function judgeTryout(occasion: Occasion): void {
   )
 }
 
+/** Asks to leave his house, which the next boundary carries out. */
+export function leaveHouseNow(): void {
+  useGameStore.getState().askToLeave()
+}
+
 /** Takes him off his team, and his coach says goodbye in the same write. */
 export function leaveTeamNow(): void {
   const game = useGameStore.getState()
@@ -232,7 +247,7 @@ export function settleSessions(): void {
 export function settlePledge(): void {
   const game = useGameStore.getState()
   const house = game.groupHouse
-  if (!house) return
+  if (!house || house.stage !== 'pledge') return
 
   // The slot that just ended — the current one has not been spent yet. Past the last day of the
   // pledge nothing is held, so the pass only moves its mark.
@@ -247,6 +262,137 @@ export function settlePledge(): void {
   }
   const sessions = game.houseAgendas[house.id]?.sessions ?? []
   game.settleHouse(settled, houseTexts(house.id, sessions, sends), game.date)
+}
+
+/**
+ * Sets the night of his initiation, texts him about it, reminds him on the morning of the night,
+ * and puts him out when the night has passed and he was not there. The decision is made once, at
+ * the first slot on or after the last day of the pledge, off what holds his nights then.
+ */
+export function settleInitiation(): void {
+  const game = useGameStore.getState()
+  const house = game.groupHouse
+  if (!house || house.stage !== 'pledge') return
+
+  const now = globalSlotOf(game.date, game.time)
+  const set = house.initiation
+  if (set) {
+    // The night is over and he is still a pledge: a pledge who went is a member by now.
+    if (set.slot < now) {
+      console.log(`[initiation] ${house.id}: he was not at the initiation of slot ${set.slot}; the pledge is over.`)
+      game.missInitiation(houseTexts(house.id, [], [{ kind: 'noShow' }]), game.date)
+      return
+    }
+    if (!set.reminded && Math.floor(set.slot / 2) === game.date && game.time === 0) {
+      game.remindInitiation(houseTexts(house.id, [], [{ kind: 'reminder' }]))
+    }
+    return
+  }
+  if (game.date < PLEDGE_LAST_DAY) return
+
+  // What holds one of his nights: a class (an exam is the class's meeting), a shift, his practice.
+  const busyAt = (slotId: number): string | null => {
+    const { date, time } = slotFromId(slotId)
+    if (playerClassNow(date, time) !== null) return 'a class'
+    if (shiftNow(date, time) !== null) return 'a shift'
+    return practiceHeldAt(slotId) ? 'his practice' : null
+  }
+  const pick = initiationSlot({
+    fromSlot: now,
+    busyAt,
+    closed: [{ startDate: SPRING_BREAK_LEAVE, endDate: SPRING_BREAK_RETURN - 1 }]
+  })
+  const day = Math.floor(pick.slot / 2)
+  const tonight = day === game.date
+  console.log(
+    `[initiation] ${HOUSES[house.id].nickname}: ${initiationNightName(pick.slot)} of day ${day} (${formatGameDate(day)}): ${pick.why}${pick.lastResort ? ' (last resort)' : ''}.`
+  )
+  game.fileInitiation(
+    { slot: pick.slot, why: pick.why, ...(tonight ? { reminded: true } : {}) },
+    houseTexts(
+      house.id,
+      [],
+      [
+        tonight
+          ? { kind: 'initiationTonight' }
+          : { kind: 'initiation', when: `${initiationNightName(pick.slot)}, ${formatGameDate(day)}` }
+      ]
+    )
+  )
+}
+
+/** What the initiation button answers when it is not his night. */
+export const NO_INITIATION_MESSAGE = "You don't have an initiation tonight."
+
+/** The action type of the initiation button, which opens the initiation scene. */
+export const INITIATION_ACTION = 'initiation'
+
+/**
+ * Whether a verdict is going to his initiation: its own button, or a Go from the map to his house
+ * on the night. A phrase he typed is never one.
+ */
+export function isInitiationVerdict(verdict: Verdict): boolean {
+  if (verdict.actionType === INITIATION_ACTION) return true
+  const night = playerGroupNow()
+  return (
+    verdict.actionType === MAP_ACTION &&
+    night?.kind === 'initiation' &&
+    resolveLocationId(verdict.sceneLocation) === night.location
+  )
+}
+
+/** The scene his initiation opens now, or null: the house's free people, up to three of them. */
+export function planInitiation(): { cast: string[]; scene: SceneKind } | null {
+  const game = useGameStore.getState()
+  const night = playerGroupNow()
+  if (night?.kind !== 'initiation' || !night.house) return null
+  const house = night.house
+  const cast = shuffle(
+    game.chars.filter(
+      (charId) =>
+        game.charInfo[charId]?.house === house && memberFreeAt(charId, game.date, game.time)
+    )
+  ).slice(0, PORTRAIT_SLOTS)
+  return { cast, scene: { houseInitiation: house } }
+}
+
+/**
+ * Where the ending of a scene moves the reader at the boundary it leads into, or nothing: into
+ * the house whose initiation the scene is, and out of it to the dorm when he has asked to leave.
+ * A pledge who leaves never moved, so there is nothing to move back.
+ */
+export function readerHomeMove(): HomeId | undefined {
+  const game = useGameStore.getState()
+  const house = game.groupHouse
+  if (!house) return undefined
+  if (game.sceneHouseInitiation && house.stage === 'pledge') return house.id
+  if (house.leaving && homeOf(game, READER) === house.id) return STARTING_HOME
+  return undefined
+}
+
+/**
+ * Carries out his leaving at the boundary: the members of the house who are of the roster keep a
+ * memory of it, in the permanent list, he goes back to the dorm if he had moved, and the house is
+ * marked as one he left. Idempotent, so a replayed boundary finds it done.
+ */
+export function applyLeaving(): void {
+  const game = useGameStore.getState()
+  const house = game.groupHouse
+  if (!house?.leaving) return
+  const desc = leftHouseDesc(house.id, house.stage)
+  for (const charId of game.chars) {
+    if (game.charInfo[charId]?.house !== house.id) continue
+    game.setJealousyMemories(
+      charId,
+      upsertJealousyMemory(
+        useGameStore.getState().charInfo[charId]?.jealousyMemories,
+        memoryAt({ date: game.date, time: game.time }, 'disliked', desc)
+      )
+    )
+  }
+  if (homeOf(game, READER) === house.id) game.moveHome(READER, STARTING_HOME)
+  console.log(`[groups] ${house.id}: he left the ${house.stage === 'member' ? 'house' : 'pledge'}.`)
+  game.leaveHouse(game.date)
 }
 
 /** What the pledge meeting button answers when his house is not meeting now. */
@@ -392,6 +538,24 @@ export function groupEventIdOf(verdict: Verdict): string | null {
  * while that event is on, so going to the pool on the night of the meet is the meet.
  */
 export function groupEventIdFor(verdict: Verdict): string | null {
+  const id = eventIdNamed(verdict)
+  if (id === null) return null
+  // The night of his initiation is not the night of his own house's event: the initiation wins.
+  const game = useGameStore.getState()
+  const occasion = game.occasions.find((entry) => entry.id === id)
+  if (
+    game.groupHouse &&
+    occasion &&
+    houseEventOf(id) &&
+    occasionHouses(occasion).includes(game.groupHouse.id) &&
+    playerGroupNow()?.kind === 'initiation'
+  ) {
+    return null
+  }
+  return id
+}
+
+function eventIdNamed(verdict: Verdict): string | null {
   const named = groupEventIdOf(verdict)
   if (named) return named
   const game = useGameStore.getState()

@@ -148,12 +148,19 @@ function usePracticeSlots(): readonly ShiftSlot[] {
   return [...(team ? (agendas[team.id]?.sessions ?? []) : []), ...meetings]
 }
 
-/** The periods his house meets in while he pledges it, which no shift may take either. */
+/**
+ * The periods his house meets in while he pledges it, and the night of his initiation until it
+ * has come, which no shift may take either.
+ */
 function useMeetingSlots(): readonly ShiftSlot[] {
   const house = useGameStore((s) => s.groupHouse)
   const agendas = useGameStore((s) => s.houseAgendas)
   const today = useGameStore((s) => s.date)
-  return house && today <= PLEDGE_LAST_DAY ? (agendas[house.id]?.sessions ?? []) : []
+  const half = useGameStore((s) => s.time)
+  const meetings = house && today <= PLEDGE_LAST_DAY ? (agendas[house.id]?.sessions ?? []) : []
+  const night = house?.stage === 'pledge' ? house.initiation?.slot : undefined
+  if (night === undefined || night < globalSlotOf(today, half)) return meetings
+  return [...meetings, shiftSlotOf(Math.floor(night / 2) % 7, 1)]
 }
 
 interface ShiftWeekProps {

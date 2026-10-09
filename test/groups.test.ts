@@ -6,6 +6,7 @@ import {
   gameResult,
   GROUPS,
   groupSessionSlots,
+  initiationSlot,
   menWinChance,
   MIN_SESSION_ATTENDEES,
   placeGroupEvents,
@@ -624,5 +625,46 @@ describe('the games of the men\'s teams', () => {
     expect(settled.held).toBe(3)
     expect(settled.attended).toBe(1)
     expect(settled.total).toBe(2)
+  })
+})
+
+describe('the night of the initiation', () => {
+  // Day 46 is a Friday, so its night is slot 93; each earlier night is two slots before.
+  const night = (day: number): number => day * 2 + 1
+  const busyOn =
+    (...days: number[]) =>
+    (slotId: number): string | null =>
+      days.some((day) => night(day) === slotId) ? 'a class' : null
+
+  it('takes the latest free night of the week and says why', () => {
+    expect(initiationSlot({ fromSlot: 82, busyAt: busyOn() })).toEqual({
+      slot: night(46),
+      why: 'Friday night free',
+      lastResort: false
+    })
+    const pick = initiationSlot({ fromSlot: 82, busyAt: busyOn(46, 45) })
+    expect(pick.slot).toBe(night(44))
+    expect(pick.why).toBe('Friday night has a class, Thursday night has a class, Wednesday free')
+  })
+
+  it('falls back through the week to Monday, and to the Sunday that ends the pledge only when nothing is free', () => {
+    expect(initiationSlot({ fromSlot: 82, busyAt: busyOn(46, 45, 44, 43) }).slot).toBe(night(42))
+    const last = initiationSlot({ fromSlot: 82, busyAt: busyOn(46, 45, 44, 43, 42) })
+    expect(last).toEqual({ slot: night(41), why: 'no night of week 7 free', lastResort: true })
+  })
+
+  it('never picks a busy night outside the last resort', () => {
+    for (let mask = 0; mask < 32; mask++) {
+      const days = [46, 45, 44, 43, 42].filter((_, at) => mask & (1 << at))
+      const pick = initiationSlot({ fromSlot: 82, busyAt: busyOn(...days) })
+      if (!pick.lastResort) expect(days).not.toContain(Math.floor(pick.slot / 2))
+    }
+  })
+
+  it('picks late from what is left of the week, then from the first free night after the break', () => {
+    expect(initiationSlot({ fromSlot: night(44) - 1, busyAt: busyOn(46, 45) }).slot).toBe(night(44))
+    const closed = [{ startDate: 47, endDate: 54 }]
+    const past = initiationSlot({ fromSlot: night(47) - 1, busyAt: busyOn(), closed })
+    expect(Math.floor(past.slot / 2)).toBe(55)
   })
 })

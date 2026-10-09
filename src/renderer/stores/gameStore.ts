@@ -73,6 +73,7 @@ import {
   standingOfSave,
   type BidOffer,
   type DroppedHouse,
+  type Initiation,
   type HouseId,
   type HouseOffices,
   type HouseStanding,
@@ -229,6 +230,8 @@ export interface SceneKind {
   groupPractice?: boolean
   /** The house whose pledge meeting the scene is. */
   houseMeeting?: HouseId | null
+  /** The house whose initiation the scene is. */
+  houseInitiation?: HouseId | null
   /** The stats the shift's rolled gain moves, when the employer has more than one to roll. */
   jobStats?: readonly StatKey[]
   /** Roster charIds the action named without bringing along. */
@@ -257,6 +260,7 @@ function sceneKindFields(scene: SceneKind | null | undefined) {
     sceneGroupEvent: scene?.groupEvent ?? null,
     sceneGroupPractice: scene?.groupPractice === true,
     sceneHouseMeeting: scene?.houseMeeting ?? null,
+    sceneHouseInitiation: scene?.houseInitiation ?? null,
     sceneJobStats: [...(scene?.jobStats ?? [])],
     sceneMentions: [...(scene?.mentions ?? [])],
     sceneLocation: scene?.location ?? null,
@@ -462,6 +466,8 @@ interface GameStoreState {
   sceneGroupPractice: boolean
   /** The house whose pledge meeting the scene is, or null. Persisted with the scene. */
   sceneHouseMeeting: HouseId | null
+  /** The house whose initiation the scene is, or null. Persisted with the scene. */
+  sceneHouseInitiation: HouseId | null
   /**
    * Who this scene is *about* without their being in it — the classifier's mentioned-only
    * list, resolved to charIds.
@@ -1088,6 +1094,30 @@ interface GameStoreState {
    */
   settleHouse: (settle: SessionSettle, texts: CoachTexts, today: number) => void
   /**
+   * Files the night of his initiation with the house's first text about it, in one write. Set
+   * once: a replayed boundary finds the night chosen and leaves it.
+   */
+  fileInitiation: (initiation: Initiation, texts: CoachTexts) => void
+  /** Files the text of the morning of the night, once, in the write that marks it sent. */
+  remindInitiation: (texts: CoachTexts) => void
+  /**
+   * Makes him a member of the house whose initiation he went to, with the house's welcome in the
+   * same write. A pledge becomes a member once; a member stays one.
+   */
+  becomeMember: (texts: CoachTexts) => void
+  /**
+   * Puts him out for not showing to his initiation: the night has passed and he is still a
+   * pledge. The house is marked and texts him, in one write.
+   */
+  missInitiation: (texts: CoachTexts, today: number) => void
+  /** Asks to leave the house, which the next boundary carries out. */
+  askToLeave: () => void
+  /**
+   * Takes him out of the house he asked to leave, and marks it as one he left, on `today`. A
+   * standing that is not leaving changes nothing.
+   */
+  leaveHouse: (today: number) => void
+  /**
    * Applies a pass of {@link settleSessions}: his strikes, the slot judged through and the
    * coach's texts for each strike, in one write, and takes him off the team when the pass put
    * him out. A pass that judged nothing new changes nothing, which is what keeps a replayed
@@ -1602,6 +1632,7 @@ const initialState = {
   sceneGroupEvent: null as string | null,
   sceneGroupPractice: false,
   sceneHouseMeeting: null as HouseId | null,
+  sceneHouseInitiation: null as HouseId | null,
   sceneMentions: [] as string[],
   sceneLocation: null as string | null,
   sceneInPublic: true,
@@ -1811,6 +1842,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       ...(state.sceneGroupEvent ? { groupEvent: state.sceneGroupEvent } : {}),
       ...(state.sceneGroupPractice ? { groupPractice: true as const } : {}),
       ...(state.sceneHouseMeeting ? { houseMeeting: state.sceneHouseMeeting } : {}),
+      ...(state.sceneHouseInitiation ? { houseInitiation: state.sceneHouseInitiation } : {}),
       ...(state.sceneMentions.length > 0 ? { mentions: [...state.sceneMentions] } : {}),
       ...(state.sceneLocation ? { location: state.sceneLocation } : {}),
       // Written only when *false*: absent is the classifier's own default.
@@ -3275,6 +3307,68 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
             },
         ...(settle.expelled ? { groupDropped: { house: house.id, day: today } } : {}),
         ...withHouseTexts(state, house.id, texts)
+      }
+    }),
+
+  fileInitiation: (initiation, texts) =>
+    set((state) => {
+      const house = state.groupHouse
+      if (!house || house.stage !== 'pledge' || house.initiation) return {}
+      return {
+        groupHouse: { ...house, initiation: { ...initiation } },
+        ...withHouseTexts(state, house.id, texts)
+      }
+    }),
+
+  remindInitiation: (texts) =>
+    set((state) => {
+      const house = state.groupHouse
+      if (!house?.initiation || house.initiation.reminded) return {}
+      return {
+        groupHouse: { ...house, initiation: { ...house.initiation, reminded: true } },
+        ...withHouseTexts(state, house.id, texts)
+      }
+    }),
+
+  becomeMember: (texts) =>
+    set((state) => {
+      const house = state.groupHouse
+      if (!house || house.stage !== 'pledge') return {}
+      return {
+        groupHouse: { ...house, stage: 'member' as const },
+        ...withHouseTexts(state, house.id, texts)
+      }
+    }),
+
+  missInitiation: (texts, today) =>
+    set((state) => {
+      const house = state.groupHouse
+      if (!house || house.stage !== 'pledge') return {}
+      return {
+        groupHouse: null,
+        groupDropped: { house: house.id, day: today, reason: 'initiation' as const },
+        ...withHouseTexts(state, house.id, texts)
+      }
+    }),
+
+  askToLeave: () =>
+    set((state) =>
+      !state.groupHouse || state.groupHouse.leaving
+        ? {}
+        : { groupHouse: { ...state.groupHouse, leaving: true } }
+    ),
+
+  leaveHouse: (today) =>
+    set((state) => {
+      const house = state.groupHouse
+      if (!house?.leaving) return {}
+      return {
+        groupHouse: null,
+        groupDropped: {
+          house: house.id,
+          day: today,
+          reason: house.stage === 'member' ? ('left' as const) : ('quit' as const)
+        }
       }
     }),
 

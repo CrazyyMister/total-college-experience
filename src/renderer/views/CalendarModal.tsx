@@ -167,6 +167,12 @@ function Forecast({ date, weather }: { date: number; weather: readonly Weather[]
   )
 }
 
+/** What the chip of a group commitment is called. */
+function groupChipLabel(kind: 'team' | 'house' | 'initiation' | undefined): string {
+  if (kind === 'initiation') return 'Initiation'
+  return kind === 'house' ? 'Meeting' : 'Practice'
+}
+
 /** One thing on a day of the grid: its kind's colour, the half it falls in, and who is at it. */
 function Chip({
   kind,
@@ -423,9 +429,11 @@ export function CalendarModal({ theme, onClose }: CalendarModalProps): JSX.Eleme
             kind="work"
             title={`${practice.label.charAt(0).toUpperCase()}${practice.label.slice(1)}`}
             text={
-              practice.kind === 'house'
-                ? `Your house meets at ${locationLabel(practice.location)}.`
-                : `Your team practices at ${locationLabel(practice.location)}.`
+              practice.kind === 'initiation'
+                ? `Your initiation is at ${locationLabel(practice.location)}.`
+                : practice.kind === 'house'
+                  ? `Your house meets at ${locationLabel(practice.location)}.`
+                  : `Your team practices at ${locationLabel(practice.location)}.`
             }
           />
         )}
@@ -589,7 +597,7 @@ export function CalendarModal({ theme, onClose }: CalendarModalProps): JSX.Eleme
                       <Chip
                         key={`practice-${time}`}
                         kind="work"
-                        label={playerGroupNow(date, time)?.kind === 'house' ? 'Meeting' : 'Practice'}
+                        label={groupChipLabel(playerGroupNow(date, time)?.kind)}
                         time={time}
                       />
                     ))}

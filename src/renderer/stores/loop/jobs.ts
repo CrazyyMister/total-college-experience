@@ -18,6 +18,7 @@ import {
 import { shiftWeekdayOf } from '../../prompts/gameDate'
 import { closureOn, jobClosedOn, SUMMER_VACATION_ID } from '../../prompts/occasions'
 import { useGameStore } from '../gameStore'
+import { initiationAt } from '../timetable'
 import { deliverBossMessage } from '../textingLoop'
 
 /**
@@ -143,7 +144,8 @@ export function settleShifts(): void {
       const { date, time } = slotFromId(slotId)
       return shiftSlotOf(shiftWeekdayOf(date), time)
     },
-    (slotId) => jobClosedOn(job.jobId, slotFromId(slotId).date, game.occasions)
+    // The night of his initiation spares him the shift he had on it.
+    (slotId) => jobClosedOn(job.jobId, slotFromId(slotId).date, game.occasions) || initiationAt(slotId)
   )
 
   for (const judgement of result.judgements) {

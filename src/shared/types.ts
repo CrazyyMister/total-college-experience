@@ -1353,6 +1353,8 @@ export interface SceneState {
   groupPractice?: true
   /** Set to the house when the scene is one of its pledge meetings, which the boundary files as attended. */
   houseMeeting?: HouseId
+  /** Set to the house when the scene is his initiation, which the boundary makes him a member for. */
+  houseInitiation?: HouseId
   /**
    * Roster charIds the action named without their being in the scene — bought for, thought
    * about, asked after — or absent when it named nobody absent.

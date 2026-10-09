@@ -97,7 +97,9 @@ import {
   groupOfEvent,
   groupFigurantLine,
   groupNewsClause,
+  doorOf,
   houseDoorLines,
+  houseInitiationLines,
   houseMeetingLines,
   houseFigurantLine,
   groupsInPlay,
@@ -105,7 +107,14 @@ import {
   readerTeamLines
 } from './groupPrompt'
 import { factLines } from './facts'
-import { houseEventOf, withoutClosedHouseBgs, type HouseId, type HouseOffices } from '@shared/houses'
+import {
+  houseEventOf,
+  withoutClosedHouseBgs,
+  type DroppedHouse,
+  type HouseId,
+  type HouseOffices,
+  type HouseStage
+} from '@shared/houses'
 import { moodLine } from './moods'
 import { springBreakLines } from './springBreak'
 import {
@@ -257,8 +266,10 @@ export interface PromptState {
   playerPractice?: readonly PracticeWeek[]
   /** The house whose pledge meeting the scene is, or null. */
   houseMeeting?: HouseId | null
-  /** The house that put him out of its pledge, or null. */
-  houseDropped?: HouseId | null
+  /** The house whose initiation the scene is, or null. */
+  houseInitiation?: HouseId | null
+  /** The house that put him out of its pledge or that he left, or null. */
+  houseDropped?: DroppedHouse | null
   /** Whether the scene is one of his team's practices, which the game pays itself. */
   groupPractice?: boolean
   /** The girl he starts with as an ex, where New Game picked one. */
@@ -323,8 +334,8 @@ export interface PromptState {
   houseOffices?: HouseOffices
   /** The team the reader is on, or null. */
   playerTeam?: GroupId | null
-  /** The house the reader has said yes to, or null. */
-  playerHouse?: { id: HouseId } | null
+  /** The house the reader has said yes to, and where he stands in it, or null. */
+  playerHouse?: { id: HouseId; stage?: HouseStage } | null
   /**
    * One finished paragraph per gift given this scene, built by `giftLoreNote`
    * (`shared/shop.ts`) from `gameStore.sceneGifts`.
@@ -1038,10 +1049,7 @@ function sceneSchema(
     bg: {
       type: 'string',
       enum: [
-        ...withoutClosedHouseBgs(allBackgrounds(backgrounds), {
-          event: state.groupEvent,
-          meeting: state.houseMeeting
-        }),
+        ...withoutClosedHouseBgs(allBackgrounds(backgrounds), doorOf(state)),
         ...castRoomBgs(cast, state)
       ]
     },
@@ -1119,7 +1127,8 @@ function whoBlock(cast: readonly Character[], state: PromptState, reader: string
     '',
     ...figurantLines(cast, state),
     ...groupEventLines(state.groupEvent, state),
-    ...houseMeetingLines(state.houseMeeting)
+    ...houseMeetingLines(state.houseMeeting),
+    ...houseInitiationLines(state.houseInitiation)
   ]
 }
 
@@ -1133,13 +1142,7 @@ function figurantLines(cast: readonly Character[], state: PromptState): string[]
     )
   )
   const house = houseFigurantLine(state.sceneLocation, state.groupEvent)
-  const door = houseDoorLines(
-    state.sceneLocation,
-    state.houseOffices,
-    state.groupEvent,
-    state.houseMeeting,
-    state.houseDropped
-  )
+  const door = houseDoorLines(state.sceneLocation, state.houseOffices, doorOf(state), state.houseDropped)
   return [...door, ...(line ? [line] : []), ...(house ? [house] : []), ...(line || house ? [''] : [])]
 }
 
@@ -1589,7 +1592,10 @@ export function buildSoloPrompt(
   const inPlay = groupsInPlay([], state.sceneLocation)
   // A house's event (rush, party or mixer) or its pledge meeting is its own, with brothers and
   // sisters nobody names.
-  const houseScene = houseEventOf(state.groupEvent) !== undefined || Boolean(state.houseMeeting)
+  const houseScene =
+    houseEventOf(state.groupEvent) !== undefined ||
+    Boolean(state.houseMeeting) ||
+    Boolean(state.houseInitiation)
   const figurant = [
     groupFigurantLine(eventGroup && !inPlay.includes(eventGroup) ? [eventGroup, ...inPlay] : inPlay),
     ...(houseScene ? [houseFigurantLine(state.sceneLocation, state.groupEvent)] : [])
@@ -1607,13 +1613,8 @@ export function buildSoloPrompt(
     '',
     ...groupEventLines(state.groupEvent, state),
     ...houseMeetingLines(state.houseMeeting),
-    ...houseDoorLines(
-      state.sceneLocation,
-      state.houseOffices,
-      state.groupEvent,
-      state.houseMeeting,
-      state.houseDropped
-    ),
+    ...houseInitiationLines(state.houseInitiation),
+    ...houseDoorLines(state.sceneLocation, state.houseOffices, doorOf(state), state.houseDropped),
     ...(figurant ? [figurant, ''] : []),
     'YOUR TURN',
     'Solo mission, RITA! The reader is on their own for this one, so write it start to finish in one go.',

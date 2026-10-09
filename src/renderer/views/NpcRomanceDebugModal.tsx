@@ -270,14 +270,21 @@ function sectionsOf(): DebugSection[] {
     const standing = game.groupHouse
     groupRows.push({
       key: 'pledge',
-      who: `Pledge of ${HOUSES[standing.id].nickname}`,
-      facts: `${standing.strikes} missed, ${standing.attended} of ${standing.held} meetings judged went to, judged through slot ${standing.settledThrough}`
+      who: `${standing.stage === 'member' ? 'Member' : 'Pledge'} of ${HOUSES[standing.id].nickname}`,
+      facts: `${standing.strikes} missed, ${standing.attended} of ${standing.held} meetings judged went to, judged through slot ${standing.settledThrough}${standing.initiation ? `; initiation at slot ${standing.initiation.slot} (${standing.initiation.why})` : ''}${standing.leaving ? '; leaving at the next boundary' : ''}`
     })
   }
   if (game.groupDropped) {
     groupRows.push({
       key: 'dropped',
-      who: 'Put out of a pledge',
+      who:
+        game.groupDropped.reason === 'left'
+          ? 'Left a house'
+          : game.groupDropped.reason === 'quit'
+            ? 'Quit a pledge'
+            : game.groupDropped.reason === 'initiation'
+              ? 'Put out for missing the initiation'
+              : 'Put out of a pledge',
       facts: `${HOUSES[game.groupDropped.house].nickname}, on day ${game.groupDropped.day}`
     })
   }

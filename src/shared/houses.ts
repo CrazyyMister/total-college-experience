@@ -114,34 +114,38 @@ export const HOUSE_INSIDE_BGS: readonly string[] = [
 export type HouseAccess = 'door' | 'inside'
 
 /**
- * What the answer to "how far does he get" depends on: the event the scene is, if it is one, and
- * the house whose pledge meeting it is, if it is one.
+ * What the answer to "how far does he get" depends on: the event the scene is, if it is one, the
+ * house whose pledge meeting or initiation it is, if it is one, and the house he is a member of.
  */
 export interface HouseDoor {
   event?: string | null
   meeting?: HouseId | null
+  initiation?: HouseId | null
+  member?: HouseId | null
 }
 
 /**
  * How far the reader gets in a house: the front is always his, and the inside is for the house
- * whose own event the scene is. The one answer the scene's line and the backgrounds it may use
- * both ask, so that opening the inside for another reason is changing this function and nothing
- * else.
+ * whose own event, pledge meeting or initiation the scene is, and for the house he is a member
+ * of. The one answer the scene's line and the backgrounds it may use both ask, so that opening
+ * the inside for another reason is changing this function and nothing else.
  */
 export function houseAccess(house: HouseId, door: HouseDoor = {}): HouseAccess {
-  if (door.meeting === house) return 'inside'
+  if (door.meeting === house || door.initiation === house || door.member === house) return 'inside'
   return houseEventOf(door.event)?.host === house ? 'inside' : 'door'
 }
 
 /**
  * `bgs` without the insides of the Greek houses: a scene may use the living room and the party
  * space of a house that lets the reader in. A member's room is never among them until the house
- * is his.
+ * is his, and then it is the room of that house alone.
  */
 export function withoutClosedHouseBgs(bgs: readonly string[], door: HouseDoor = {}): string[] {
-  const open = new Set(
-    HOUSE_IDS.filter((id) => houseAccess(id, door) === 'inside').flatMap((id) => HOUSES[id].insideBgs)
-  )
+  const own = door.member ? HOUSES[door.member].roomBg : undefined
+  const open = new Set([
+    ...HOUSE_IDS.filter((id) => houseAccess(id, door) === 'inside').flatMap((id) => HOUSES[id].insideBgs),
+    ...(own ? [own] : [])
+  ])
   return bgs.filter((bg) => !HOUSE_INSIDE_BGS.includes(bg) || open.has(bg))
 }
 
@@ -432,10 +436,23 @@ export interface RushSave {
   bid?: BidRecord
 }
 
+/** Where he stands in the house he has said yes to. */
+export type HouseStage = 'pledge' | 'member'
+
+/** The night the code set for his initiation, and why that one. */
+export interface Initiation {
+  /** The slot id of the night. */
+  slot: number
+  /** Why that night, for the log and the development build. */
+  why: string
+  /** The text of the morning of the night has been sent, or was never owed. */
+  reminded?: boolean
+}
+
 /** The house he has said yes to, and where he stands in it. */
 export interface HouseStanding {
   id: HouseId
-  stage: 'pledge'
+  stage: HouseStage
   /** The slot id he said yes in; the first meeting judged is the slot after it. */
   since: number
   /** The meetings he has missed. */
@@ -448,6 +465,10 @@ export interface HouseStanding {
   held: number
   /** Of those, the ones he went to. */
   attended: number
+  /** The night of his initiation once it is set; it stays after he is a member. */
+  initiation?: Initiation
+  /** He has asked to leave, which the next boundary carries out. */
+  leaving?: boolean
 }
 
 /** A standing as a save keeps it: a save from before meetings counted lacks the counters. */
@@ -468,14 +489,29 @@ export function standingOfSave(saved: SavedHouseStanding, standingSlot: number):
     settledThrough: saved.settledThrough ?? standingSlot - 1,
     attendedSlots: saved.attendedSlots ?? [],
     held: saved.held ?? 0,
-    attended: saved.attended ?? 0
+    attended: saved.attended ?? 0,
+    ...(saved.initiation ? { initiation: { ...saved.initiation } } : {}),
+    ...(saved.leaving ? { leaving: true } : {})
   }
 }
 
-/** The house that put him out of its pledge, and the day it did. */
+/**
+ * Why a house is marked: he did not show to his initiation, he left it as a member, or he quit
+ * it as a pledge. Absent means he missed its meetings.
+ */
+export type DropReason = 'initiation' | 'left' | 'quit'
+
+/** The house that put him out of its pledge or that he left, and the day it was. */
 export interface DroppedHouse {
   house: HouseId
   day: number
+  reason?: DropReason
+}
+
+/** The memory the members of the cast keep of the reader walking out of their house. */
+export function leftHouseDesc(house: HouseId, stage: HouseStage): string {
+  const name = HOUSES[house].nickname
+  return stage === 'member' ? `the reader left the ${name} house` : `the reader quit pledging ${name}`
 }
 
 /** The four offices of a house, the president first. */

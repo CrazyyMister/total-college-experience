@@ -1,6 +1,6 @@
 import { kindOf } from '@shared/academics'
 import { groupEventButton, groupEventOf, tryoutButton, tryoutOf } from '@shared/groups'
-import { houseEventOf } from '@shared/houses'
+import { houseEventOf, occasionHouses } from '@shared/houses'
 import { jobDefOf } from '@shared/jobs'
 import { LOWRISE_LOCATION } from '@shared/locations'
 import { statsLowestFirst, type StatKey } from '@shared/playerStats'
@@ -14,6 +14,7 @@ import type { Verdict } from './loop/classify'
 import {
   canTryOut,
   groupEventVerdict,
+  INITIATION_ACTION,
   MAP_ACTION,
   MEETING_ACTION,
   PRACTICE_ACTION
@@ -93,7 +94,15 @@ function commitments(): SlotAction[] {
   }
 
   // A group's event on this half-day, whichever way he heard of it.
-  const meet = groupEventAt(game.date, game.time)
+  const event = groupEventAt(game.date, game.time)
+  // The night of his initiation is not the night of his own house's event: the initiation wins.
+  const meet =
+    event &&
+    game.groupHouse &&
+    playerGroupNow()?.kind === 'initiation' &&
+    occasionHouses(event).includes(game.groupHouse.id)
+      ? undefined
+      : event
   const found = meet ? groupEventOf(meet.id) : undefined
   const tryout = meet ? tryoutOf(meet.id) : undefined
   const house = meet ? houseEventOf(meet.id) : undefined
@@ -151,6 +160,15 @@ function commitments(): SlotAction[] {
       text: `Go to ${practice.group.practice}`,
       tone: 'plan',
       verdict: { ...knownVerdict(PRACTICE_ACTION), sceneLocation: practice.group.location }
+    })
+  }
+  // His initiation, which sets the scene at his house.
+  if (practice?.kind === 'initiation') {
+    actions.push({
+      key: `initiation:${practice.house}`,
+      text: 'Go to the initiation',
+      tone: 'plan',
+      verdict: { ...knownVerdict(INITIATION_ACTION), sceneLocation: practice.location }
     })
   }
   // His pledge meeting, which sets the scene at his house.

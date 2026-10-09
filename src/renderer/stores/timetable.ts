@@ -16,7 +16,7 @@ import { globalSlotOf, shiftSlotOf, slotFromId } from '@shared/jobs'
 import { ROOM_LOCATION } from '@shared/locations'
 import { classSlotOf, closureOn, hauntClosedOn, jobClosedOn } from '../prompts/occasions'
 import type { PracticeWeek } from '../prompts/scenePrompt'
-import { charJobAt, shiftWeekdayOf } from '../prompts/gameDate'
+import { charJobAt, formatGameDate, shiftWeekdayOf } from '../prompts/gameDate'
 import { isMoodHomebound } from '../prompts/moods'
 import { isAwayForSpringBreak } from '../prompts/springBreak'
 import { useGameStore } from './gameStore'
@@ -81,6 +81,15 @@ function eventAtTeamPlace(groupId: GroupId, slotId: number): boolean {
 }
 
 /**
+ * Whether the night of his initiation is this global slot, before and after he is a member: the
+ * initiation outranks a shift, his team's practice, a pledge meeting and an event of his own
+ * house, and costs him no strike for any of them, however often the boundary is replayed.
+ */
+export function initiationAt(slotId: number): boolean {
+  return useGameStore.getState().groupHouse?.initiation?.slot === slotId
+}
+
+/**
  * What decides whether his team practices in a slot, read off the store: the one context the
  * clock's commitments and the strikes both judge a practice by.
  */
@@ -97,7 +106,7 @@ function practiceContext(): PracticeContext {
     eventAt: (slotId) => (team ? eventAtTeamPlace(team.id, slotId) : false),
     otherCommitmentAt: (slotId) => {
       const { date, time } = slotFromId(slotId)
-      return playerClassNow(date, time) !== null || shiftNow(date, time) !== null
+      return playerClassNow(date, time) !== null || shiftNow(date, time) !== null || initiationAt(slotId)
     }
   }
 }
@@ -144,7 +153,12 @@ function meetingContext(): PracticeContext {
     },
     otherCommitmentAt: (slotId) => {
       const { date, time } = slotFromId(slotId)
-      return playerClassNow(date, time) !== null || shiftNow(date, time) !== null || practiceHeldAt(slotId)
+      return (
+        playerClassNow(date, time) !== null ||
+        shiftNow(date, time) !== null ||
+        practiceHeldAt(slotId) ||
+        initiationAt(slotId)
+      )
     }
   }
 }
@@ -153,7 +167,8 @@ function meetingContext(): PracticeContext {
 export function houseMeetingHeldAt(slotId: number): boolean {
   const game = useGameStore.getState()
   const house = game.groupHouse
-  if (!house) return false
+  // A member has no meetings; they are the pledge's.
+  if (!house || house.stage !== 'pledge') return false
   const sessions = game.houseAgendas[house.id]?.sessions ?? []
   return practiceHeld(
     { since: house.since + 1 },
@@ -164,12 +179,18 @@ export function houseMeetingHeldAt(slotId: number): boolean {
   )
 }
 
-/** A commitment of the reader's to a group: his team's practice or his house's pledge meeting. */
+/** The label of his initiation, in the same three places. */
+const INITIATION_LABEL = 'initiation'
+
+/**
+ * A commitment of the reader's to a group: his team's practice, his house's pledge meeting or
+ * the night of his initiation.
+ */
 export interface PlayerGroupSlot {
-  kind: 'team' | 'house'
+  kind: 'team' | 'house' | 'initiation'
   /** The team, for a practice. */
   group?: GroupDef
-  /** The house, for a pledge meeting. */
+  /** The house, for a pledge meeting or his initiation. */
   house?: HouseId
   /** The period of the week it falls in. */
   slot: ShiftSlot
@@ -190,12 +211,15 @@ export function playerGroupNow(date?: number, time?: TimeSlot): PlayerGroupSlot 
   const half = time ?? game.time
   const slotId = globalSlotOf(on, half)
   const slot = shiftSlotOf(shiftWeekdayOf(on), half)
+  const house = game.groupHouse
+  if (house && initiationAt(slotId)) {
+    return { kind: 'initiation', house: house.id, slot, label: INITIATION_LABEL, location: house.id }
+  }
   const team = game.groupTeam
   if (team && practiceHeldAt(slotId)) {
     const group = GROUPS[team.id]
     return { kind: 'team', group, slot, label: group.practice, location: group.location }
   }
-  const house = game.groupHouse
   if (house && houseMeetingHeldAt(slotId)) {
     return { kind: 'house', house: house.id, slot, label: PLEDGE_MEETING_LABEL, location: house.id }
   }
@@ -216,9 +240,19 @@ export function playerPracticeWeek(): PracticeWeek[] {
     if (slots.length > 0) weeks.push({ label: GROUPS[team.id].practice, slots: [...slots] })
   }
   const house = game.groupHouse
-  if (house && game.date <= PLEDGE_LAST_DAY) {
+  if (house?.stage === 'pledge' && game.date <= PLEDGE_LAST_DAY) {
     const slots = game.houseAgendas[house.id]?.sessions ?? []
     if (slots.length > 0) weeks.push({ label: PLEDGE_MEETING_LABEL, slots: [...slots] })
+  }
+  if (house?.stage === 'pledge' && house.initiation) {
+    const { slot } = house.initiation
+    const on = Math.floor(slot / 2)
+    if (slot >= globalSlotOf(game.date, game.time)) {
+      weeks.push({
+        label: `${INITIATION_LABEL} (once, ${formatGameDate(on)})`,
+        slots: [shiftSlotOf(shiftWeekdayOf(on), 1)]
+      })
+    }
   }
   return weeks
 }
@@ -285,13 +319,16 @@ export function charStandingHauntAt(charId: string, date: number, time: TimeSlot
     event.where !== undefined &&
     houseOfChar !== undefined &&
     occasionHouses(event).includes(houseOfChar)
-  // His pledge meeting: whoever lives in the house he pledges is at it while it is held.
+  // His pledge meeting or his initiation: whoever lives in the house he pledges is at it while it is held.
+  const slotId = globalSlotOf(date, time)
   const inMeeting =
-    game.groupHouse !== null &&
-    houseOfChar === game.groupHouse.id &&
-    houseMeetingHeldAt(globalSlotOf(date, time))
-  const inEvent = inTeamEvent || inHouseEvent
-  const haunt: Haunt | undefined = inHouseEvent
+    game.groupHouse !== null && houseOfChar === game.groupHouse.id && houseMeetingHeldAt(slotId)
+  const inInitiation =
+    game.groupHouse !== null && houseOfChar === game.groupHouse.id && initiationAt(slotId)
+  const inEvent = inTeamEvent || inHouseEvent || inInitiation
+  const haunt: Haunt | undefined = inInitiation
+    ? { location: game.groupHouse?.id as string, kind: 'event', doing: 'at the initiation' }
+    : inHouseEvent
     ? { location: event.where as string, kind: 'event', doing: `at the ${event.title}` }
     : inTeamEvent
       ? { location: event.where as string, kind: 'team' }

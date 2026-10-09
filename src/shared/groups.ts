@@ -1359,14 +1359,28 @@ function fillTemplate(template: string, values: Record<string, number | string>)
 }
 
 /** The kinds of text a house sends its pledge. */
-export type PledgeKind = 'intro' | 'missed' | 'missed2' | 'expelled'
+export type PledgeKind =
+  | 'intro'
+  | 'missed'
+  | 'missed2'
+  | 'expelled'
+  | 'initiation'
+  | 'initiationTonight'
+  | 'reminder'
+  | 'member'
+  | 'noShow'
 
 /** What a house says to its pledge, in the game's own fixed words. */
 const PLEDGE_TEXTS: Record<PledgeKind, string> = {
   intro: "Welcome to {house}. You're a pledge now. We meet {hours} at the house. Be there, every time.",
   missed: "You weren't at the meeting. That's {strike}. {Limit} misses and your pledge is over.",
   missed2: "That's {strike}. {Left} more and your pledge is over.",
-  expelled: "That's {strike}. Your pledge is over. You're not one of us."
+  expelled: "That's {strike}. Your pledge is over. You're not one of us.",
+  initiation: 'The meetings are over. Your initiation is {when}, at the house. Be there.',
+  initiationTonight: 'The meetings are over. Your initiation is tonight, at the house. Be there.',
+  reminder: "Tonight is your initiation, at the house. Don't be late.",
+  member: "Welcome to {house}. You're one of us now. Your room is ready.",
+  noShow: "You didn't show. Your pledge is over. You're not one of us."
 }
 
 /** The house's text to its pledge, with the meeting periods and the count written in. */
@@ -1374,15 +1388,112 @@ export function pledgeText(
   house: HouseId,
   kind: PledgeKind,
   sessions: readonly ShiftSlot[],
-  strikes = 0
+  strikes = 0,
+  when = ''
 ): string {
   return fillTemplate(PLEDGE_TEXTS[kind], {
     house: HOUSES[house].nickname,
     hours: sessions.map(shiftSlotFullLabel).join(' and '),
     limit: MAX_STRIKES,
     strike: strikes,
-    left: Math.max(0, MAX_STRIKES - strikes)
+    left: Math.max(0, MAX_STRIKES - strikes),
+    when
   })
+}
+
+// ─── The initiation ────────────────────────────────────────────────────────────
+
+/** The nights of the seventh week an initiation may fall on, the latest first: Friday to Monday. */
+const INITIATION_NIGHTS: readonly number[] = [46, 45, 44, 43, 42]
+
+const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+
+/** The night slot of a day. */
+function nightOf(day: number): number {
+  return day * 2 + 1
+}
+
+/** What a day of the week is called. */
+function dayName(day: number): string {
+  return DAY_NAMES[((day % 7) + 7) % 7]
+}
+
+/** The night a slot id is, as the house words it: `Friday night`. */
+export function initiationNightName(slotId: number): string {
+  return `${dayName(Math.floor(slotId / 2))} night`
+}
+
+/** What {@link initiationSlot} reads. */
+export interface InitiationInput {
+  /** The slot about to begin, which is the first the initiation may be set on. */
+  fromSlot: number
+  /** What holds the reader's slot, in words ("a class", "a shift", "his practice"), or null if nothing. */
+  busyAt: (slotId: number) => string | null
+  /** The days the university is shut, which no night is set in. */
+  closed?: readonly { startDate: number; endDate: number }[]
+}
+
+/** The night chosen, why, and whether it is the last resort or a late pick. */
+export interface InitiationPick {
+  slot: number
+  why: string
+  /** The Sunday of the last day of the pledge, or the first Sunday a late pick falls back on. */
+  lastResort: boolean
+}
+
+/**
+ * The night of the initiation: the latest night of the seventh week that nothing of his holds,
+ * from the Friday back to the Monday, and the Sunday that ends the pledge only when no night of
+ * the week is free. A pick made late, after some nights are gone, takes the latest free night
+ * that is left, and past the week the first free night that is not in a break; with none, the
+ * first Sunday, which has no class. Nothing here reads the clock or the store.
+ */
+export function initiationSlot(input: InitiationInput): InitiationPick {
+  const day = Math.floor(input.fromSlot / 2)
+  const shut = (date: number): boolean =>
+    (input.closed ?? []).some((range) => date >= range.startDate && date <= range.endDate)
+  const busy: string[] = []
+  const tried = (date: number): { free: boolean } => {
+    const reason = input.busyAt(nightOf(date))
+    if (reason !== null) busy.push(`${dayName(date)} night has ${reason}`)
+    return { free: reason === null }
+  }
+
+  if (day <= PLEDGE_LAST_DAY) {
+    for (const date of INITIATION_NIGHTS) {
+      if (shut(date)) continue
+      if (tried(date).free) {
+        return {
+          slot: nightOf(date),
+          why: busy.length === 0 ? `${dayName(date)} night free` : `${busy.join(', ')}, ${dayName(date)} free`,
+          lastResort: false
+        }
+      }
+    }
+    return { slot: nightOf(PLEDGE_LAST_DAY), why: 'no night of week 7 free', lastResort: true }
+  }
+
+  const left = INITIATION_NIGHTS.filter((date) => date >= day && nightOf(date) >= input.fromSlot)
+  for (const date of left) {
+    if (shut(date)) continue
+    if (tried(date).free) {
+      return {
+        slot: nightOf(date),
+        why: `late, ${busy.length === 0 ? `${dayName(date)} night free` : `${busy.join(', ')}, ${dayName(date)} free`}`,
+        lastResort: false
+      }
+    }
+  }
+  let sunday: number | null = null
+  for (let date = Math.max(day, INITIATION_NIGHTS[0] + 1); date <= LAST_CLASS_DATE; date++) {
+    if (nightOf(date) < input.fromSlot || shut(date)) continue
+    if (date % 7 === 6 && sunday === null) sunday = date
+    if (input.busyAt(nightOf(date)) === null) {
+      return { slot: nightOf(date), why: `late, past week 7: ${dayName(date)} night free`, lastResort: false }
+    }
+  }
+  const fallback = sunday ?? Math.max(day, INITIATION_NIGHTS[0] + 1)
+  return { slot: nightOf(fallback), why: 'late, no free night left', lastResort: true }
 }
 
 /** The Bunnyboard conversation key for a house's texts to its pledge, one per house. */

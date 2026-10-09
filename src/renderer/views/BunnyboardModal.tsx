@@ -40,10 +40,11 @@ import {
   GROUPS,
   groupOfCoachChat,
   houseOfChatId,
+  initiationNightName,
   PLEDGE_LAST_DAY
 } from '@shared/groups'
 import { HOUSES } from '@shared/houses'
-import { leaveTeamNow } from '../stores/loop/groups'
+import { leaveHouseNow, leaveTeamNow } from '../stores/loop/groups'
 import {
   globalSlotOf,
   jobDefForChat,
@@ -62,6 +63,7 @@ import { useModalShell } from '../components/useModalShell'
 import { yearLabel } from '@shared/classes'
 import {
   formatChatDivider,
+  formatGameDate,
   formatNumericGameDate,
   formatShortGameDate,
   shiftWeekdayOf,
@@ -1884,7 +1886,7 @@ function ProfilePage({ theme }: { theme: 'day' | 'night' }): JSX.Element {
 
         <div className="vu-bb-section">Groups</div>
         <TeamCard theme={theme} />
-        <HouseCard />
+        <HouseCard theme={theme} />
 
         <div className="vu-bb-section">Stats</div>
         <motion.div className="vu-bb-tallies" variants={LIST_DEAL}>
@@ -1959,24 +1961,63 @@ function TeamCard({ theme }: { theme: 'day' | 'night' }): JSX.Element {
 
 /**
  * The house he has said yes to and where he stands in it, or nothing at all for a reader who has
- * pledged none. There is no way out of it here yet.
+ * pledged none, and the way out of it. Leaving asks first, and cannot be taken back.
  */
-function HouseCard(): JSX.Element | null {
+function HouseCard({ theme }: { theme: 'day' | 'night' }): JSX.Element | null {
   const house = useGameStore((s) => s.groupHouse)
   const agendas = useGameStore((s) => s.houseAgendas)
   const today = useGameStore((s) => s.date)
+  const sceneActive = useGameStore(sceneActiveOf)
+  const [leaving, setLeaving] = useState(false)
   if (!house) return null
+  const member = house.stage === 'member'
   const hours = (agendas[house.id]?.sessions ?? []).map(shiftSlotFullLabel).join(' and ')
   const meetings =
     today > PLEDGE_LAST_DAY ? 'Meetings are over' : hours ? `Meetings: ${hours}` : 'No meeting hours'
+  const misses = `${house.strikes} of ${MAX_STRIKES} misses`
+  const initiation = house.initiation
+    ? `Initiation: ${initiationNightName(house.initiation.slot)}, ${formatGameDate(Math.floor(house.initiation.slot / 2))}`
+    : null
+  const standing = house.leaving
+    ? 'Leaving at the next turn'
+    : member
+      ? 'Member'
+      : initiation
+        ? `Pledge · ${house.strikes > 0 ? `${misses} · ` : ''}${initiation}`
+        : `Pledge · ${misses} · ${meetings}`
   return (
     <div className="vu-bb-team">
       <span className="vu-bb-team-main">
         <span className="vu-bb-team-name">{HOUSES[house.id].nickname}</span>
-        <span className="vu-bb-team-hours">
-          {`Pledge · ${house.strikes} of ${MAX_STRIKES} misses · ${meetings}`}
-        </span>
+        <span className="vu-bb-team-hours">{standing}</span>
       </span>
+      {!house.leaving && (
+        <PrimaryButton id="bb-house-leave" dead={sceneActive} onClick={() => setLeaving(true)}>
+          Leave
+        </PrimaryButton>
+      )}
+      <AnimatePresence propagate>
+        {leaving && (
+          <ConfirmModal
+            key="leave-house"
+            id="bb-house-leave-confirm"
+            theme={theme}
+            title={member ? 'Leave the house?' : 'Quit pledging?'}
+            message={
+              member
+                ? `You'll move back to your dorm and the ${HOUSES[house.id].nickname} brothers will remember it. This can't be undone, and you won't be able to join another fraternity this semester.`
+                : `The ${HOUSES[house.id].nickname} brothers will remember it. This can't be undone, and you won't be able to pledge another fraternity this semester.`
+            }
+            confirmText="Leave"
+            cancelText="Never mind"
+            onConfirm={() => {
+              setLeaving(false)
+              leaveHouseNow()
+            }}
+            onCancel={() => setLeaving(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

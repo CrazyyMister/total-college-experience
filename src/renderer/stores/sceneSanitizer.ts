@@ -146,7 +146,9 @@ export function createSceneSanitizer(options: SanitizerOptions = {}): {
   const backgrounds = new Set(
     withoutClosedHouseBgs(allBackgrounds(useAssetStore.getState().backgrounds), {
       event: game.sceneGroupEvent,
-      meeting: game.sceneHouseMeeting
+      meeting: game.sceneHouseMeeting,
+      initiation: game.sceneHouseInitiation,
+      member: game.groupHouse?.stage === 'member' ? game.groupHouse.id : null
     })
   )
   // Cast members' room bgs are legal exactly when the prompt offered them: both images on disk.
