@@ -197,6 +197,8 @@ You will need externally kept data for testing:
 - [ ] Miss three practices and verify the coach texts after each and you are out on the third; verify a holiday and spring break do not count.
 - [ ] Reload right after a missed practice and verify the coach does not text again.
 - [ ] During your team's practice, press Go on the practice place on the map and verify it is the practice, then type a phrase set at the same place and verify it is an ordinary scene that counts as a miss.
+- [ ] On a game night press "Go to the game" and verify the score is stated from the first turn, is the same after reloading mid-scene, and that you play it when on the team and watch it when not.
+- [ ] In New Game with men on the roster, verify F9 dates two games for each men's team, none left out, and that a football score is one a game could end on.
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 
