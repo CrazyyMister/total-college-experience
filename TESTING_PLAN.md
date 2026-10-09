@@ -194,6 +194,9 @@ You will need externally kept data for testing:
 - [ ] Go to a team tryout and verify data/app.log has the [groups] verdict line before the scene, the scene does not change it, and after a reload the Profile's Groups card and F9 show the same verdict.
 - [ ] With one of your shifts on top of a team practice, press the tryout button and verify it refuses, naming the shift, and the clock does not move.
 - [ ] On a team, press Leave on the Profile's Groups card and verify it asks first, Never mind changes nothing, and Leave removes the team while F9 keeps the tryout's verdict.
+- [ ] Miss three practices and verify the coach texts after each and you are out on the third; verify a holiday and spring break do not count.
+- [ ] Reload right after a missed practice and verify the coach does not text again.
+- [ ] During your team's practice, press Go on the practice place on the map and verify it is the practice, then type a phrase set at the same place and verify it is an ordinary scene that counts as a miss.
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 
