@@ -112,12 +112,12 @@ export const LOREBOOK: readonly LoreEntry[] = [
   {
     id: 'ashgrove',
     keys: ['Ashgrove', 'Ashgrove University', 'Ashgrove Owls'],
-    text: `Ashgrove University is the hilltop university north of the city, the Venus Jackrabbits' rival in basketball. Its teams are the Owls, and its colors are charcoal and amber.`
+    text: `Ashgrove University is an old, private and snobbish university, the Venus Jackrabbits' rival in basketball, with academic disdain on its side and mockery on Venus's; its teams are the Owls, and its colors are burgundy and ivory.`
   },
   {
     id: 'redmere',
     keys: ['Redmere', 'Redmere Institute', 'Redmere Institute of Technology', 'Redmere Rivets'],
-    text: `Redmere Institute of Technology is the engineering school on the river flats, the Venus Jackrabbits' rival in football. Its teams are the Rivets, and its colors are rust and steel gray.`
+    text: `Redmere Institute of Technology is a small, stubborn engineering school that plays the Venus Jackrabbits in football; its teams are the Rivets, and its colors are orange and black.`
   },
   {
     id: 'elysium_village',
