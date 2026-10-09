@@ -118,6 +118,7 @@ import {
   fallbackAsks,
   houseInviteWeight,
   lastInviteSlotOf,
+  PARTY_INVITE_BASE,
   rollSlotAskers,
   slotAskMultiplier,
   ASK_QUIET_SLOTS,
@@ -1474,13 +1475,13 @@ export function pickOccasionAsker(
   const picked = drawOccasionAsker(candidates)
   // A party or a mixer is asked about at the odds the reader's stat in the asker's house earns.
   const kind = occasion ? houseEventOf(occasion.id)?.kind : undefined
-  if (
-    picked &&
-    occasion &&
-    (kind === 'party' || kind === 'mixer') &&
-    !fallbackAsks(houseInviteWeight(occasion, game.charInfo[picked]?.house, game.stats))
-  ) {
-    return null
+  if (picked && occasion && (kind === 'party' || kind === 'mixer')) {
+    const weight = houseInviteWeight(occasion, game.charInfo[picked]?.house, game.stats)
+    const asks = fallbackAsks(weight)
+    console.log(
+      `[invite] ${occasion.title}: the fallback ${asks ? 'asks' : 'does not ask'}, at odds of ${Math.min(1, PARTY_INVITE_BASE * weight).toFixed(2)} (weight ${weight.toFixed(2)}).`
+    )
+    if (!asks) return null
   }
   const character = picked ? game.characters[picked] : null
   return character ? charKeyOf(character.firstName, character.lastName) : null

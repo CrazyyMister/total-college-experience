@@ -3,7 +3,7 @@ import { checkFacts } from '@shared/facts'
 import { gameOverLines, gameOverReasonOf } from '@shared/gameOver'
 import { GAME_GAIN, GROUPS, PRACTICE_GAIN } from '@shared/groups'
 import { homeOf, READER, withHomeMove } from '@shared/homes'
-import { mayAskTo, rushEventOf } from '@shared/houses'
+import { houseEventOf, mayAskTo, rushEventOf } from '@shared/houses'
 import { settleOccasionAskers } from './slotAskers'
 import { locationLabel } from '@shared/locations'
 import { earnLine, spendLine, spentOf } from '@shared/money'
@@ -774,6 +774,11 @@ async function fetchSlotIntro(
         pickOccasionAsker(date, time, view, npcOverlay, occasion)
       )
     : pickSlotAskers(date, time, view)
+  if (occasion && houseEventOf(occasion.id)) {
+    console.log(
+      `[invite] ${occasion.title}: ${askerKeys.length === 0 ? 'nobody asks him' : askerKeys.map((key) => `${key} (${mayCarry(key) ? 'of the house, asks him to it' : 'not of the house, asks him something else'})`).join(', ')}.`
+    )
+  }
 
   const askers: IntroAsker[] = []
   for (const charKey of askerKeys) {
