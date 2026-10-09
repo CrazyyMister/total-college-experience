@@ -81,6 +81,7 @@ import {
 } from '../prompts/occasions'
 import { isMoodHomebound, MOOD_CYCLE_LENGTH } from '../prompts/moods'
 import { dryOccasionDates } from '../prompts/weather'
+import { SPRING_BREAK_LEAVE, SPRING_BREAK_RETURN } from '../prompts/springBreak'
 import { type ScheduleResult } from '../stores/classScheduler'
 import {
   buildHiddenSchedules,
@@ -1086,6 +1087,12 @@ export function NewGameView(): JSX.Element {
       members: groupDeal.members,
       occasions: [...STATIC_OCCASIONS, ...occasions],
       avoid: [MIDTERM_WEEK, SPRING_BREAK, FINALS_WEEK],
+      // A party is not held while those who travel are gone: from the day they leave to the day they are back.
+      partyAvoid: [
+        MIDTERM_WEEK,
+        { startDate: SPRING_BREAK_LEAVE, endDate: SPRING_BREAK_RETURN },
+        FINALS_WEEK
+      ],
       practiceSlots,
       readerBusy: (date, time) => {
         const slot = classSlotOf(date, time, occasions)

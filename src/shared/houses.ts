@@ -125,7 +125,7 @@ export interface HouseDoor {
  * else.
  */
 export function houseAccess(house: HouseId, door: HouseDoor = {}): HouseAccess {
-  return rushEventOf(door.event)?.house === house ? 'inside' : 'door'
+  return houseEventOf(door.event)?.host === house ? 'inside' : 'door'
 }
 
 /**
@@ -234,8 +234,157 @@ export function rushOccasion(event: RushEventDef, half: HalfDay): Occasion {
   }
 }
 
-/** The houses an occasion is of, whose people alone may ask the reader along to it. */
-export function occasionHouses(occasion: Pick<Occasion, 'house'>): HouseId[] {
+// ─── Parties and mixers ────────────────────────────────────────────────────────
+
+/** The first and the last day a house throws a party or holds a mixer on: after rush, until the classes end. */
+export const PARTY_FIRST_DAY = 14
+export const PARTY_LAST_DAY = 105
+
+/** The fraternities that throw the parties, in the order the parties alternate. */
+const PARTY_HOUSES: readonly HouseId[] = ['kappa_row', 'xi_delt']
+
+/**
+ * The nights a party may be held on, as days from its Saturday, best first: the Saturday, the
+ * Friday before it, the Sunday after it.
+ */
+export const PARTY_NIGHT_OFFSETS: readonly number[] = [0, -1, 1]
+
+/** The nights a mixer may be held on, as days from its Friday, best first: the Thursday, then the Friday. */
+export const MIXER_NIGHT_OFFSETS: readonly number[] = [-1, 0]
+
+/** The pairs that hold a mixer, by their fraternity, taking the weeks in turn. */
+const MIXER_PAIRS: readonly HouseId[] = ['kappa_row', 'xi_delt']
+
+export type HouseEventKind = 'rush' | 'party' | 'mixer'
+
+/** What an occasion id says of a house's event: which kind, whose, and, at a mixer, with whom. */
+export interface HouseEvent {
+  kind: HouseEventKind
+  /** The house the event is held at. */
+  host: HouseId
+  /** The house a mixer is held with. */
+  guest?: HouseId
+}
+
+/** A party's id: the house that throws it and the week it is for, counted from the first day. */
+export function partyEventId(host: HouseId, week: number): string {
+  return `party-${host}-w${week}`
+}
+
+/** A mixer's id: the house that hosts it and the week it is for. */
+export function mixerEventId(host: HouseId, week: number): string {
+  return `mixer-${host}-w${week}`
+}
+
+/** The house event an occasion id names, or `undefined` for any other id. */
+export function houseEventOf(eventId: string | null | undefined): HouseEvent | undefined {
+  if (!eventId) return undefined
+  const rush = rushEventOf(eventId)
+  if (rush) return { kind: 'rush', host: rush.house }
+  const found = /^(party|mixer)-([a-z_]+)-w\d+$/.exec(eventId)
+  if (!found || !isHouse(found[2])) return undefined
+  const host = found[2]
+  return found[1] === 'party'
+    ? { kind: 'party', host }
+    : { kind: 'mixer', host, guest: HOUSES[host].mixer }
+}
+
+/** One night a house wants, before it has a day. */
+export interface HouseNight {
+  kind: 'party' | 'mixer'
+  /** The week it is for, counted from the first day. */
+  week: number
+  /** The fraternity of the pair that holds it, for a mixer. */
+  pair?: HouseId
+  /** The days it may fall on, best first, all at night. */
+  candidates: number[]
+}
+
+/**
+ * Every night the houses want from the first day to the last: a party each weekend, and, each
+ * week, the mixer of the pair whose turn it is, so that each pair holds one every other week.
+ */
+export function houseNights(): HouseNight[] {
+  const nights: HouseNight[] = []
+  for (let week = Math.floor(PARTY_FIRST_DAY / 7); week * 7 + 4 <= PARTY_LAST_DAY; week++) {
+    const saturday = week * 7 + 5
+    if (saturday >= PARTY_FIRST_DAY && saturday <= PARTY_LAST_DAY) {
+      nights.push({
+        kind: 'party',
+        week,
+        candidates: PARTY_NIGHT_OFFSETS.map((offset) => saturday + offset)
+      })
+    }
+    const friday = week * 7 + 4
+    if (friday >= PARTY_FIRST_DAY) {
+      nights.push({
+        kind: 'mixer',
+        week,
+        pair: MIXER_PAIRS[week % MIXER_PAIRS.length],
+        candidates: MIXER_NIGHT_OFFSETS.map((offset) => friday + offset)
+      })
+    }
+  }
+  return nights
+}
+
+/** The house that throws the party that is the `nth` one held (from zero). */
+export function partyHost(nth: number): HouseId {
+  return PARTY_HOUSES[nth % PARTY_HOUSES.length]
+}
+
+/** The house that hosts the `nth` mixer (from zero) of a pair: its fraternity first, then its sorority. */
+export function mixerHost(pair: HouseId, nth: number): HouseId {
+  return nth % 2 === 0 ? pair : HOUSES[pair].mixer
+}
+
+/** The word for the people of a house. */
+function memberWord(house: HouseId): string {
+  return HOUSES[house].kind === 'fraternity' ? 'brothers' : 'sisters'
+}
+
+/** The occasion a party becomes once it has a night. */
+export function partyOccasion(host: HouseId, week: number, date: number): Occasion {
+  const nickname = HOUSES[host].nickname
+  return {
+    id: partyEventId(host, week),
+    title: `${nickname} Party`,
+    description: `${nickname} throws a party at the house, with music, food and drinks going, and anybody who comes by is welcome.`,
+    startDate: date,
+    endDate: date,
+    time: 1,
+    cancelsClasses: false,
+    kind: 'campus',
+    house: host,
+    where: host
+  }
+}
+
+/** The occasion a mixer becomes once it has a night. */
+export function mixerOccasion(host: HouseId, week: number, date: number): Occasion {
+  const guest = HOUSES[host].mixer
+  const [nickname, guestNickname] = [HOUSES[host].nickname, HOUSES[guest].nickname]
+  return {
+    id: mixerEventId(host, week),
+    title: `${nickname} & ${guestNickname} Mixer`,
+    description: `${nickname} and ${guestNickname} hold a mixer at ${nickname}: the ${memberWord(host)} and the ${memberWord(guest)} spend the night together, and anybody who comes by is welcome.`,
+    startDate: date,
+    endDate: date,
+    time: 1,
+    cancelsClasses: false,
+    kind: 'campus',
+    house: host,
+    where: host
+  }
+}
+
+/**
+ * The houses an occasion is of, whose people alone may ask the reader along to it: the house
+ * whose event it is, and, for a mixer, the house it holds the mixer with.
+ */
+export function occasionHouses(occasion: Pick<Occasion, 'house' | 'id'>): HouseId[] {
+  const event = houseEventOf(occasion.id)
+  if (event) return event.guest ? [event.host, event.guest] : [event.host]
   return occasion.house ? [occasion.house] : []
 }
 
@@ -244,7 +393,7 @@ export function occasionHouses(occasion: Pick<Occasion, 'house'>): HouseId[] {
  * to one that is no house's, and only those who live in a house an occasion is of may ask him to
  * that one.
  */
-export function mayAskTo(occasion: Pick<Occasion, 'house'>, house: HouseId | undefined): boolean {
+export function mayAskTo(occasion: Pick<Occasion, 'house' | 'id'>, house: HouseId | undefined): boolean {
   const houses = occasionHouses(occasion)
   return houses.length === 0 || (house !== undefined && houses.includes(house))
 }

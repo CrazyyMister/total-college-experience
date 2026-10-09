@@ -770,7 +770,7 @@ async function fetchSlotIntro(
   const mayCarry = (charKey: string): boolean =>
     occasion === null || mayAskTo(occasion, view.charInfo[game.charKeyToId[charKey]]?.house)
   const askerKeys = occasion
-    ? settleOccasionAskers(pickSlotAskers(date, time, view), mayCarry, () =>
+    ? settleOccasionAskers(pickSlotAskers(date, time, view, occasion), mayCarry, () =>
         pickOccasionAsker(date, time, view, npcOverlay, occasion)
       )
     : pickSlotAskers(date, time, view)

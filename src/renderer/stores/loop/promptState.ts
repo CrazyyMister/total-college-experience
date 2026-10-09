@@ -386,6 +386,7 @@ export function promptState(): PromptState {
     houseOffices: game.houseOffices,
     groupTryouts: game.groupTryouts,
     playerTeam: game.groupTeam?.id ?? null,
+    playerHouse: game.groupHouse,
     // Whoever the action named without bringing along, and where it set the scene — both scanned
     // into the lorebook. Characters, not names, so two sharing a first name stay apart.
     mentions: game.sceneMentions

@@ -5,8 +5,10 @@
  */
 
 import { globalSlotOf } from '@shared/jobs'
+import { houseEventOf, HOUSES, occasionHouses, type HouseId } from '@shared/houses'
+import { tierOf, type PlayerStats } from '@shared/playerStats'
 import type { Disposition } from '@shared/relationship'
-import type { Conversation, TimeSlot } from '@shared/types'
+import type { Conversation, Occasion, TimeSlot } from '@shared/types'
 import { MIDTERM_WEEK, FINALS_WEEK } from '../prompts/occasions'
 import { weekendSaturdayOf } from '../prompts/gameDate'
 
@@ -186,4 +188,34 @@ export function settleOccasionAskers(
     )
   }
   return askers
+}
+
+/** The odds a member of the house asks him to its party or mixer when nobody else did, at the tier that weighs 1. */
+export const PARTY_INVITE_BASE = 0.6
+
+/** How much a tier in the stat a house values weighs in the invitations of its people: 0.5 at the first tier, 1.5 at the fifth. */
+export function partyInviteWeight(tier: number): number {
+  return 0.5 + 0.25 * (tier - 1)
+}
+
+/**
+ * What the reader's stat weighs on an invitation to the occasion from somebody of `house`: the
+ * weight of his tier in the stat that house values, for a party or a mixer of the house and of
+ * nobody else's, and 1 for anything else (a rush event is asked by the house's people and
+ * weighs nothing).
+ */
+export function houseInviteWeight(
+  occasion: Pick<Occasion, 'id' | 'house'>,
+  house: HouseId | undefined,
+  stats: Readonly<PlayerStats>
+): number {
+  const kind = houseEventOf(occasion.id)?.kind
+  if ((kind !== 'party' && kind !== 'mixer') || !house) return 1
+  if (!occasionHouses(occasion).includes(house)) return 1
+  return partyInviteWeight(tierOf(stats[HOUSES[house].values]))
+}
+
+/** Whether the fallback asks at all: a party or a mixer is asked about at the weight's share of the base odds. */
+export function fallbackAsks(weight: number, rand: () => number = Math.random): boolean {
+  return rand() < Math.min(1, PARTY_INVITE_BASE * weight)
 }

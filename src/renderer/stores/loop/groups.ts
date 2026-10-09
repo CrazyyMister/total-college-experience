@@ -1,5 +1,12 @@
 import { affectionFor } from '@shared/relationship'
-import { HOUSES, rushEventOf, rushEventsOf, type BidOffer } from '@shared/houses'
+import {
+  HOUSES,
+  houseEventOf,
+  occasionHouses,
+  rushEventOf,
+  rushEventsOf,
+  type BidOffer
+} from '@shared/houses'
 import { tierOf, type PlayerStats } from '@shared/playerStats'
 import {
   BID_DAY,
@@ -380,18 +387,23 @@ export interface GroupEventPlan {
 export function planGroupEvent(eventId: string, required?: string): GroupEventPlan | null {
   const game = useGameStore.getState()
   const occasion = game.occasions.find((entry) => entry.id === eventId)
-  if (rushEventOf(eventId)) {
-    // A house's own event: whoever lives in it and is free is there, and nothing is decided.
+  if (houseEventOf(eventId)) {
+    // A house's own event: whoever lives in it, or in the other house of a mixer, and is free is
+    // there, the two houses taking turns, and nothing is decided.
     if (!occasion?.house || occasion.startDate !== game.date) return null
     if ((occasion.time ?? GROUP_EVENT_TIME) !== game.time) return null
-    const home = shuffle(
-      game.chars.filter(
-        (charId) =>
-          game.charInfo[charId]?.house === occasion.house &&
-          memberFreeAt(charId, game.date, game.time)
+    const homes = occasionHouses(occasion).map((house) =>
+      shuffle(
+        game.chars.filter(
+          (charId) =>
+            game.charInfo[charId]?.house === house && memberFreeAt(charId, game.date, game.time)
+        )
       )
     )
-    const cast = [...new Set([...(required ? [required] : []), ...home])].slice(0, PORTRAIT_SLOTS)
+    const turns = Array.from({ length: Math.max(0, ...homes.map((home) => home.length)) }, (_, at) =>
+      homes.flatMap((home) => (at < home.length ? [home[at]] : []))
+    ).flat()
+    const cast = [...new Set([...(required ? [required] : []), ...turns])].slice(0, PORTRAIT_SLOTS)
     return { cast, scene: { groupEvent: occasion.id } }
   }
   if (!occasion?.group || occasion.startDate !== game.date) return null

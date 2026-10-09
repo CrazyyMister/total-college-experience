@@ -104,7 +104,7 @@ import {
   readerTeamLines
 } from './groupPrompt'
 import { factLines } from './facts'
-import { rushEventOf, withoutClosedHouseBgs, type HouseOffices } from '@shared/houses'
+import { houseEventOf, withoutClosedHouseBgs, type HouseId, type HouseOffices } from '@shared/houses'
 import { moodLine } from './moods'
 import { springBreakLines } from './springBreak'
 import {
@@ -318,6 +318,8 @@ export interface PromptState {
   houseOffices?: HouseOffices
   /** The team the reader is on, or null. */
   playerTeam?: GroupId | null
+  /** The house the reader has said yes to, or null. */
+  playerHouse?: { id: HouseId } | null
   /**
    * One finished paragraph per gift given this scene, built by `giftLoreNote`
    * (`shared/shop.ts`) from `gameStore.sceneGifts`.
@@ -1119,7 +1121,7 @@ function figurantLines(cast: readonly Character[], state: PromptState): string[]
       state.playerTeam
     )
   )
-  const house = houseFigurantLine(state.sceneLocation)
+  const house = houseFigurantLine(state.sceneLocation, state.groupEvent)
   const door = houseDoorLines(state.sceneLocation, state.houseOffices, state.groupEvent)
   return [...door, ...(line ? [line] : []), ...(house ? [house] : []), ...(line || house ? [''] : [])]
 }
@@ -1568,11 +1570,11 @@ export function buildSoloPrompt(
     groupOfEvent(state.groupEvent) ??
     (state.groupPractice && state.playerTeam ? GROUPS[state.playerTeam] : undefined)
   const inPlay = groupsInPlay([], state.sceneLocation)
-  // A rush event is a house's own, with a result nobody decides yet and brothers nobody names.
-  const rushScene = rushEventOf(state.groupEvent) !== undefined
+  // A house's event (rush, party or mixer) is its own, with brothers and sisters nobody names.
+  const houseScene = houseEventOf(state.groupEvent) !== undefined
   const figurant = [
     groupFigurantLine(eventGroup && !inPlay.includes(eventGroup) ? [eventGroup, ...inPlay] : inPlay),
-    ...(rushScene ? [houseFigurantLine(state.sceneLocation)] : [])
+    ...(houseScene ? [houseFigurantLine(state.sceneLocation, state.groupEvent)] : [])
   ]
     .filter((line) => line !== '')
     .join('\n')
@@ -1590,7 +1592,7 @@ export function buildSoloPrompt(
     ...(figurant ? [figurant, ''] : []),
     'YOUR TURN',
     'Solo mission, RITA! The reader is on their own for this one, so write it start to finish in one go.',
-    `Open by rewording what the reader decided to do in a fun narration, then play it out to the end. ${eventGroup || rushScene ? 'No named characters will show up.' : 'No other characters will show up.'}`,
+    `Open by rewording what the reader decided to do in a fun narration, then play it out to the end. ${eventGroup || houseScene ? 'No named characters will show up.' : 'No other characters will show up.'}`,
     'Keep it tight. This is a slice of their day, not an epic.',
     'DON\'T leave a decision point, a cliffhanger, or a question for the reader.',
     '',
@@ -1621,7 +1623,7 @@ export function buildSoloPrompt(
     // Routable: an hour by himself has nobody in it to be written badly, which is what
     // keeps every other scene call off the secondary model. A group's event has a result the
     // code decided and the writer must not contradict, so it is never routed.
-    ...(eventGroup || rushScene ? {} : { kind: 'solo' as const })
+    ...(eventGroup || houseScene ? {} : { kind: 'solo' as const })
   }
 }
 

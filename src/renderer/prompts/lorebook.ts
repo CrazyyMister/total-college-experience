@@ -128,17 +128,17 @@ export const LOREBOOK: readonly LoreEntry[] = [
     id: 'kappa_row',
     // The first key is the one a scene set here is scanned by.
     keys: ['Kappa Row', 'Kappa Rho Omega'],
-    text: `Kappa Row, formally Kappa Rho Omega, is the loud, athletic fraternity house on Laurel Row, with many football and basketball players among its brothers; it prizes Body. Its tradition is the bonfire on the eve of homecoming, it holds its mixers with Sig Lam, and its old rivalry with Xi Delt is about a ship's bell, stolen back and forth by pranks and never out of hate. Its members each have a room of their own in the house. bg for the front of the house: kappa_row_front.`
+    text: `Kappa Row, formally Kappa Rho Omega, is the loud, athletic fraternity house on Laurel Row, with many football and basketball players among its brothers; it prizes Body. Its tradition is the bonfire on the eve of homecoming, it throws its parties and holds its mixers with Sig Lam, and its old rivalry with Xi Delt is about a ship's bell, stolen back and forth by pranks and never out of hate. Its members each have a room of their own in the house. bg for the front of the house: kappa_row_front.`
   },
   {
     id: 'xi_delt',
     keys: ['Xi Delt', 'Xi Delta Phi'],
-    text: `Xi Delt, formally Xi Delta Phi, is the fraternity house on Laurel Row of old money, sons of former members, suits and connections; it prizes Brain. Its tradition is the White Ball, the formal dance of the spring, it holds its mixers with Pi Theta, and its old rivalry with Kappa Row is about a ship's bell, stolen back and forth by pranks and never out of hate. Its members each have a room of their own in the house. bg for the front of the house: xi_delt_front.`
+    text: `Xi Delt, formally Xi Delta Phi, is the fraternity house on Laurel Row of old money, sons of former members, suits and connections; it prizes Brain. Its tradition is the White Ball, the formal dance of the spring, it throws its parties and holds its mixers with Pi Theta, and its old rivalry with Kappa Row is about a ship's bell, stolen back and forth by pranks and never out of hate. Its members each have a room of their own in the house. bg for the front of the house: xi_delt_front.`
   },
   {
     id: 'sig_lam',
     keys: ['Sig Lam', 'Sigma Lambda Iota'],
-    text: `Sig Lam, formally Sigma Lambda Iota, is the social sorority house on Laurel Row, known for its parties and mixers and for many volleyball players among its sisters; it prizes Heart and holds its mixers with Kappa Row. Its members each have a room of their own in the house. bg for the front of the house: sig_lam_front.`
+    text: `Sig Lam, formally Sigma Lambda Iota, is the social sorority house on Laurel Row, known for its mixers and for many volleyball players among its sisters; it prizes Heart and holds its mixers with Kappa Row. Its members each have a room of their own in the house. bg for the front of the house: sig_lam_front.`
   },
   {
     id: 'pi_theta',

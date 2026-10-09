@@ -11,6 +11,13 @@ import { isLocationOpen, locationLabel } from './locations'
 import {
   HOUSE_IDS,
   HOUSES,
+  houseNights,
+  mixerHost,
+  mixerEventId,
+  mixerOccasion,
+  partyEventId,
+  partyHost,
+  partyOccasion,
   RUSH_EVENTS,
   rushCandidates,
   rushEventOf,
@@ -904,6 +911,11 @@ export interface EventPlacementInput {
    * allows, since a practice he misses is a strike.
    */
   practiceSlots?: ReadonlySet<number>
+  /**
+   * The days no party or mixer may fall on: the exam weeks and the whole of spring break, from
+   * the day those who travel leave to the day they are back. Defaults to `avoid`.
+   */
+  partyAvoid?: readonly { startDate: number; endDate: number }[]
 }
 
 /**
@@ -984,7 +996,58 @@ export function placeGroupEvents(input: EventPlacementInput): {
       else leave(id, event.id, found.reason)
     }
   }
+  // The parties and the mixers come last: there are many of them, and losing one is the least harm.
+  const nights = placeHouseNights(input, placed)
+  placed.push(...nights.placed)
+  for (const [house, left] of Object.entries(nights.leftOut)) {
+    houseLeftOut[house as HouseId] = [...(houseLeftOut[house as HouseId] ?? []), ...(left ?? [])]
+  }
   return { placed, leftOut, houseLeftOut }
+}
+
+/**
+ * Gives every party and every mixer its night: the first of its candidates that is outside the
+ * weeks to avoid and that nothing else holds, parties first and each in the order of the dates.
+ * The fraternities take the parties in turn, and the two houses of a pair take its mixers in turn,
+ * over the ones that found a night, so that a lost weekend moves nobody's turn. What no night can
+ * hold is returned under the house whose turn it would have been, and a mixer's under its pair's
+ * fraternity, and never dropped.
+ */
+function placeHouseNights(
+  input: EventPlacementInput,
+  before: readonly Occasion[]
+): { placed: Occasion[]; leftOut: Partial<Record<HouseId, LeftOutEvent[]>> } {
+  const placed: Occasion[] = []
+  const leftOut: Partial<Record<HouseId, LeftOutEvent[]>> = {}
+  const avoid = input.partyAvoid ?? input.avoid
+  const free = (day: number): boolean =>
+    !avoid.some((range) => day >= range.startDate && day <= range.endDate) &&
+    ![...input.occasions, ...before, ...placed].some((occasion) => occupies(occasion, day, 1))
+  const nights = houseNights()
+  let parties = 0
+  for (const night of nights.filter((entry) => entry.kind === 'party')) {
+    const day = night.candidates.find(free)
+    const host = partyHost(parties)
+    if (day === undefined) {
+      leftOut[host] = [...(leftOut[host] ?? []), { id: partyEventId(host, night.week), reason: 'no_date' }]
+      continue
+    }
+    placed.push(partyOccasion(host, night.week, day))
+    parties++
+  }
+  const mixers: Partial<Record<HouseId, number>> = {}
+  for (const night of nights.filter((entry) => entry.kind === 'mixer')) {
+    const pair = night.pair as HouseId
+    const host = mixerHost(pair, mixers[pair] ?? 0)
+    const day = night.candidates.find(free)
+    if (day === undefined) {
+      leftOut[pair] = [...(leftOut[pair] ?? []), { id: mixerEventId(host, night.week), reason: 'no_date' }]
+      continue
+    }
+    placed.push(mixerOccasion(host, night.week, day))
+    mixers[pair] = (mixers[pair] ?? 0) + 1
+  }
+  return { placed, leftOut }
 }
 
 // ─── The fraternities' meetings and the bid ───────────────────────────────────

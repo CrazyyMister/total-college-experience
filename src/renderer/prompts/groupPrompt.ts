@@ -14,9 +14,11 @@ import {
   HOUSE_IDS,
   HOUSES,
   houseAccess,
+  houseEventOf,
   isHouse,
+  occasionHouses,
   OFFICE_NAMES,
-  rushEventOf,
+  type HouseEvent,
   type HouseId,
   type HouseOffices
 } from '@shared/houses'
@@ -92,12 +94,32 @@ export function houseAtPlace(location: string | null | undefined): HouseId | und
  * The line that keeps the members of a Greek house nameless when the scene is set at the house,
  * or an empty string anywhere else. A defence in the prompt alone, like the team's.
  */
-export function houseFigurantLine(location: string | null | undefined): string {
+export function houseFigurantLine(
+  location: string | null | undefined,
+  event?: string | null
+): string {
   const id = houseAtPlace(location)
   if (!id) return ''
   const def = HOUSES[id]
   const member = def.kind === 'fraternity' ? 'brother' : 'sister'
+  // At a mixer the other house is there too, and its people are as nameless as the host's.
+  const found = houseEventOf(event)
+  const guest = found?.kind === 'mixer' && found.host === id ? HOUSES[def.mixer] : undefined
+  if (guest) {
+    const other = guest.kind === 'fraternity' ? 'brother' : 'sister'
+    return `Every ${member} of ${def.nickname} and every ${other} of ${guest.nickname} who has not been named above is unnamed background: never give any of them a name, only "a ${member}" or "a ${other}".`
+  }
   return `Every ${member} of ${def.nickname} who has not been named above is unnamed background: never give any of them a name, only "a ${member}".`
+}
+
+/** What the door line says the reader is at, for the event that opens the house. */
+function houseEventPhrase(event: HouseEvent): string {
+  const host = HOUSES[event.host].nickname
+  if (event.kind === 'party') return `${host}'s party`
+  if (event.kind === 'mixer' && event.guest) {
+    return `the mixer that ${host} is holding with ${HOUSES[event.guest].nickname}`
+  }
+  return `${host}'s rush event`
 }
 
 /**
@@ -114,9 +136,10 @@ export function houseDoorLines(
   const id = houseAtPlace(location)
   if (!id) return []
   const def = HOUSES[id]
+  const found = houseEventOf(event)
   const lines = [
-    houseAccess(id, { event }) === 'inside'
-      ? `The reader is at ${def.nickname}'s rush event, at the ${def.kind} house on Laurel Row, and the door is open to him for this event: this scene may take place on the porch, in the living room and in the party space. The bedrooms stay shut: nothing in this scene takes place in a bedroom.`
+    found && houseAccess(id, { event }) === 'inside'
+      ? `The reader is at ${houseEventPhrase(found)}, at the ${def.kind} house on Laurel Row, and the door is open to him for this event: this scene may take place ${def.kind === 'fraternity' ? 'on the porch, in the living room and in the party space' : 'on the porch and in the living room'}. The bedrooms stay shut: nothing in this scene takes place in a bedroom.`
       : `The reader is outside ${def.nickname}, the ${def.kind} house on Laurel Row: this scene stays on the porch or in the street, and he does not go inside. Nothing in this scene takes place in the living room, the party space or the bedrooms.`
   ]
   const unnamed = offices?.[id] ?? []
@@ -144,6 +167,8 @@ export interface GroupNewsState {
   groupTryouts?: Readonly<Record<string, TryoutResult>>
   /** The team the reader is on, which decides whether he plays in a game or watches it. */
   playerTeam?: GroupId | null
+  /** The house he has said yes to, which decides whether he is a guest at its nights or a pledge. */
+  playerHouse?: { id: HouseId } | null
 }
 
 /** How an event ended, in the words of a line about the team. */
@@ -194,15 +219,27 @@ export function groupNewsClause(
 export function groupEventLines(eventId: string | null | undefined, state: GroupNewsState): string[] {
   if (!eventId) return []
   const occasion = state.occasions.find((entry) => entry.id === eventId)
-  const rush = rushEventOf(eventId)
-  if (rush) {
+  const house = houseEventOf(eventId)
+  if (house) {
     if (!occasion) return []
-    return [
-      'GROUP EVENT',
-      `${occasion.title}: ${occasion.description}`,
-      `The reader is a guest at ${HOUSES[rush.house].nickname}'s rush event, not a member: the brothers are sizing him up and he is sizing them up. Whether any house bids on him is decided later by the game and is not the writer's to decide, hint at or promise. Nothing in this scene may say he has been, or will be, offered a bid.`,
-      ''
-    ]
+    const host = HOUSES[house.host]
+    const pledged = state.playerHouse?.id
+    const pledge =
+      pledged && occasionHouses({ id: eventId, house: house.host }).includes(pledged)
+        ? HOUSES[pledged]
+        : undefined
+    const closing = `Whatever pledging asks of him is decided by the game: nothing in this scene sets him a task, a penalty or a test, and nothing in it makes him a member.`
+    const role =
+      house.kind === 'rush'
+        ? `The reader is a guest at ${host.nickname}'s rush event, not a member: the brothers are sizing him up and he is sizing them up. Whether any house bids on him is decided later by the game and is not the writer's to decide, hint at or promise. Nothing in this scene may say he has been, or will be, offered a bid.`
+        : house.kind === 'party'
+          ? pledge
+            ? `The reader is a pledge of ${pledge.nickname}, not yet a member, and the house knows him as one. ${closing}`
+            : `The reader is a guest at ${host.nickname}'s party, not a member: anybody may come. Nothing in this scene makes him a member of the house, offers him a bid or a place in it, or takes one away.`
+          : pledge
+            ? `The reader is a guest at the mixer that ${host.nickname} holds with ${HOUSES[host.mixer].nickname}, a night for the two houses to mingle, and a pledge of ${pledge.nickname}, not yet a member, whom the house knows as one. ${closing}`
+            : `The reader is a guest at the mixer that ${host.nickname} holds with ${HOUSES[host.mixer].nickname}, a night for the two houses to mingle. He is a guest, not a member of either house. Nothing in this scene offers him a bid or a place in either house.`
+    return ['GROUP EVENT', `${occasion.title}: ${occasion.description}`, role, '']
   }
   if (tryoutOf(eventId)) {
     const verdict = state.groupTryouts?.[eventId]

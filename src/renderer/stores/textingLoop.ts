@@ -4,7 +4,7 @@
  * turns an agreed hangout into a real scene.
  */
 
-import { mayAskTo } from '@shared/houses'
+import { houseEventOf, mayAskTo } from '@shared/houses'
 import { pronounsOf } from '@shared/pronouns'
 import { formatDateBanner, prevSlot } from '../prompts/gameDate'
 import type { CalendarEvent, CharInfo, EventCancellation, Gender, Occasion } from '@shared/types'
@@ -115,6 +115,8 @@ import {
   askCooldownOver,
   declineCooldownSlots,
   drawOccasionAsker,
+  fallbackAsks,
+  houseInviteWeight,
   lastInviteSlotOf,
   rollSlotAskers,
   slotAskMultiplier,
@@ -1470,6 +1472,16 @@ export function pickOccasionAsker(
   }
 
   const picked = drawOccasionAsker(candidates)
+  // A party or a mixer is asked about at the odds the reader's stat in the asker's house earns.
+  const kind = occasion ? houseEventOf(occasion.id)?.kind : undefined
+  if (
+    picked &&
+    occasion &&
+    (kind === 'party' || kind === 'mixer') &&
+    !fallbackAsks(houseInviteWeight(occasion, game.charInfo[picked]?.house, game.stats))
+  ) {
+    return null
+  }
   const character = picked ? game.characters[picked] : null
   return character ? charKeyOf(character.firstName, character.lastName) : null
 }
@@ -1508,7 +1520,8 @@ function askChanceFor(
 export function pickSlotAskers(
   date?: number,
   time?: TimeSlot,
-  view: SlotAskerView = useGameStore.getState()
+  view: SlotAskerView = useGameStore.getState(),
+  occasion: Occasion | null = null
 ): string[] {
   const game = useGameStore.getState()
   const day = date ?? game.date
@@ -1569,7 +1582,9 @@ export function pickSlotAskers(
     // She does not ask twice in a row, and waits longer each time he does not come.
     const gap = declineCooldownSlots(conversations[charId]?.declined ?? 0)
     if (!askCooldownOver(lastInviteSlotOf(conversations[charId]), target, gap)) continue
-    const chance = askChanceFor(charId, day, view, modulation)
+    // The people of a house ask him to its party at the weight of his stat in what the house values.
+    const weight = occasion ? houseInviteWeight(occasion, game.charInfo[charId]?.house, game.stats) : 1
+    const chance = askChanceFor(charId, day, view, modulation) * weight
     if (chance > 0) candidates.push({ charId, chance })
   }
   for (const charId of rollSlotAskers(candidates)) take(charId)

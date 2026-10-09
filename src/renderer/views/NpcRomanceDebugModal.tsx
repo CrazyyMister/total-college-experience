@@ -9,6 +9,7 @@ import {
   HOUSES,
   OFFICE_IDS,
   OFFICE_NAMES,
+  houseEventOf,
   rushEventsOf,
   type HouseId
 } from '@shared/houses'
@@ -241,6 +242,27 @@ function sectionsOf(): DebugSection[] {
         key: `${id}:${event.id}`,
         who: occasion?.title ?? event.title,
         facts: `${when}${occasion ? (game.groupRush.attended.includes(event.id) ? ' · gone to' : ' · not gone to') : ''}`
+      })
+    }
+  }
+  // What the houses throw: the parties and the mixers that found a night, then the ones that did not.
+  const houseNights = game.occasions
+    .filter((entry) => ['party', 'mixer'].includes(houseEventOf(entry.id)?.kind ?? ''))
+    .sort((one, other) => one.startDate - other.startDate)
+  for (const entry of houseNights) {
+    groupRows.push({
+      key: entry.id,
+      who: entry.title,
+      facts: `${dated(entry.startDate)}, ${entry.time === 0 ? 'day' : 'night'}`
+    })
+  }
+  for (const [id, agenda] of Object.entries(game.houseAgendas)) {
+    for (const left of agenda?.leftOutEvents ?? []) {
+      if (!['party', 'mixer'].includes(houseEventOf(left.id)?.kind ?? '')) continue
+      groupRows.push({
+        key: `${id}:${left.id}`,
+        who: left.id,
+        facts: 'left out: no free night'
       })
     }
   }
