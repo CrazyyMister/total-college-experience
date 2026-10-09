@@ -1,4 +1,4 @@
-import { homeBuildingOf } from '@shared/homes'
+import { buildingLocationOf, homeBuildingOf } from '@shared/homes'
 import { affectionFor } from '@shared/relationship'
 import { shuffle } from '@shared/shuffle'
 import { PORTRAIT_SLOTS, useGameStore } from '../gameStore'
@@ -13,7 +13,7 @@ import {
 } from '../timetable'
 import { firstNameOf, nameIsKnown } from './classify'
 import { jobDefOf, JOB_CATALOG } from '@shared/jobs'
-import { ELYSIUM_LOCATION, LOWRISE_LOCATION, ROOM_LOCATION } from '@shared/locations'
+import { ROOM_LOCATION } from '@shared/locations'
 import { loreEntryById } from '../../prompts/lorebook'
 import { hauntActivity } from '../../prompts/npcRelationship'
 
@@ -44,7 +44,7 @@ function freeCharacters(location?: string | null): string[] {
 function atRoomBuilding(charId: string, location: string | null | undefined): boolean {
   const building = homeBuildingOf(charRoomHomeNow(charId))
   if (building === null) return false
-  return location === (building === 'elysium' ? ELYSIUM_LOCATION : LOWRISE_LOCATION)
+  return location === buildingLocationOf(building)
 }
 
 /** The odds of running into somebody while anyone on the roster is still unmet. */

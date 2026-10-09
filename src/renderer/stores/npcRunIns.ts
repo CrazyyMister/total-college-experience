@@ -1,4 +1,4 @@
-import { dormSpotsOf, type DormBuilding } from '@shared/dorms'
+import { homeSpotsOf, type HomeBuilding } from '@shared/homes'
 import { ROOM_LOCATION } from '@shared/locations'
 import type { NpcEncounterGroup } from '@shared/npcRelationships'
 import { pick, shuffle } from '@shared/shuffle'
@@ -24,8 +24,8 @@ export interface RunInCharInput {
   location: string | null
   /** Her standing haunt, which is where a run-in with her happens. */
   haunt: string | null
-  /** Which building her room is in, or null for a character with no dorm. */
-  building: DormBuilding | null
+  /** Which building her room is in, or null for a character with no home. */
+  building: HomeBuilding | null
   /** In the scene, or already in a group this slot. */
   spokenFor: boolean
 }
@@ -35,7 +35,7 @@ export function rollDormRunIns(
   chars: Record<string, RunInCharInput>,
   rand: () => number = Math.random
 ): NpcEncounterGroup[] {
-  const winners = new Map<DormBuilding, string[]>()
+  const winners = new Map<HomeBuilding, string[]>()
   for (const charId of Object.keys(chars)) {
     const input = chars[charId]
     if (input.busy || input.spokenFor) continue
@@ -48,7 +48,7 @@ export function rollDormRunIns(
 
   const groups: NpcEncounterGroup[] = []
   for (const [building, residents] of winners) {
-    const spots = dormSpotsOf(building)
+    const spots = homeSpotsOf(building)
     const order = shuffle(residents, rand)
     for (let i = 0; i < order.length; i += MAX_GROUP) {
       const members = order.slice(i, i + MAX_GROUP)

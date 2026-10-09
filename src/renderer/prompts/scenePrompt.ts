@@ -97,11 +97,13 @@ import {
   groupOfEvent,
   groupFigurantLine,
   groupNewsClause,
+  houseFigurantLine,
   groupsInPlay,
   readerPlaysEvent,
   readerTeamLines
 } from './groupPrompt'
 import { factLines } from './facts'
+import { withoutClosedHouseBgs } from '@shared/houses'
 import { moodLine } from './moods'
 import { springBreakLines } from './springBreak'
 import {
@@ -1021,7 +1023,10 @@ function sceneSchema(
       ? { actions: { type: 'array', items: { type: 'string', enum: actions } } }
       : {}),
     // Cast room ids ride on the enum, never on the cached-prefix background lines.
-    bg: { type: 'string', enum: [...allBackgrounds(backgrounds), ...castRoomBgs(cast, state)] },
+    bg: {
+      type: 'string',
+      enum: [...withoutClosedHouseBgs(allBackgrounds(backgrounds)), ...castRoomBgs(cast, state)]
+    },
     text: { type: 'string' }
   }
 
@@ -1108,7 +1113,8 @@ function figurantLines(cast: readonly Character[], state: PromptState): string[]
       state.playerTeam
     )
   )
-  return line ? [line, ''] : []
+  const house = houseFigurantLine(state.sceneLocation)
+  return [...(line ? [line] : []), ...(house ? [house] : []), ...(line || house ? [''] : [])]
 }
 
 /**
@@ -2087,7 +2093,7 @@ export function buildLedgerPrompt(
           '- With two or more characters at the same time — a threesome, a shared kiss, a character joining in while he is with another: ONE row naming all of them. Never split it into a row per character.',
           '- With two characters separately — different moments, or different places: one row for each, naming one character.',
           'Repeats do not add rows: however many times the same characters kissed, that is one "kiss" row, and sleeping together is its own "sex" row beside it.',
-          '"inPublic" is true if anybody not taking part could have seen it — a passerby, somebody else in the room, a crowd — and false only when they were alone and out of sight. If the same characters were seen once and unseen once, say true.',
+          '"inPublic" is true if anybody not taking part could have seen it — a passerby, somebody else in the room, a crowd — and false only when they were alone and out of sight. A bedroom in a Greek house is out of sight; its living room and its party space are not. If the same characters were seen once and unseen once, say true.',
           'An empty "acts" list is the ordinary answer.',
           'Examples, for a cast of "mina_okafor — Mina Okafor" and "hazel_kim — Hazel Kim":',
           'SCENE he kisses Mina in the library, and later that hour kisses her again in the stacks',

@@ -21,6 +21,11 @@ const MAP_ANCHORS: Readonly<Record<string, MapAnchor>> = {
   'dorm:lowrise': { x: 0.6, y: 0.55 },
   'dorm:elysium': { x: 0.87, y: 0.8 },
   lowrise_dorms: { x: 0.6, y: 0.55 },
+  // Laurel Row, the strip between the river and the campus.
+  kappa_row: { x: 0.47, y: 0.33 },
+  xi_delt: { x: 0.49, y: 0.44 },
+  sig_lam: { x: 0.47, y: 0.55 },
+  pi_theta: { x: 0.49, y: 0.66 },
   agora: { x: 0.78, y: 0.56 },
   kendall_library: { x: 0.75, y: 0.41 },
   palaestra_stadium: { x: 0.8, y: 0.25 },

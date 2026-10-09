@@ -120,6 +120,32 @@ export const LOREBOOK: readonly LoreEntry[] = [
     text: `Redmere Institute of Technology is a small, stubborn engineering school that plays the Venus Jackrabbits in football; its teams are the Rivets, and its colors are orange and black.`
   },
   {
+    id: 'laurel_row',
+    keys: ['Laurel Row'],
+    text: `Laurel Row is the street of old mansions next to the campus where the four Greek houses stand: the fraternities Kappa Row and Xi Delt, and the sororities Sig Lam and Pi Theta.`
+  },
+  {
+    id: 'kappa_row',
+    // The first key is the one a scene set here is scanned by.
+    keys: ['Kappa Row', 'Kappa Rho Omega'],
+    text: `Kappa Row, formally Kappa Rho Omega, is the loud, athletic fraternity house on Laurel Row, with many football and basketball players among its brothers; it prizes Body. Its tradition is the bonfire on the eve of homecoming, it holds its mixers with Sig Lam, and its old rivalry with Xi Delt is about a ship's bell, stolen back and forth by pranks and never out of hate. Its members each have a room of their own in the house. bg for the front of the house: kappa_row_front.`
+  },
+  {
+    id: 'xi_delt',
+    keys: ['Xi Delt', 'Xi Delta Phi'],
+    text: `Xi Delt, formally Xi Delta Phi, is the fraternity house on Laurel Row of old money, sons of former members, suits and connections; it prizes Brain. Its tradition is the White Ball, the formal dance of the spring, it holds its mixers with Pi Theta, and its old rivalry with Kappa Row is about a ship's bell, stolen back and forth by pranks and never out of hate. Its members each have a room of their own in the house. bg for the front of the house: xi_delt_front.`
+  },
+  {
+    id: 'sig_lam',
+    keys: ['Sig Lam', 'Sigma Lambda Iota'],
+    text: `Sig Lam, formally Sigma Lambda Iota, is the social sorority house on Laurel Row, known for its parties and mixers and for many volleyball players among its sisters; it prizes Heart and holds its mixers with Kappa Row. Its members each have a room of their own in the house. bg for the front of the house: sig_lam_front.`
+  },
+  {
+    id: 'pi_theta',
+    keys: ['Pi Theta', 'Pi Theta Eta'],
+    text: `Pi Theta, formally Pi Theta Eta, is the academic and philanthropic sorority house on Laurel Row, upper middle class and known for its charity events; it prizes Brain. Its tradition is the charity auction of the fall, and it holds its mixers with Xi Delt. Its members each have a room of their own in the house. bg for the front of the house: pi_theta_front.`
+  },
+  {
     id: 'elysium_village',
     keys: ['Elysium Village', 'elysium', 'townhouse', 'senior housing', 'senior living'],
     text: `Elysium Village is the row of west-edge townhouses with spacious rooms, private patios, and surrounding woodland, claimed almost entirely by upperclassmen through a housing lottery, so an invite to a party there feels like being knighted. Residents keep a porch light code: on means visitors welcome, off means do not perceive me.`

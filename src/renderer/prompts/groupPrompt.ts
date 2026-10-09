@@ -10,6 +10,7 @@ import {
   type GroupResult,
   type TryoutResult
 } from '@shared/groups'
+import { HOUSES, isHouse } from '@shared/houses'
 import { locationLabel } from '@shared/locations'
 import { andList } from '@shared/sentences'
 import type { Occasion, TimeSlot } from '@shared/types'
@@ -59,6 +60,18 @@ export function groupFigurantLine(groups: readonly GroupDef[]): string {
   if (groups.length === 0) return ''
   const teams = andList(groups.map((def) => def.nickname))
   return `The coach and every member of ${teams} who has not been named above are unnamed background: never give any of them a name, only "the coach" or "a teammate".`
+}
+
+/**
+ * The line that keeps the members of a Greek house nameless when the scene is set at the house,
+ * or an empty string anywhere else. A defence in the prompt alone, like the team's.
+ */
+export function houseFigurantLine(location: string | null | undefined): string {
+  const id = location ? (loreEntryById(location)?.id ?? location) : undefined
+  if (!id || !isHouse(id)) return ''
+  const def = HOUSES[id]
+  const member = def.kind === 'fraternity' ? 'brother' : 'sister'
+  return `Every ${member} of ${def.nickname} who has not been named above is unnamed background: never give any of them a name, only "a ${member}".`
 }
 
 /** The line saying which team the reader is on, or nothing where he is on none. */

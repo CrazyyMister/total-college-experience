@@ -9,7 +9,9 @@ import {
   type StructuredRequest
 } from '@shared/types'
 import { DORM_IDS, FALLBACK_DORM, isDorm, type DormId } from '@shared/dorms'
+import { HOUSES, houseOfMember, type HouseMembers } from '@shared/houses'
 import { JOB_CATALOG, jobDefOf } from '@shared/jobs'
+import { pronounsOf } from '@shared/pronouns'
 import {
   ACTIVITY_LOCATIONS,
   FUN_LOCATIONS,
@@ -123,13 +125,39 @@ function freshmanKeyOf(roster: readonly Character[], ex: ExChoice | null | undef
   return character ? charKeyOf(character.firstName, character.lastName) : null
 }
 
-/** Builds the student-profile request; the reader's ex, where there is one, is given as a freshman. */
+/**
+ * The key of each student who lives in a Greek house, and so is no freshman, with the house.
+ * A house takes nobody the game gives as a freshman.
+ */
+function housedKeysOf(
+  roster: readonly Character[],
+  houses: HouseMembers | undefined
+): Array<{ key: string; character: Character; house: (typeof HOUSES)[keyof typeof HOUSES] }> {
+  if (!houses) return []
+  return roster.flatMap((character) => {
+    const id = houseOfMember(houses, character.charId)
+    return id ? [{ key: charKeyOf(character.firstName, character.lastName), character, house: HOUSES[id] }] : []
+  })
+}
+
+/**
+ * Builds the student-profile request; the reader's ex, where there is one, is given as a
+ * freshman, and whoever lives in a Greek house is given as living there and no freshman.
+ */
 export function buildProfilePrompt(
   roster: readonly Character[],
-  ex?: ExChoice | null
+  ex?: ExChoice | null,
+  houses?: HouseMembers
 ): StructuredRequest {
   const { keys, cast } = rosterCastLines(roster)
   const freshman = freshmanKeyOf(roster, ex)
+  const given = [
+    ...(freshman ? [`${freshman} is a freshman: her year is 1, whatever else you decide about her.`] : []),
+    ...housedKeysOf(roster, houses).map(
+      ({ key, character, house }) =>
+        `${key} lives in the ${house.nickname} ${house.kind} house on Laurel Row and is not a freshman: ${pronounsOf(character.gender).possessive} year is 2, 3 or 4. The dorm field is not used for ${pronounsOf(character.gender).object}: answer lowrise_1.`
+    )
+  ]
 
   const system = [
     'You are a university student affairs office profiling enrolled students.',
@@ -193,13 +221,7 @@ export function buildProfilePrompt(
   const rest = [
     'characters holds one entry per student below, its key exactly as written before their name, in the order listed.',
     '',
-    ...(freshman
-      ? [
-          'GIVEN',
-          `${freshman} is a freshman: her year is 1, whatever else you decide about her.`,
-          ''
-        ]
-      : []),
+    ...(given.length > 0 ? ['GIVEN', ...given, ''] : []),
     'STUDENTS',
     ...cast
   ].join('\n')
@@ -309,9 +331,11 @@ function foldByKey(
 export function validateProfileDraft(
   reply: ProfileGenReply,
   roster: readonly Character[],
-  ex?: ExChoice | null
+  ex?: ExChoice | null,
+  houses?: HouseMembers
 ): ProfileGenDraft {
   const freshman = freshmanKeyOf(roster, ex)
+  const housed = new Set(housedKeysOf(roster, houses).map(({ key }) => key))
   const validKeys = new Set(roster.map((c) => charKeyOf(c.firstName, c.lastName)))
   const folded = foldByKey(reply, validKeys)
   const characters: Record<string, CharProfileDraft> = {}
@@ -371,9 +395,14 @@ export function validateProfileDraft(
 
     // The handle and her winter posts are repaired, like the job, not fatal.
     // The reader's ex is always a freshman, whatever the reply says.
-    const year = key === freshman ? 1 : clamp(profile.year, 1, 4, `${key} year`)
+    let year = key === freshman ? 1 : clamp(profile.year, 1, 4, `${key} year`)
     if (key === freshman && profile.year !== 1) {
       console.warn(`[profiles] ${key} is the reader's ex and was given year ${profile.year}; using 1.`)
+    }
+    // Whoever lives in a Greek house is never a freshman, whatever the reply says.
+    if (housed.has(key) && year === 1) {
+      console.warn(`[profiles] ${key} lives in a Greek house and was given year 1; using 2.`)
+      year = 2
     }
     const rawHandle = typeof profile.handle === 'string' ? profile.handle.trim() : ''
     const handle = normalizeHandle(rawHandle)

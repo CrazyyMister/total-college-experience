@@ -231,6 +231,30 @@ export const LOCATIONS: readonly LocationDef[] = [
     icon: '🏈',
     onCampus: true,
     closesWithUniversity: true
+  },
+  {
+    id: 'kappa_row',
+    label: 'the Kappa Row house',
+    blurb: 'the Kappa Row fraternity house on Laurel Row, athletic and loud',
+    icon: '🍺'
+  },
+  {
+    id: 'pi_theta',
+    label: 'the Pi Theta house',
+    blurb: 'the Pi Theta sorority house on Laurel Row, studious and philanthropic',
+    icon: '📚'
+  },
+  {
+    id: 'sig_lam',
+    label: 'the Sig Lam house',
+    blurb: 'the Sig Lam sorority house on Laurel Row, social',
+    icon: '🪩'
+  },
+  {
+    id: 'xi_delt',
+    label: 'the Xi Delt house',
+    blurb: 'the Xi Delt fraternity house on Laurel Row, old money in suits',
+    icon: '🎩'
   }
 ]
 

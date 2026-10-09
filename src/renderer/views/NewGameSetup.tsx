@@ -1,7 +1,7 @@
 import type { JSX } from 'react'
 import { motion } from 'motion/react'
 import { COURSES } from '@shared/courses'
-import type { GroupId, TeamChoice } from '@shared/groups'
+import type { TeamChoice } from '@shared/groups'
 import { CheckField } from '../components/CheckField'
 import { SelectField } from '../components/SelectField'
 import { TitleTab } from '../components/TitleTab'
@@ -11,9 +11,9 @@ import '../vu_styles/NewGameSetup.css'
 /** The sections arrive one after another once the step has landed. */
 const SECTIONS_IN = dealt(0.2, 0.08)
 
-/** One team the roster can fill: who may be asked, and what has been asked so far. */
+/** One team or house the roster can fill: who may be asked, and what has been asked so far. */
 export interface TeamOffer {
-  id: GroupId
+  id: string
   /** The card's title. */
   title: string
   /** What the card says it is for. */
@@ -25,9 +25,9 @@ export interface TeamOffer {
   max: number
   /** Why the team will not be what was asked for, when it will not; shown on the card. */
   notice?: string
-  /** He can try out for it: it exists whoever joins, and left alone it is drawn. */
-  reader?: boolean
-  /** A team he can try out for that nothing has been asked of. */
+  /** It exists whoever joins, and left alone it is drawn: a team he can try out for, or a house. */
+  always?: boolean
+  /** One of those that nothing has been asked of. */
   auto?: boolean
   choice: TeamChoice
 }
@@ -48,12 +48,16 @@ export interface NewGameSetupProps {
   course: string
   /** Every team the roster has enough people for. */
   teams: readonly TeamOffer[]
+  /** The four Greek houses, which exist whoever of the roster lives in them. */
+  houses: readonly TeamOffer[]
   /** The start is under way: nothing here may change. */
   dead: boolean
   onOpenEx: () => void
   onCourse: (course: string) => void
   /** Null puts a team he can try out for back to drawn. */
-  onTeam: (id: GroupId, choice: TeamChoice | null) => void
+  onTeam: (id: string, choice: TeamChoice | null) => void
+  /** Null puts a house back to drawn. */
+  onHouse: (id: string, choice: TeamChoice | null) => void
 }
 
 /**
@@ -65,11 +69,17 @@ export function NewGameSetup({
   exLabel,
   course,
   teams,
+  houses,
   dead,
   onOpenEx,
   onCourse,
-  onTeam
+  onTeam,
+  onHouse
 }: NewGameSetupProps): JSX.Element {
+  const cards = [
+    ...teams.map((offer) => ({ offer, prefix: 'team', onChange: onTeam })),
+    ...houses.map((offer) => ({ offer, prefix: 'house', onChange: onHouse }))
+  ]
   return (
     <div className="vu-scroll-box vu-gamesetup">
       <motion.div
@@ -117,20 +127,20 @@ export function NewGameSetup({
           />
         </motion.section>
 
-        {teams.map((team) => (
+        {cards.map(({ offer: team, prefix, onChange }) => (
           <motion.section
-            key={team.id}
+            key={`${prefix}-${team.id}`}
             className="vu-gamesetup-card vu-paper"
             variants={panelUnderTab}
           >
             <TitleTab>{team.title}</TitleTab>
             <SelectField
-              id={`new-game-team-${team.id}`}
+              id={`new-game-${prefix}-${team.id}`}
               label="Members"
               hint={team.hint}
               value={team.auto ? 'auto' : String(team.choice.count)}
               onChange={(value) =>
-                onTeam(
+                onChange(
                   team.id,
                   value === 'auto'
                     ? null
@@ -142,7 +152,7 @@ export function NewGameSetup({
               }
               disabled={dead}
               options={[
-                ...(team.reader
+                ...(team.always
                   ? [
                       {
                         value: 'auto',
@@ -168,7 +178,7 @@ export function NewGameSetup({
                   return (
                     <CheckField
                       key={candidate.charId}
-                      id={`new-game-team-${team.id}-${candidate.charId}`}
+                      id={`new-game-${prefix}-${team.id}-${candidate.charId}`}
                       label={
                         candidate.elsewhere
                           ? `${candidate.label} (${candidate.elsewhere})`
@@ -181,7 +191,7 @@ export function NewGameSetup({
                         (!checked && team.choice.picked.length >= team.choice.count)
                       }
                       onChange={(on) =>
-                        onTeam(team.id, {
+                        onChange(team.id, {
                           count: team.choice.count,
                           picked: on
                             ? [...team.choice.picked, candidate.charId]

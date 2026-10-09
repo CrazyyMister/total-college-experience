@@ -1202,7 +1202,8 @@ const PROFILE_KEYS: Record<keyof CharProfile, true> = {
   moodCycleOffset: true,
   handle: true,
   springBreakPlans: true,
-  groups: true
+  groups: true,
+  house: true
 }
 
 /** The half of one entry a save file carries: everything the record already holds, dropped. */

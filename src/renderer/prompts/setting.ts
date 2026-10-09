@@ -18,7 +18,7 @@ Motto: Concordia et Prosperitas | Founded 2014 by Frederic Thorne | 6k Student P
 Venus University is a private megacampus built to maximize social connection. It admits students by a controversial lottery draw and funds a robust financial aid program off a seemingly bottomless endowment. The campus blends classical and ultra-modern architecture and walls itself off from the noisy city with lush gardens. Towering statues of Roman gods mark it: Venus in the quad, Zeus at the North Entrance, Hades at the South. Roads are paved with colored stone for navigation and purpose-built to be long and winding. The two major roads are the Gold Road, which links Zeus and Hades, and the Rose Road, which passes Venus and links the academic and residential areas. "Meet me where Gold crosses Rose" was cemented in national lingo by a romance film shot here called "Love Between Gods".
 
 Campus: Venus Quad (Concord Fountain), Agora (food court, study pods), Pino-Cola Lounge (games, study desks), Kendall Library, Whitman Greenhouse, Thorne Auditorium (concert hall, practice rooms, recording studios), Palaestra Stadium (gym, pool, turf, track).
-Housing: Elysium Village (upperclassmen townhouses), Lowrises 1 to 5 (anyone). All rooms are single-occupancy with shared facilities: no roommates.
+Housing: Elysium Village (upperclassmen townhouses), Lowrises 1 to 5 (anyone), and the Greek houses on Laurel Row (members only). All rooms are single-occupancy with shared facilities: no roommates, except that in a Greek house each member has a room of their own and the house is shared.
 Student government: VSA, split into CAPC (decor, plants) and SEB (events, mixers).
 Social App: Bunnyboard.
 

@@ -1,4 +1,4 @@
-import { dormSpotLabel } from '@shared/dorms'
+import { homeSpotLabel } from '@shared/homes'
 import { groupsAtPlace } from '@shared/groups'
 import { locationLabel, ROOM_LOCATION } from '@shared/locations'
 import {
@@ -62,7 +62,7 @@ function whereClause(
     return `in ${classes[encounter.ref]?.name ?? encounter.ref}`
   }
   if (encounter.kind === 'dorm') {
-    return `in ${dormSpotLabel(encounter.ref)}`
+    return `in ${homeSpotLabel(encounter.ref)}`
   }
   if (encounter.ref === ROOM_LOCATION) {
     const host = encounter.roomOf ? characters[encounter.roomOf] : undefined

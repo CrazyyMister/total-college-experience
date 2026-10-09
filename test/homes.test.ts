@@ -21,6 +21,15 @@ describe('where somebody lives', () => {
     expect(homeOf(source(), 'nobody')).toBeUndefined()
   })
 
+  it('reads the house a character belongs to over the dorm her record files, and a move over both', () => {
+    const housed = source({ charInfo: { sarah: { dorm: 'lowrise_2', house: 'pi_theta' } } })
+    expect(homeOf(housed, 'sarah')).toBe('pi_theta')
+    expect(homeOf({ ...housed, homeMoves: { sarah: 'lowrise_1' } }, 'sarah')).toBe('lowrise_1')
+    // Nothing moves the reader into a house but a move.
+    expect(homeOf(housed, READER)).toBe(STARTING_HOME)
+    expect(homeOf({ ...housed, homeMoves: { [READER]: 'kappa_row' } }, READER)).toBe('kappa_row')
+  })
+
   it('passes over a move that names no place', () => {
     const broken = source({ homeMoves: { [READER]: 'the_moon', sarah: '' } as never })
     expect(homeOf(broken, READER)).toBe(STARTING_HOME)

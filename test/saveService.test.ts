@@ -310,6 +310,32 @@ describe('a playthrough with a team', () => {
     expect((await saveService.loadSave('1', 'manual04')).groups).toBeUndefined()
   })
 
+  it('reads back the house a character lives in, and an enrollment with the houses it asked for', async () => {
+    const profile: CharProfile = {
+      year: 3,
+      dorm: 'lowrise_1',
+      major: 'Music',
+      schedule: {},
+      house: 'sig_lam'
+    }
+    const housed = await saveService.createPlaythrough(
+      record({ chars: ['a'], profiles: { a: profile } }),
+      draft()
+    )
+    const read = await saveService.readSave(housed.save.playthroughId, housed.save.saveId)
+    expect(read.record.profiles.a.house).toBe('sig_lam')
+
+    const housesChoice = { sig_lam: { count: 3, picked: ['a'] } }
+    const houses = { sig_lam: ['a', 'b'], kappa_row: ['c'] }
+    const withHouses = await saveService.writeEnrollment(enrollment({ housesChoice, houses }))
+    const without = await saveService.writeEnrollment(enrollment())
+    await expect(saveService.readEnrollment(withHouses.playthroughId)).resolves.toMatchObject({
+      housesChoice,
+      houses
+    })
+    expect((await saveService.readEnrollment(without.playthroughId)).houses).toBeUndefined()
+  })
+
   it('reads an enrollment with the teams it asked for, and one without', async () => {
     const teams = { swimming: { count: 4, picked: ['a'] } }
     const withTeams = await saveService.writeEnrollment(enrollment({ teams }))

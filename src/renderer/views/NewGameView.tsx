@@ -24,6 +24,16 @@ import {
   type GroupsRecord,
   type TeamsChoice
 } from '@shared/groups'
+import {
+  dealHouses,
+  HOUSE_IDS,
+  HOUSES,
+  houseOfMember,
+  housePool,
+  type HouseId,
+  type HouseMembers,
+  type HousesChoice
+} from '@shared/houses'
 import { rollSemesterWeather } from '@shared/weather'
 import { courseOf } from '@shared/courses'
 import { canBeEx, exSeedOf } from '@shared/exGirlfriend'
@@ -234,6 +244,13 @@ export function NewGameView(): JSX.Element {
   // The teams he asked for: how many of the roster, and whom by name; the rest are drawn at
   // Finalize. Carried by the enrollment, so a reopened registrar still has them.
   const [teamsChoice, setTeamsChoice] = useState<TeamsChoice>(resumed?.enrollment.teams ?? {})
+  // The same for the Greek houses: how many of the roster live in each, and whom by name.
+  const [housesChoice, setHousesChoice] = useState<HousesChoice>(
+    resumed?.enrollment.housesChoice ?? {}
+  )
+  // Who lives in each house, dealt when the game starts so the profile call can be told, and
+  // filed at Finalize; seeded from the enrollment where the registrar is being reopened.
+  const [houses, setHouses] = useState<HouseMembers>(resumed?.enrollment.houses ?? {})
   // The generated catalog, held between Start Game and Finalize and seeded from the enrollment
   // where the registrar is being reopened; why `classSelect` routes back to this component.
   const [schedules, setSchedules] = useState<ScheduleResult | null>(
@@ -517,7 +534,7 @@ export function NewGameView(): JSX.Element {
           }),
           min: def.minMembers,
           max: Math.min(def.maxMembers, left),
-          ...(def.readerPlays ? { reader: true, auto: held === undefined } : {}),
+          ...(def.readerPlays ? { always: true, auto: held === undefined } : {}),
           ...(notice ? { notice } : {}),
           choice: {
             count,
@@ -528,6 +545,74 @@ export function NewGameView(): JSX.Element {
         }
       }),
     [roster, teamsChoice]
+  )
+
+  // Every house has a card. A house exists whoever of the roster lives in it, so its card says
+  // only how many, and left alone it is drawn. The two houses of a kind share one pool of
+  // people, so a card's most is what the roster has left after the other's count; the reader's
+  // ex is a freshman, and no freshman is taken by a house.
+  const houseOffers = useMemo<TeamOffer[]>(
+    () =>
+      HOUSE_IDS.map((id) => {
+        const def = HOUSES[id]
+        const barred = new Set(activeEx ? [activeEx.charId] : [])
+        const eligible = housePool(def, roster, barred)
+        const held = housesChoice[id]
+        const others = HOUSE_IDS.filter((other) => other !== id && HOUSES[other].gender === def.gender)
+        // What the other house has claimed: its count, or the least a drawn house will take.
+        const spoken = others.reduce((sum, other) => {
+          const claim = housesChoice[other]
+          const least = HOUSES[other].minMembers
+          return sum + (claim ? claim.count : eligible.length >= least ? least : 0)
+        }, 0)
+        const left = Math.max(0, eligible.length - spoken)
+        const count = Math.min(held?.count ?? 0, def.maxMembers)
+        const ticked = new Map(
+          others.flatMap((other) =>
+            (housesChoice[other]?.picked ?? []).map(
+              (charId) => [charId, HOUSES[other].nickname] as const
+            )
+          )
+        )
+        const people = def.gender === 'man' ? 'men' : 'women'
+        let notice: string | undefined
+        if (eligible.length < def.minMembers) {
+          notice = `The roster has ${eligible.length} ${people} for a house that takes at least ${def.minMembers}: it will be only the unnamed.`
+        } else if (count > left) {
+          notice =
+            left < def.minMembers
+              ? `Only ${left} ${people} are left after the other house, and a house takes at least ${def.minMembers}: this one will be only the unnamed.`
+              : `Only ${left} ${people} are left after the other house: this one will have ${left}.`
+        }
+        return {
+          id,
+          title: def.nickname,
+          hint: `The ${people} of the roster who live in ${def.name}, a ${def.kind}. Tick the ones you want; the rest are drawn. A freshman, and so the ex, cannot live in a house.`,
+          candidates: roster
+            .filter((c) => c.gender === def.gender)
+            .map((c) => {
+              const elsewhere =
+                activeEx?.charId === c.charId ? 'the ex, a freshman' : ticked.get(c.charId)
+              return {
+                charId: c.charId,
+                label: `${c.firstName} ${c.lastName}`,
+                ...(elsewhere ? { elsewhere } : {})
+              }
+            }),
+          min: def.minMembers,
+          max: Math.min(def.maxMembers, left),
+          always: true,
+          auto: held === undefined,
+          ...(notice ? { notice } : {}),
+          choice: {
+            count,
+            picked: (held?.picked ?? []).filter(
+              (charId) => eligible.includes(charId) && !ticked.has(charId)
+            )
+          }
+        }
+      }),
+    [roster, housesChoice, activeEx]
   )
 
   // The two gates. Both go dead and say nothing: the roster beside them is what the
@@ -649,7 +734,19 @@ export function NewGameView(): JSX.Element {
     // The two questions are asked over the generation's wait, heights first; the calls
     // themselves are `stores/newGame.ts`'s.
     setNamed(false)
-    setStarting(startNewGame(roster, activeEx, courseChoice || undefined))
+    // Who lives in a house is settled now, before the profile call, so that it is told.
+    const dealt = dealHouses({
+      choice: housesChoice,
+      roster: roster.map((c) => ({
+        charId: c.charId,
+        gender: c.gender,
+        preferredStat: c.preferredStat
+      })),
+      barred: new Set(activeEx ? [activeEx.charId] : []),
+      seed: crypto.randomUUID()
+    })
+    setHouses(dealt)
+    setStarting(startNewGame(roster, activeEx, courseChoice || undefined, dealt))
     setSizing(true)
   }
 
@@ -683,7 +780,9 @@ export function NewGameView(): JSX.Element {
       ...(tokensGenerated > 0 ? { tokensGenerated } : {}),
       ...(activeEx ? { ex: activeEx } : {}),
       ...(courseChoice ? { playerCourse: courseChoice } : {}),
-      ...(Object.keys(teamsChoice).length > 0 ? { teams: teamsChoice } : {})
+      ...(Object.keys(teamsChoice).length > 0 ? { teams: teamsChoice } : {}),
+      ...(Object.keys(housesChoice).length > 0 ? { housesChoice } : {}),
+      ...(Object.keys(semester.houses).length > 0 ? { houses: semester.houses } : {})
     })
     if (!written.ok) {
       showError(written.error)
@@ -725,6 +824,7 @@ export function NewGameView(): JSX.Element {
         setFeeds(outcome.data.feeds)
         setSpringBreakPlans(outcome.data.springBreakPlans)
         setOccasions(outcome.data.occasions)
+        setHouses(outcome.data.houses)
         setView('classSelect')
       })
     })()
@@ -736,7 +836,7 @@ export function NewGameView(): JSX.Element {
    */
   function retryStart(): void {
     setStartFailure(null)
-    setStarting(retryNewGameStart(roster, activeEx, courseChoice || undefined))
+    setStarting(retryNewGameStart(roster, activeEx, courseChoice || undefined, houses))
   }
 
   /** The failure modal's way out. */
@@ -774,7 +874,30 @@ export function NewGameView(): JSX.Element {
         return
       }
       void (async () => {
-        const semester = { schedules, jobs, haunts, feeds, springBreakPlans, occasions }
+        // The canned semester says who is a freshman, and no freshman lives in a house.
+        const freshmen = Object.entries(schedules.perChar)
+          .filter(([, entry]) => entry.year === 1)
+          .map(([charId]) => charId)
+        const dealt = dealHouses({
+          choice: housesChoice,
+          roster: roster.map((c) => ({
+            charId: c.charId,
+            gender: c.gender,
+            preferredStat: c.preferredStat
+          })),
+          barred: new Set([...freshmen, ...(activeEx ? [activeEx.charId] : [])]),
+          seed: crypto.randomUUID()
+        })
+        setHouses(dealt)
+        const semester = {
+          schedules,
+          jobs,
+          haunts,
+          feeds,
+          springBreakPlans,
+          occasions,
+          houses: dealt
+        }
         await enroll(semester, first, last, stats, bio)
         endCrossing(() => setView('classSelect'))
       })()
@@ -1012,7 +1135,8 @@ export function NewGameView(): JSX.Element {
             ...(springBreakPlans[c.charId]
               ? { springBreakPlans: springBreakPlans[c.charId] }
               : {}),
-            ...(memberOf(c.charId).length > 0 ? { groups: memberOf(c.charId) } : {})
+            ...(memberOf(c.charId).length > 0 ? { groups: memberOf(c.charId) } : {}),
+            ...(houseOfMember(houses, c.charId) ? { house: houseOfMember(houses, c.charId) } : {})
           }
         ]
       })
@@ -1344,12 +1468,19 @@ export function NewGameView(): JSX.Element {
               exLabel={exCharacter ? `Ex: ${exCharacter.firstName}` : 'Add an ex'}
               course={courseChoice}
               teams={teamOffers}
+              houses={houseOffers}
               dead={exDead}
               onOpenEx={() => setChoosingEx(true)}
               onCourse={setCourseChoice}
               onTeam={(id, choice) =>
                 setTeamsChoice((held) => {
-                  const { [id]: _gone, ...rest } = held
+                  const { [id as GroupId]: _gone, ...rest } = held
+                  return choice ? { ...rest, [id]: choice } : rest
+                })
+              }
+              onHouse={(id, choice) =>
+                setHousesChoice((held) => {
+                  const { [id as HouseId]: _gone, ...rest } = held
                   return choice ? { ...rest, [id]: choice } : rest
                 })
               }

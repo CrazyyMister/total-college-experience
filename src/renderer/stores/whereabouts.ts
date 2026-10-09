@@ -1,4 +1,5 @@
 import { FALLBACK_DORM } from '@shared/dorms'
+import { isHouse } from '@shared/houses'
 import {
   homeGroupBlurb,
   homeGroupLabel,
@@ -81,6 +82,7 @@ type Section = Pick<
 
 /** The one place a dorm becomes a section key. */
 function dormPlaceKey(dorm: HomeId): string {
+  if (isHouse(dorm)) return dorm
   return dorm === 'elysium' ? 'dorm:elysium' : 'dorm:lowrise'
 }
 
@@ -105,13 +107,16 @@ function roomSection(home: HomeId): Section {
     placeLabel: homeGroupLabel(home),
     placeIcon: homeIcon(home),
     placeBlurb: homeGroupBlurb(home),
-    onCampus: true
+    // A Greek house stands on Laurel Row, beside the campus and not on it.
+    onCampus: !isHouse(home)
   }
 }
 
 /** The section a location id fills. */
 function placeSection(id: string): Section {
   if (id === LOWRISE_LOCATION) return roomSection(FALLBACK_DORM)
+  // A house is the same section whether somebody stands at its door or is in her room there.
+  if (isHouse(id)) return roomSection(id)
   const def = locationDefOf(id)
   return {
     placeKey: id,

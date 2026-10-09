@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dormSpotsOf } from '@shared/dorms'
+import { homeSpotsOf } from '@shared/homes'
 import { ROOM_LOCATION } from '@shared/locations'
 import type { NpcEncounterGroup } from '@shared/npcRelationships'
 import { MAX_GROUP } from '../src/renderer/stores/npcOverlay'
@@ -77,7 +77,7 @@ describe('rollDormRunIns', () => {
     /** The rooms the building `charId` lives in has, as ids. */
     const spotsFor = (charId: string): string[] => {
       const building = chars[charId].building
-      return building === null ? [] : dormSpotsOf(building).map((spot) => spot.id)
+      return building === null ? [] : homeSpotsOf(building).map((spot) => spot.id)
     }
     for (let run = 0; run < RUNS; run++) {
       for (const group of rollDormRunIns(chars)) {

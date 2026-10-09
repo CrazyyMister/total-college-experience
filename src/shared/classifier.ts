@@ -59,7 +59,7 @@ const CLASSIFIER_SYSTEM = [
   'Set "goingToClass" to true when the sentence is about attending, going to, heading to, or showing up for a class or lecture, even if it does not say which one, and false otherwise.',
   'When it is true and the sentence identifies a class on the list — by code or by title — set "classCode" to that class\'s code: the short identifier before the "—", such as "BIO 210", copied exactly, spaces and all. Otherwise "classCode" is an empty string — including when the sentence names a class that is not on the list.',
   '',
-  'Set "inPublic" to true when the sentence puts the scene somewhere other people are around — a dining hall, a quad, a library, a lecture hall, a shop, a street — and to false when it puts it somewhere private, such as a bedroom, a dorm room, an office, or an empty apartment.',
+  'Set "inPublic" to true when the sentence puts the scene somewhere other people are around — a dining hall, a quad, a library, a lecture hall, a shop, a street — and to false when it puts it somewhere private, such as a bedroom, a dorm room, a bedroom in a Greek house, an office, or an empty apartment. The living room, the party space and the porch of a Greek house have people around, so they are not private.',
   'When the sentence does not say where it happens, answer true.',
   '',
   'Set "goingToWork" to true when the sentence is about going to, heading to, showing up for, starting, or getting on with a paid job or shift — "go to work", "head in for my shift", "clock in at the cafe" — and false otherwise. Studying, doing coursework, and helping somebody out for free are not work. If "goingToClass" is true, "goingToWork" is false.',

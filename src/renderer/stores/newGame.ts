@@ -1,4 +1,5 @@
 import { appError, toAppError } from '@shared/errors'
+import type { HouseMembers } from '@shared/houses'
 import { emptyTallies } from '@shared/tallies'
 import {
   charKeyOf,
@@ -58,6 +59,8 @@ export interface StartResult {
   /** What each of them does with spring break, by charId. */
   springBreakPlans: Record<string, string>
   occasions: Occasion[]
+  /** Who lives in each Greek house, as the profile call was told. */
+  houses: HouseMembers
 }
 
 /**
@@ -75,6 +78,8 @@ interface StartAttempt {
   ex: ExChoice | null
   /** The reader's course, or undefined where he picked none. */
   playerCourse?: string
+  /** Who lives in each Greek house, dealt before the profile call so it can be told. */
+  houses?: HouseMembers
   classRequest: ReturnType<typeof buildClassPrompt>
   profileRequest: ReturnType<typeof buildProfilePrompt>
   occasionRequests: OccasionRequest[]
@@ -173,7 +178,7 @@ async function fetchProfiles(current: StartAttempt): Promise<Result<ProfileGenDr
   )
   if (!generated.ok) return { ok: false, error: generated.error }
   try {
-    return { ok: true, data: validateProfileDraft(generated.data, current.roster, current.ex) }
+    return { ok: true, data: validateProfileDraft(generated.data, current.roster, current.ex, current.houses) }
   } catch (err) {
     return { ok: false, error: toAppError(err) }
   }
@@ -265,7 +270,8 @@ async function runAttempt(current: StartAttempt, mine: object): Promise<StartOut
       haunts: byCharId(hiddenScheduleAssignmentsOf(profiles)),
       feeds: byCharId(feedAssignmentsOf(profiles)),
       springBreakPlans: byCharId(springBreakAssignmentsOf(profiles)),
-      occasions: occasionResult.data
+      occasions: occasionResult.data,
+      houses: current.houses ?? {}
     }
   }
 }
@@ -277,7 +283,8 @@ async function runAttempt(current: StartAttempt, mine: object): Promise<StartOut
 export async function startNewGame(
   roster: readonly Character[],
   ex: ExChoice | null = null,
-  playerCourse?: string
+  playerCourse?: string,
+  houses?: HouseMembers
 ): Promise<StartOutcome> {
   const mine = {}
   run = mine
@@ -291,8 +298,9 @@ export async function startNewGame(
     roster,
     ex,
     ...(playerCourse ? { playerCourse } : {}),
+    ...(houses ? { houses } : {}),
     classRequest: buildClassPrompt(roster, playerCourse),
-    profileRequest: buildProfilePrompt(roster, ex),
+    profileRequest: buildProfilePrompt(roster, ex, houses),
     occasionRequests,
     occasionRequest: buildOccasionPrompt(occasionRequests)
   }
@@ -308,10 +316,11 @@ export async function startNewGame(
 export async function retryNewGameStart(
   roster: readonly Character[],
   ex: ExChoice | null = null,
-  playerCourse?: string
+  playerCourse?: string,
+  houses?: HouseMembers
 ): Promise<StartOutcome> {
   const current = attempt
-  if (!current) return startNewGame(roster, ex, playerCourse)
+  if (!current) return startNewGame(roster, ex, playerCourse, houses)
   const mine = {}
   run = mine
   sleepers = []

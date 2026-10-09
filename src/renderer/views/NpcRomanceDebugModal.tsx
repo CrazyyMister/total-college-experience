@@ -4,6 +4,7 @@ import { motion } from 'motion/react'
 import { breakthroughMeterNow, lastBreakthroughUse, METER_MAX } from '@shared/breakthrough'
 import { factsKnownBy } from '@shared/facts'
 import { GROUP_IDS, GROUPS } from '@shared/groups'
+import { HOUSE_IDS, HOUSES } from '@shared/houses'
 import { MAX_STRIKES, shiftSlotFullLabel } from '@shared/jobs'
 import { locationLabel } from '@shared/locations'
 import { pairKeyOf } from '@shared/npcRelationships'
@@ -194,6 +195,20 @@ function sectionsOf(): DebugSection[] {
       })
     ]
   })
+  // Who lives in each Greek house, from the profiles; a house with nobody of the roster is the
+  // unnamed.
+  for (const id of HOUSE_IDS) {
+    const named = game.chars
+      .filter((charId) => game.charInfo[charId]?.house === id)
+      .map((charId) => game.characters[charId]?.firstName ?? charId)
+    groupRows.push({
+      key: id,
+      who: HOUSES[id].name,
+      facts: `${HOUSES[id].nickname}, a ${HOUSES[id].kind}: ${
+        named.length === 0 ? 'nobody from the roster' : `${named.length} of the roster (${named.join(', ')})`
+      }`
+    })
+  }
   if (groupRows.length === 0) {
     groupRows.push({ key: 'none', who: 'No groups', facts: 'This game formed none.' })
   }

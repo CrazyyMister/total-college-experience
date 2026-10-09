@@ -12,17 +12,28 @@ import {
   dormIcon,
   dormLabel,
   dormSentence,
+  dormSpotLabel,
+  dormSpotsOf,
   isDorm,
   type DormBuilding,
   type DormId
 } from './dorms'
+import {
+  HOUSES,
+  HOUSE_SPOTS,
+  houseClause,
+  houseSentence,
+  isHouse,
+  type HouseId
+} from './houses'
+import { ELYSIUM_LOCATION, locationDefOf, LOWRISE_LOCATION } from './locations'
 import type { CharInfo, Gender } from './types'
 
-/** Every place somebody can live. Today that is the dorms; the Greek houses join it later. */
-export type HomeId = DormId
+/** Every place somebody can live: the dorms, and the four Greek houses on Laurel Row. */
+export type HomeId = DormId | HouseId
 
-/** The building a home is in, as the map and the neighbor run-ins group it. */
-export type HomeBuilding = DormBuilding
+/** The building a home is in, as the map and the neighbor run-ins group it: a house is its own. */
+export type HomeBuilding = DormBuilding | HouseId
 
 /** Where the reader lives when he arrives, and until something moves him. */
 export const STARTING_HOME: HomeId = 'lowrise_4'
@@ -35,15 +46,18 @@ export const READER = 'player'
 
 /** Whether `value` names a place somebody can live. */
 export function isHome(value: string): value is HomeId {
-  return isDorm(value)
+  return isDorm(value) || isHouse(value)
 }
 
 /** What {@link homeOf} reads: the moves a save holds, and the characters' records. */
 export interface HomeSource {
   /** Where the save says somebody lives now, by {@link READER} or charId. */
   homeMoves: Readonly<Record<string, HomeId>>
-  /** Where each character's dorm is filed, which is her home until a move says otherwise. */
-  charInfo: Readonly<Record<string, Pick<CharInfo, 'dorm'> | undefined>>
+  /**
+   * Where each character is filed: the house she belongs to, and failing that her dorm, which is
+   * her home until a move says otherwise.
+   */
+  charInfo: Readonly<Record<string, Pick<CharInfo, 'dorm' | 'house'> | undefined>>
 }
 
 /**
@@ -58,7 +72,8 @@ export function homeOf(source: HomeSource, who: string): HomeId | undefined {
   const moved = source.homeMoves[who]
   if (moved !== undefined && isHome(moved)) return moved
   if (who === READER) return STARTING_HOME
-  return source.charInfo[who]?.dorm
+  const filed = source.charInfo[who]
+  return filed?.house ?? filed?.dorm
 }
 
 /**
@@ -75,62 +90,72 @@ export function withHomeMove(
 
 /** What a home is called everywhere it is printed. */
 export function homeLabel(home: HomeId): string {
-  return dormLabel(home)
+  return isHouse(home) ? HOUSES[home].nickname : dormLabel(home)
 }
 
 /** The ` | She has a single room at …` tail of a cast block's labeled facts line. */
 export function homeClause(home: HomeId, gender: Gender): string {
-  return dormClause(home, gender)
+  return isHouse(home) ? houseClause(home, gender) : dormClause(home, gender)
 }
 
 /** The same fact as lorebook prose. */
 export function homeSentence(home: HomeId, gender: Gender): string {
-  return dormSentence(home, gender)
+  return isHouse(home) ? houseSentence(home, gender) : dormSentence(home, gender)
 }
 
 /** The building a home is in, or null for somebody who has none. */
 export function homeBuildingOf(home: HomeId | undefined): HomeBuilding | null {
-  return dormBuildingOf(home)
+  if (home !== undefined && isHouse(home)) return home
+  return dormBuildingOf(home as DormId | undefined)
 }
 
 /** What the map calls the building a room is in. */
 export function homeGroupLabel(home: HomeId): string {
-  return dormGroupLabel(home)
+  return isHouse(home) ? HOUSES[home].nickname : dormGroupLabel(home)
 }
 
 /** The glyph the map draws that building with. */
 export function homeIcon(home: HomeId): string {
-  return dormIcon(home)
+  return isHouse(home) ? (locationDefOf(home)?.icon ?? '🏠') : dormIcon(home)
 }
 
 /** The one line the map says about the building a room is in. */
 export function homeGroupBlurb(home: HomeId): string {
-  return dormGroupBlurb(home)
+  return isHouse(home) ? (locationDefOf(home)?.blurb ?? '') : dormGroupBlurb(home)
 }
 
 /** What the reader's own block says he has: `a single dorm in Lowrise 4`. */
 export function readerHolding(home: HomeId): string {
-  return `a single dorm in ${homeLabel(home)}`
+  return isHouse(home) ? `a room of his own in the ${homeLabel(home)} house` : `a single dorm in ${homeLabel(home)}`
 }
 
 /** His room in the words a narration prompt uses: `Lowrise dorm room`. */
 export function homeRoomWords(home: HomeId): string {
+  if (isHouse(home)) return `${homeLabel(home)} house room`
   return home === 'elysium' ? 'Elysium Village townhouse' : 'Lowrise dorm room'
 }
 
 /** The door a collector waits at, in the words of the game-over prose: `the Lowrise door`. */
 export function homeDoorWords(home: HomeId): string {
+  if (isHouse(home)) return `the ${homeLabel(home)} door`
   return home === 'elysium' ? 'the Elysium Village door' : 'the Lowrise door'
 }
 
 /** Which of the five Lowrises a home is, or null for any other home. */
 export function lowriseNumberOf(home: HomeId): number | null {
-  return home === 'elysium' ? null : Number(home.slice(-1))
+  return isHouse(home) || home === 'elysium' ? null : Number(home.slice(-1))
 }
 
 /** The shared spaces of a home that the reader's action suggestions are set in. */
 export function homeSharedPlaces(home: HomeId): { courtyard: string; kitchen: string; lounge: string } {
   const label = homeLabel(home)
+  if (isHouse(home)) {
+    return {
+      courtyard: `the ${label} front lawn`,
+      kitchen: `the ${label} kitchen`,
+      lounge: `the ${label} common room`
+    }
+  }
   return {
     courtyard: `the ${label} courtyard`,
     kitchen: `the ${label} kitchen`,
@@ -139,12 +164,28 @@ export function homeSharedPlaces(home: HomeId): { courtyard: string; kitchen: st
 }
 
 /** Every background that is somebody's own room, which the audio keeps silent. */
-export const HOME_ROOM_BGS: readonly string[] = ['lowrise_dorm_room']
+export const HOME_ROOM_BGS: readonly string[] = ['lowrise_dorm_room', 'kappa_row_room', 'xi_delt_room']
 
 /**
- * The background drawn for a home's room. Only the Lowrise room exists until the Greek houses
- * bring their own, so every dorm shows it.
+ * The background drawn for a home's room: a fraternity's own room for its members, and the
+ * Lowrise room for everybody else, the sororities having no room of their own drawn.
  */
-export function homeRoomBg(_home: HomeId): string {
-  return HOME_ROOM_BGS[0]
+export function homeRoomBg(home: HomeId): string {
+  return isHouse(home) && HOUSES[home].kind === 'fraternity' ? `${home}_room` : HOME_ROOM_BGS[0]
+}
+
+/** The place a building is, as the scenes and the map name it. */
+export function buildingLocationOf(building: HomeBuilding): string {
+  if (isHouse(building)) return building
+  return building === 'elysium' ? ELYSIUM_LOCATION : LOWRISE_LOCATION
+}
+
+/** The shared rooms a building has, where a resident is run into. */
+export function homeSpotsOf(building: HomeBuilding): readonly { id: string; label: string }[] {
+  return isHouse(building) ? HOUSE_SPOTS.filter((spot) => spot.house === building) : dormSpotsOf(building)
+}
+
+/** What a shared room is called where it is printed; an unknown id answers itself. */
+export function homeSpotLabel(id: string): string {
+  return HOUSE_SPOTS.find((spot) => spot.id === id)?.label ?? dormSpotLabel(id)
 }

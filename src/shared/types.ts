@@ -14,6 +14,7 @@ import type { PromptKind } from './promptKinds'
 import type { RumorPassOutcome } from './rumors'
 import type { DormId } from './dorms'
 import type { GroupId, GroupsRecord, GroupsSave, TeamsChoice } from './groups'
+import type { HouseId, HouseMembers, HousesChoice } from './houses'
 import type { HomeId } from './homes'
 import type { AudioGroup } from './audio'
 import type { ComfyGpu } from './setupManifest'
@@ -780,6 +781,8 @@ export interface CharProfile extends CharSchedule {
   springBreakPlans?: string
   /** The groups she belongs to, settled at New Game; absent for a girl on no team. */
   groups?: GroupId[]
+  /** The Greek house she lives in from the first day, settled at New Game; absent for anybody in none. */
+  house?: HouseId
 }
 
 /** The half a playthrough accumulates — what every save file carries about her. */
@@ -2016,6 +2019,10 @@ export type EnrollmentDraft = QuickstartBundle & {
   playerCourse?: string
   /** The teams New Game asked for, drawn and dealt at Finalize. */
   teams?: TeamsChoice
+  /** The houses New Game asked for, so a reopened registrar still has them. */
+  housesChoice?: HousesChoice
+  /** Who of the roster lives in each house, drawn when the game started and filed at Finalize. */
+  houses?: HouseMembers
 }
 
 /**

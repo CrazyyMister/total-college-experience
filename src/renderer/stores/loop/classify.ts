@@ -5,8 +5,8 @@ import {
 } from '@shared/classifier'
 import { charKeyOf, fullNameOf, type AppError } from '@shared/types'
 import { jobDefOf } from '@shared/jobs'
-import { homeBuildingOf, type HomeId } from '@shared/homes'
-import { locationDefOf, LOWRISE_LOCATION, ROOM_LOCATION } from '@shared/locations'
+import { buildingLocationOf, homeBuildingOf } from '@shared/homes'
+import { locationDefOf, ROOM_LOCATION } from '@shared/locations'
 import { useGameStore } from '../gameStore'
 import { createRetryGate } from '../retryGate'
 import { charHiddenLocationNow, charJobNow, charRoomHomeNow, playerClassNow } from '../timetable'
@@ -145,8 +145,10 @@ function occupiedLocations(): { id: string; blurb: string }[] {
     }
     const location = charHiddenLocationNow(charId)
     if (location === ROOM_LOCATION) {
-      const home = charRoomHomeNow(charId)
-      if (home !== undefined && isLowrise(home)) add(LOWRISE_LOCATION)
+      // The building her room is in, where she can be met: the Lowrises and the Greek houses
+      // have a place of their own, and Elysium, which has none to list, drops out below.
+      const building = homeBuildingOf(charRoomHomeNow(charId))
+      if (building !== null) add(buildingLocationOf(building))
       continue
     }
     add(location)
@@ -156,11 +158,6 @@ function occupiedLocations(): { id: string; blurb: string }[] {
     const def = locationDefOf(id)
     return def ? [{ id: def.id, blurb: def.blurb }] : []
   })
-}
-
-/** Whether a home is one of the shared Lowrises rather than an Elysium townhouse. */
-function isLowrise(home: HomeId): boolean {
-  return homeBuildingOf(home) === 'lowrise'
 }
 
 /**

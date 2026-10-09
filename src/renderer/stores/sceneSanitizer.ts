@@ -4,6 +4,7 @@ import {
   type BreakthroughResult
 } from '@shared/breakthrough'
 import { romancesReader } from '@shared/characterRules'
+import { withoutClosedHouseBgs } from '@shared/houses'
 import { settleDating, type DatingPassInput, type DatingPassOutcome } from '@shared/dating'
 import { isStockOutfitSet, parseSpriteRef } from '@shared/outfits'
 import type { PlayerStats } from '@shared/playerStats'
@@ -141,7 +142,10 @@ export function createSceneSanitizer(options: SanitizerOptions = {}): {
   const game = useGameStore.getState()
   const knownKeys = new Set(Object.keys(game.charKeyToId))
   // Flat across categories.
-  const backgrounds = new Set(allBackgrounds(useAssetStore.getState().backgrounds))
+  // The insides of the Greek houses are closed to every scene until a house lets the reader in.
+  const backgrounds = new Set(
+    withoutClosedHouseBgs(allBackgrounds(useAssetStore.getState().backgrounds))
+  )
   // Cast members' room bgs are legal exactly when the prompt offered them: both images on disk.
   for (const charId of game.cast) {
     const character = game.characters[charId]
