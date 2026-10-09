@@ -8,7 +8,7 @@ import { LAST_CLASS_DATE } from './classes'
 import { seededRand } from './hash'
 import { MAX_STRIKES, SHIFT_SLOTS, shiftSlotFullLabel } from './jobs'
 import { isLocationOpen, locationLabel } from './locations'
-import { tierOf, type ShiftGain } from './playerStats'
+import { MAX_TIER, tierOf, type ShiftGain } from './playerStats'
 import { pronounsOf } from './pronouns'
 import { shuffle } from './shuffle'
 import type { Gender, Occasion, OutfitSet, ShiftSlot, TimeSlot } from './types'
@@ -19,7 +19,7 @@ export type GroupId = 'swimming' | 'volleyball' | 'basketball' | 'football'
 export const GROUP_IDS: readonly GroupId[] = ['swimming', 'volleyball', 'basketball', 'football']
 
 /** A school the groups meet in the field. */
-export type SchoolId = 'port_calder' | 'veridan_state'
+export type SchoolId = 'port_calder' | 'veridan_state' | 'ashgrove' | 'redmere'
 
 export interface SchoolDef {
   id: SchoolId
@@ -43,6 +43,18 @@ export const SCHOOLS: Readonly<Record<SchoolId, SchoolDef>> = {
     name: 'Veridan State University',
     nickname: 'Wardens',
     short: 'Veridan State'
+  },
+  ashgrove: {
+    id: 'ashgrove',
+    name: 'Ashgrove University',
+    nickname: 'Owls',
+    short: 'Ashgrove'
+  },
+  redmere: {
+    id: 'redmere',
+    name: 'Redmere Institute of Technology',
+    nickname: 'Rivets',
+    short: 'Redmere'
   }
 }
 
@@ -99,8 +111,15 @@ export interface GroupDef {
   eventName: string
   /** What its event is called in the calendar's description of it. */
   eventKind: string
-  /** How an event is scored: points shared out, or the sets of a match played to three. */
-  scoring: { kind: 'points'; total: number } | { kind: 'sets'; toWin: number }
+  /**
+   * How an event is scored: points shared out, the sets of a match played to three, a college
+   * basketball score, or a football score made of touchdowns and field goals.
+   */
+  scoring:
+    | { kind: 'points'; total: number }
+    | { kind: 'sets'; toWin: number }
+    | { kind: 'hoops' }
+    | { kind: 'gridiron' }
   events: readonly GroupEventDef[]
   /**
    * Whether the reader can try out for it. Such a team exists whoever of the roster is on it,
@@ -187,8 +206,16 @@ export const GROUPS: Readonly<Record<GroupId, GroupDef>> = {
     maxMembers: 3,
     eventName: 'basketball game',
     eventKind: 'game',
-    scoring: { kind: 'points', total: 160 },
-    events: [],
+    scoring: { kind: 'hoops' },
+    // Saturday nights from February 7 and April 4, then the nearest free ones, then a Sunday night.
+    events: [
+      { id: 'basketball-game-1', rival: 'ashgrove', candidates: [26, 19, 33, 40, 27, 20, 34, 41] },
+      {
+        id: 'basketball-game-2',
+        rival: 'ashgrove',
+        candidates: [75, 68, 82, 89, 96, 103, 76, 69, 83, 90, 97, 104]
+      }
+    ],
     readerPlays: true,
     // A Saturday first, then the other days of the first week, then the second week.
     tryout: {
@@ -222,8 +249,16 @@ export const GROUPS: Readonly<Record<GroupId, GroupDef>> = {
     maxMembers: 3,
     eventName: 'football game',
     eventKind: 'game',
-    scoring: { kind: 'points', total: 60 },
-    events: [],
+    scoring: { kind: 'gridiron' },
+    // Saturday nights from February 28 and April 18, then the nearest free ones, then a Sunday night.
+    events: [
+      { id: 'football-game-1', rival: 'redmere', candidates: [40, 33, 26, 19, 41, 34, 27, 20] },
+      {
+        id: 'football-game-2',
+        rival: 'redmere',
+        candidates: [89, 96, 82, 75, 103, 90, 97, 83, 76, 104]
+      }
+    ],
     readerPlays: true,
     tryout: {
       id: 'football-tryout',
@@ -315,6 +350,10 @@ export interface GroupTeam {
   settledThrough: number
   /** The slot ids of practices he went to that are still to be judged. */
   attendedSlots: number[]
+  /** The practices his team has held since he joined, judged. */
+  held: number
+  /** Of those, the ones he went to. */
+  attended: number
 }
 
 /** A team as a save keeps it: the fields a save from before practices counted are absent. */
@@ -331,7 +370,9 @@ export function teamOfSave(saved: SavedTeam, standingSlot: number): GroupTeam {
     since: saved.since,
     strikes: saved.strikes ?? 0,
     settledThrough: saved.settledThrough ?? standingSlot - 1,
-    attendedSlots: saved.attendedSlots ?? []
+    attendedSlots: saved.attendedSlots ?? [],
+    held: saved.held ?? 0,
+    attended: saved.attended ?? 0
   }
 }
 /**
@@ -625,6 +666,12 @@ export function groupSentence(ids: readonly string[] | undefined, gender: Gender
 export const WIN_BASE = 0.4
 export const WIN_PER_STRENGTH = 0.3
 
+/** The same for a men's team, whose reader can play: the base is higher and he adds his own. */
+export const MEN_WIN_BASE = 0.45
+export const MEN_WIN_PER_STRENGTH = 0.15
+export const MEN_WIN_PER_READER = 0.3
+export const MEN_WIN_CAP = 0.9
+
 /** How many of the members are free to be there, from 0 to 1. */
 export function eventStrength(
   members: readonly string[],
@@ -634,24 +681,96 @@ export function eventStrength(
   return members.filter(isFree).length / members.length
 }
 
+/**
+ * A team's strength on a night. A men's team with nobody of the roster on it is all unnamed
+ * teammates, who are always there.
+ */
+export function teamStrength(
+  group: GroupDef,
+  members: readonly string[],
+  isFree: (charId: string) => boolean
+): number {
+  if (members.length === 0 && group.readerPlays) return 1
+  return eventStrength(members, isFree)
+}
+
+/** What the reader brings to a game he plays: his Body tier and the share of practices he went to. */
+export interface ReaderPlay {
+  tier: number
+  /** From 0 to 1; 1 for a team that has not practiced yet. */
+  practiceShare: number
+}
+
+/** The share of his team's practices he went to; a team that has not practiced counts as all. */
+export function practiceShareOf(team: Pick<GroupTeam, 'held' | 'attended'>): number {
+  return team.held > 0 ? Math.min(1, team.attended / team.held) : 1
+}
+
 /** The odds a group wins an event at this strength. */
 export function winChance(strength: number): number {
   return WIN_BASE + WIN_PER_STRENGTH * Math.min(1, Math.max(0, strength))
 }
 
 /**
- * How an event ends: won by the odds and the seed, and scored out of the group's points with the
- * winner on 52% to 64% of them, or by the sets of a match played to three, the loser taking none,
- * one or two of them. The same group, strength and seed always end it the same way.
+ * The odds a men's team wins a game at this strength, with the reader's part when he plays: his
+ * Body tier (0 at the first, 1 at the last) times the share of practices he went to.
  */
-export function gameResult(group: GroupDef, strength: number, seed: string): GroupResult {
+export function menWinChance(strength: number, reader?: ReaderPlay): number {
+  const team = MEN_WIN_BASE + MEN_WIN_PER_STRENGTH * Math.min(1, Math.max(0, strength))
+  const body = reader ? (reader.tier - 1) / (MAX_TIER - 1) : 0
+  const part = reader ? MEN_WIN_PER_READER * body * Math.min(1, Math.max(0, reader.practiceShare)) : 0
+  return Math.min(MEN_WIN_CAP, team + part)
+}
+
+/** A football team's points: touchdowns of seven and field goals of three. */
+function gridironPoints(rand: () => number, touchdowns: number, spanTd: number): number {
+  return 7 * (touchdowns + Math.floor(rand() * spanTd)) + 3 * Math.floor(rand() * 3)
+}
+
+/** The winner's and the loser's points of a football game: 24–17, never a score the sport cannot make. */
+function gridironScore(rand: () => number): [number, number] {
+  for (let tries = 0; tries < 40; tries++) {
+    const winner = gridironPoints(rand, 2, 4)
+    const loser = gridironPoints(rand, 0, 4)
+    if (winner > loser) return [winner, loser]
+  }
+  return [24, 17]
+}
+
+/** The winner's and the loser's points of a college basketball game: 64 to 95, by a few to twenty-four. */
+function hoopsScore(rand: () => number): [number, number] {
+  const winner = 64 + Math.floor(rand() * 32)
+  const margin = 1 + Math.floor(rand() * rand() * 24)
+  return [winner, winner - margin]
+}
+
+/**
+ * How an event ends: won by the odds and the seed, and scored by the sport: the winner on 52% to
+ * 64% of a share of points, the sets of a match played to three (the loser taking none, one or
+ * two of them), a college basketball score, or a football score of threes and sevens. The same
+ * group, strength, reader and seed always end it the same way.
+ */
+export function gameResult(
+  group: GroupDef,
+  strength: number,
+  seed: string,
+  reader?: ReaderPlay
+): GroupResult {
   const rand = seededRand(seed)
-  const won = rand() < winChance(strength)
+  const chance = group.readerPlays ? menWinChance(strength, reader) : winChance(strength)
+  const won = rand() < chance
   const { scoring } = group
-  const winner =
-    scoring.kind === 'sets' ? scoring.toWin : Math.round(scoring.total * (0.52 + rand() * 0.12))
-  const loser =
-    scoring.kind === 'sets' ? Math.floor(rand() * scoring.toWin) : scoring.total - winner
+  let winner: number
+  let loser: number
+  if (scoring.kind === 'gridiron') [winner, loser] = gridironScore(rand)
+  else if (scoring.kind === 'hoops') [winner, loser] = hoopsScore(rand)
+  else if (scoring.kind === 'sets') {
+    winner = scoring.toWin
+    loser = Math.floor(rand() * scoring.toWin)
+  } else {
+    winner = Math.round(scoring.total * (0.52 + rand() * 0.12))
+    loser = scoring.total - winner
+  }
   return won ? { won, home: winner, away: loser } : { won, home: loser, away: winner }
 }
 
@@ -805,18 +924,19 @@ export function placeGroupEvents(input: EventPlacementInput): {
     else leave(id, tryout.id, reason)
   }
   for (const id of GROUP_IDS) {
-    const members = input.members[id]
-    if (!members || members.length === 0) continue
+    const members = input.members[id] ?? []
+    const reads = GROUPS[id].readerPlays
+    // A team the reader can join plays whoever of the roster is on it, so it is never skipped.
+    if (members.length === 0 && !reads) continue
     for (const event of GROUPS[id].events) {
-      const { day, reason } = dayFor(
-        event.candidates,
-        GROUP_EVENT_TIME,
-        members,
-        MIN_SESSION_ATTENDEES,
-        false
-      )
-      if (day !== undefined) placed.push(groupEventOccasion(GROUPS[id], event, day))
-      else leave(id, event.id, reason)
+      const least = reads ? Math.min(MIN_SESSION_ATTENDEES, members.length) : MIN_SESSION_ATTENDEES
+      let found = dayFor(event.candidates, GROUP_EVENT_TIME, members, least, false)
+      // A men's game with nobody named free is the last choice, not none: the unnamed play it.
+      if (found.day === undefined && reads) {
+        found = dayFor(event.candidates, GROUP_EVENT_TIME, members, 0, false)
+      }
+      if (found.day !== undefined) placed.push(groupEventOccasion(GROUPS[id], event, found.day))
+      else leave(id, event.id, found.reason)
     }
   }
   return { placed, leftOut }
@@ -830,13 +950,19 @@ export const PRACTICE_GAIN: ShiftGain = {
   text: 'Running drills until your legs shook was a real workout.'
 }
 
+/** What a game he plays pays the reader: one point of Body, fixed by the code like a practice. */
+export const GAME_GAIN: ShiftGain = {
+  stats: ['body'],
+  text: 'Playing a real game, with a crowd watching, took everything you had.'
+}
+
 /** What the game knows about a slot that decides whether a practice is held in it. */
 export interface PracticeContext {
   /** The weekly period a global slot id falls in. */
   shiftSlotAt: (slotId: number) => ShiftSlot
   /** Whether the university is shut that day: a holiday, spring break or any day without classes. */
   closedOn: (date: number) => boolean
-  /** Whether an event of his own team holds the slot. */
+  /** Whether a group's event at his team's place holds the slot, his own team's or another's. */
   eventAt: (slotId: number) => boolean
   /** Whether a class or a shift of his holds the slot, which outranks the practice. */
   otherCommitmentAt: (slotId: number) => boolean
@@ -844,8 +970,8 @@ export interface PracticeContext {
 
 /**
  * Whether his team practices in a slot: it is one of the team's sessions, he is on the team
- * by then, classes still meet, the university is open, and neither his own team's event nor a
- * class or a shift of his holds it. The one rule the clock's commitments and the strikes both ask.
+ * by then, classes still meet, the university is open, and neither a group's event at his
+ * team's place nor a class or a shift of his holds it. The one rule the clock's commitments and the strikes both ask.
  */
 export function practiceHeld(
   team: Pick<GroupTeam, 'since'>,
@@ -873,6 +999,9 @@ export interface SessionSettle {
   strikes: Array<{ slotId: number; kind: StrikeKind }>
   /** His strikes after the pass. */
   total: number
+  /** The practices held in the slots judged, and how many of them he went to. */
+  held: number
+  attended: number
   /** The last slot judged: the one asked for, or the slot he was put out in. */
   settledThrough: number
   /** The pass took him to the most misses a team allows. */
@@ -894,16 +1023,23 @@ export function settleSessions(
   let total = team.strikes
   let settledThrough = team.settledThrough
   let expelled = false
+  let heldCount = 0
+  let attended = 0
 
   for (let slotId = team.settledThrough + 1; slotId <= throughSlot; slotId++) {
     settledThrough = slotId
-    if (!held(slotId) || team.attendedSlots.includes(slotId)) continue
+    if (!held(slotId)) continue
+    heldCount += 1
+    if (team.attendedSlots.includes(slotId)) {
+      attended += 1
+      continue
+    }
     total += 1
     expelled = total >= MAX_STRIKES
     strikes.push({ slotId, kind: expelled ? 'expelled' : total === 1 ? 'missed' : 'missed2' })
     if (expelled) break
   }
-  return { strikes, total, settledThrough, expelled }
+  return { strikes, total, held: heldCount, attended, settledThrough, expelled }
 }
 
 const COUNT_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine']

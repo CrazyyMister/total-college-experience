@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { placeGroupEvents, tryoutVerdict, type GroupResult } from '@shared/groups'
+import { gameResult, GROUPS, placeGroupEvents, tryoutVerdict, type GroupResult } from '@shared/groups'
 import { classSlotForShift, globalSlotOf, JOB_CATALOG, newJobState } from '@shared/jobs'
 import type { GameSave, Occasion, ShiftSlot } from '@shared/types'
 import { groupNewsClause } from '../src/renderer/prompts/groupPrompt'
@@ -170,7 +170,9 @@ describe('a tryout', () => {
       since,
       strikes: 0,
       settledThrough: since - 1,
-      attendedSlots: []
+      attendedSlots: [],
+      held: 0,
+      attended: 0
     })
     // The welcome of the coach is filed in the write that put him on the team.
     const welcome = game.bunnyboard.conversations['team:basketball']?.messages ?? []
@@ -258,7 +260,9 @@ describe('the practices of the team he is on', () => {
         since: 11,
         strikes: 0,
         settledThrough: 10,
-        attendedSlots: []
+        attendedSlots: [],
+        held: 0,
+        attended: 0
       },
       ...over
     })
@@ -279,7 +283,7 @@ describe('the practices of the team he is on', () => {
     unsubscribe()
     // One change to the store, and it carries all three together.
     expect(seen).toEqual([[1, 1]])
-    expect(useGameStore.getState().groupTeam?.settledThrough).toBe(13)
+    expect(useGameStore.getState().groupTeam).toMatchObject({ settledThrough: 13, held: 1, attended: 0 })
     expect(texts()).toEqual([
       "You weren't at practice. That's one. Three misses and you're off the team."
     ])
@@ -314,7 +318,9 @@ describe('the practices of the team he is on', () => {
     expect(useGameStore.getState().groupTeam).toMatchObject({
       strikes: 0,
       settledThrough: 13,
-      attendedSlots: []
+      attendedSlots: [],
+      held: 1,
+      attended: 1
     })
     expect(texts()).toEqual([])
   })
@@ -392,10 +398,130 @@ describe('the practices of the team he is on', () => {
       since: 11,
       strikes: 0,
       settledThrough: globalSlotOf(40, 0) - 1,
-      attendedSlots: []
+      attendedSlots: [],
+      held: 0,
+      attended: 0
     })
     // Nothing is charged for the weeks before the save.
     settleSessions()
     expect(useGameStore.getState().groupTeam?.strikes).toBe(0)
+  })
+})
+
+describe('a game of the men\'s team', () => {
+  const GAME_DAY = 26
+  const NIGHT_SLOT = globalSlotOf(GAME_DAY, 1)
+
+  /** The first basketball game on its night, two men of the roster on the team, the reader on it or not. */
+  function gameNight(playthroughId: string, onTeam: boolean, over: Record<string, unknown> = {}): Occasion {
+    useGameStore.getState().reset()
+    const { placed } = placeGroupEvents({
+      members: { basketball: ['m1', 'm2'] },
+      occasions: [],
+      avoid: [],
+      freeCount: () => 2
+    })
+    useGameStore.setState({
+      playthroughId,
+      date: GAME_DAY,
+      time: 1,
+      chars: ['m1', 'm2'],
+      characters: charactersById(
+        character({ charId: 'm1', gender: 'man' }),
+        character({ charId: 'm2', firstName: 'Teo', lastName: 'Park', gender: 'man' })
+      ),
+      charInfo: { m1: charInfo({ groups: ['basketball'] }), m2: charInfo({ groups: ['basketball'] }) },
+      occasions: placed,
+      stats: { brain: 0, body: 100, heart: 0 },
+      groups: { basketball: { sessions: [2, 13] } },
+      groupTeam: onTeam
+        ? {
+            id: 'basketball',
+            since: 11,
+            strikes: 0,
+            settledThrough: NIGHT_SLOT - 1,
+            attendedSlots: [],
+            held: 10,
+            attended: 10
+          }
+        : null,
+      ...over
+    })
+    return placed.find((o) => o.id === 'basketball-game-1') as Occasion
+  }
+
+  /** A playthrough whose seed beats the team only with the reader's part. */
+  function seedWhereHeWins(): string {
+    for (let at = 0; at < 500; at++) {
+      const id = `g${at}`
+      const seedOf = `${id}:basketball-game-1`
+      const play = { tier: 5, practiceShare: 1 }
+      if (
+        gameResult(GROUPS.basketball, 1, seedOf, play).won &&
+        !gameResult(GROUPS.basketball, 1, seedOf).won
+      ) {
+        return id
+      }
+    }
+    throw new Error('no such seed')
+  }
+
+  it('counts his Body and his practices when he plays it, and not when he only watches or does not go', () => {
+    const id = seedWhereHeWins()
+    const game = gameNight(id, true)
+    expect(planGroupEvent(game.id)?.scene).toEqual({ groupId: 'basketball', groupEvent: game.id })
+    expect(useGameStore.getState().groupResults[game.id]?.won).toBe(true)
+
+    // Not on the team: the same night, the same seed, the team on its own.
+    gameNight(id, false)
+    planGroupEvent(game.id)
+    expect(useGameStore.getState().groupResults[game.id]?.won).toBe(false)
+
+    // On the team but not at the game: the pass after the night decides it without him.
+    gameNight(id, true, { date: GAME_DAY + 1, time: 0 })
+    settleGroupResults()
+    expect(useGameStore.getState().groupResults[game.id]?.won).toBe(false)
+  })
+
+  it('is decided when its scene opens and kept: later Body and practices change nothing', () => {
+    const id = seedWhereHeWins()
+    const game = gameNight(id, true)
+    planGroupEvent(game.id)
+    const filed = useGameStore.getState().groupResults[game.id]
+    useGameStore.setState({ stats: { brain: 0, body: 0, heart: 0 } })
+    planGroupEvent(game.id)
+    resultOfEvent(game, true)
+    expect(useGameStore.getState().groupResults[game.id]).toEqual(filed)
+
+    const save = JSON.parse(JSON.stringify(useGameStore.getState().toGameSave())) as GameSave
+    expect(save.groups?.results[game.id]).toEqual(filed)
+    expect(save.groups?.team).toMatchObject({ held: 10, attended: 10 })
+    useGameStore.getState().reset()
+    useGameStore.getState().loadSave(save, playthroughRecord(), {})
+    expect(useGameStore.getState().groupResults[game.id]).toEqual(filed)
+    expect(useGameStore.getState().groupTeam).toMatchObject({ held: 10, attended: 10 })
+  })
+
+  it('takes the courts that night: a practice of his team in the period of a volleyball match is not held', () => {
+    const match: Occasion = {
+      id: 'volleyball-match-1',
+      title: 'Match',
+      description: 'A match.',
+      startDate: GAME_DAY,
+      endDate: GAME_DAY,
+      time: 1,
+      cancelsClasses: false,
+      kind: 'campus',
+      group: 'volleyball',
+      where: 'palaestra_court'
+    }
+    // His team practices in the period of that Saturday night (GAME_DAY is a Saturday: period 11).
+    gameNight('p1', true, {
+      occasions: [match],
+      groups: { basketball: { sessions: [11, 2] } }
+    })
+    expect(playerGroupNow(GAME_DAY, 1)).toBeNull()
+    useGameStore.setState({ occasions: [] })
+    expect(playerGroupNow(GAME_DAY, 1)).not.toBeNull()
   })
 })

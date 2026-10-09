@@ -37,6 +37,14 @@ export function groupsInPlay(
   )
 }
 
+/** Whether the reader plays in the event: it is a game of the team he is on, not a tryout. */
+export function readerPlaysEvent(
+  eventId: string | null | undefined,
+  team: GroupId | null | undefined
+): boolean {
+  return Boolean(eventId && team && groupEventOf(eventId)?.group.id === team)
+}
+
 /** The group whose event or tryout an occasion id names, or `undefined` for any other id. */
 export function groupOfEvent(eventId: string | null | undefined): GroupDef | undefined {
   if (!eventId) return undefined
@@ -67,6 +75,8 @@ export interface GroupNewsState {
   groupResults?: Readonly<Record<string, GroupResult>>
   /** How each tryout the reader went to ended, by occasion id. */
   groupTryouts?: Readonly<Record<string, TryoutResult>>
+  /** The team the reader is on, which decides whether he plays in a game or watches it. */
+  playerTeam?: GroupId | null
 }
 
 /** How an event ended, in the words of a line about the team. */
@@ -136,10 +146,14 @@ export function groupEventLines(eventId: string | null | undefined, state: Group
   const ending = result.won
     ? `${team} beats ${school.name} ${high}–${low}`
     : `${school.name} beats ${group.name} ${high}–${low}`
+  const role = readerPlaysEvent(eventId, state.playerTeam)
+    ? `The reader is on ${group.name} and plays in this ${group.eventName}: show him playing for the team. What he does in it does not change the result.`
+    : `The reader is not on ${group.name}: he watches this ${group.eventName} from the stands and does not take part in it.`
   return [
     'GROUP EVENT',
     `${occasion.title}: ${occasion.description}`,
     `The result is already decided and is not the writer's to change: ${ending}. The event can be shown whole or in part, but nothing in the scene may contradict that result or leave it open.`,
+    role,
     ''
   ]
 }

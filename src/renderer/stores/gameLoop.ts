@@ -1,7 +1,7 @@
 import { breakthroughReady, breakthroughsOfTurn } from '@shared/breakthrough'
 import { checkFacts } from '@shared/facts'
 import { gameOverLines, gameOverReasonOf } from '@shared/gameOver'
-import { GROUPS, PRACTICE_GAIN } from '@shared/groups'
+import { GAME_GAIN, GROUPS, PRACTICE_GAIN } from '@shared/groups'
 import { homeOf, READER, withHomeMove } from '@shared/homes'
 import { locationLabel } from '@shared/locations'
 import { earnLine, spendLine, spentOf } from '@shared/money'
@@ -65,7 +65,7 @@ import {
   graduationScrollLines,
   isGraduationSlot
 } from '../prompts/graduation'
-import { groupsInPlay } from '../prompts/groupPrompt'
+import { groupsInPlay, readerPlaysEvent } from '../prompts/groupPrompt'
 import { occasionLeadUpLines, occasionsAt } from '../prompts/occasions'
 import { examOn, projectPeriodOf, workedOn } from '../prompts/classProgress'
 import {
@@ -2360,7 +2360,12 @@ function resolveScene(): { deltas: PlayerStats; lines: StatusText[] } {
       ? { gain: loopState.jobShift.gain }
       : useGameStore.getState().sceneGroupPractice
         ? { gain: PRACTICE_GAIN }
-        : null,
+        : readerPlaysEvent(
+              useGameStore.getState().sceneGroupEvent,
+              useGameStore.getState().groupTeam?.id
+            )
+          ? { gain: GAME_GAIN }
+          : null,
     // Additive, unlike `jobOutcome`.
     gradeOutcome: gradeOutcomeNow()
   })

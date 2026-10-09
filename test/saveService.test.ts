@@ -284,7 +284,10 @@ describe('a playthrough with a team', () => {
   })
 
   it('reads back how an event and a tryout ended and the team he is on from a save, and an older save as none', async () => {
-    const results = { 'swimming-meet-1': { won: true, home: 171, away: 129 } }
+    const results = {
+      'swimming-meet-1': { won: true, home: 171, away: 129 },
+      'football-game-1': { won: true, home: 24, away: 17 }
+    }
     // The tryout he went to and the team it put him on ride the same field.
     const groups = {
       results,
@@ -295,7 +298,10 @@ describe('a playthrough with a team', () => {
         since: 11,
         strikes: 2,
         settledThrough: 40,
-        attendedSlots: [41]
+        attendedSlots: [41],
+        // And the practices his team has held, which a game he plays reads.
+        held: 12,
+        attended: 10
       }
     }
     await saveService.writeManualSave('1', 3, draft({ groups }))

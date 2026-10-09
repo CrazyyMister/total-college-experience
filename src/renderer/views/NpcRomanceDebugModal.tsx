@@ -131,7 +131,7 @@ function sectionsOf(): DebugSection[] {
         who: def.name,
         facts: `${members.length === 0 && def.readerPlays ? 'nobody from the roster' : `${members.length} members`} · sessions at ${locationLabel(def.location)}: ${slotsLabel}${lost}${
           game.groupTeam?.id === id
-            ? ` · the reader is on it, ${game.groupTeam.strikes} of ${MAX_STRIKES} misses, judged through slot ${game.groupTeam.settledThrough}`
+            ? ` · the reader is on it, ${game.groupTeam.strikes} of ${MAX_STRIKES} misses, ${game.groupTeam.attended} of ${game.groupTeam.held} practices attended, judged through slot ${game.groupTeam.settledThrough}`
             : ''
         }`
       },

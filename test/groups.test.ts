@@ -6,11 +6,14 @@ import {
   gameResult,
   GROUPS,
   groupSessionSlots,
+  menWinChance,
   MIN_SESSION_ATTENDEES,
   placeGroupEvents,
   practiceHeld,
+  practiceShareOf,
   settleSessions,
   TEAM_SESSIONS_PER_WEEK,
+  teamStrength,
   TRYOUT_CHANCES,
   tryoutVerdict,
   type GroupTeam,
@@ -100,6 +103,8 @@ describe('the practices of a team', () => {
     strikes: 0,
     settledThrough: 9,
     attendedSlots: [],
+    held: 0,
+    attended: 0,
     ...over
   })
   const open: PracticeContext = {
@@ -370,6 +375,7 @@ describe('placeGroupEvents', () => {
   /** The swim team's own meets, which the tryouts placed beside them do not belong to. */
   const meetsOf = (placed: Occasion[]): Occasion[] => placed.filter((o) => o.group === 'swimming')
   const everyoneFree = (): number => 3
+  const isTryout = (o: Occasion): boolean => o.id.endsWith('-tryout')
   const held = (date: number, time: 0 | 1 | null = 1): Occasion => ({
     id: `held-${date}`,
     title: 'Held',
@@ -434,7 +440,7 @@ describe('placeGroupEvents', () => {
 
   it('places a tryout by day with nobody free asked, around the reader\'s classes, a Saturday first', () => {
     const open = placeGroupEvents({ members: {}, occasions: [], avoid: [], freeCount: () => 0 })
-    expect(open.placed.map((o) => [o.id, o.startDate, o.time])).toEqual([
+    expect(open.placed.filter(isTryout).map((o) => [o.id, o.startDate, o.time])).toEqual([
       ['basketball-tryout', 5, 0],
       ['football-tryout', 6, 0]
     ])
@@ -447,7 +453,7 @@ describe('placeGroupEvents', () => {
       freeCount: () => 0,
       readerBusy: (date) => date >= 1 && date <= 4
     })
-    expect(second.placed.map((o) => [o.id, o.startDate])).toEqual([
+    expect(second.placed.filter(isTryout).map((o) => [o.id, o.startDate])).toEqual([
       ['basketball-tryout', 12],
       ['football-tryout', 13]
     ])
@@ -461,9 +467,9 @@ describe('placeGroupEvents', () => {
       avoid: [],
       freeCount: () => 0
     })
-    expect(placed).toEqual([])
-    expect(leftOut.basketball).toEqual([{ id: 'basketball-tryout', reason: 'no_date' }])
-    expect(leftOut.football).toEqual([{ id: 'football-tryout', reason: 'no_date' }])
+    expect(placed.filter(isTryout)).toEqual([])
+    expect(leftOut.basketball?.[0]).toEqual({ id: 'basketball-tryout', reason: 'no_date' })
+    expect(leftOut.football?.[0]).toEqual({ id: 'football-tryout', reason: 'no_date' })
   })
 
   it('places the same days for the same input', () => {
@@ -505,5 +511,118 @@ describe('gameResult', () => {
       expect(Math.min(match.home, match.away)).toBeLessThan(3)
       expect(match.home > match.away).toBe(match.won)
     }
+  })
+})
+
+describe('the games of the men\'s teams', () => {
+  const rate = (play: Parameters<typeof gameResult>[3]): number => {
+    let won = 0
+    for (let run = 0; run < 4000; run++) {
+      if (gameResult(GROUPS.basketball, 1, `rate-${run}`, play).won) won += 1
+    }
+    return won / 4000
+  }
+
+  it('adds the reader\'s Body and practices to the odds only when he plays, up to ninety percent', () => {
+    expect(menWinChance(1)).toBeCloseTo(0.6)
+    expect(menWinChance(1, { tier: 1, practiceShare: 1 })).toBeCloseTo(0.6)
+    expect(menWinChance(1, { tier: 5, practiceShare: 0.5 })).toBeCloseTo(0.75)
+    expect(menWinChance(1, { tier: 5, practiceShare: 1 })).toBeCloseTo(0.9)
+    expect(menWinChance(1, { tier: 5, practiceShare: 2 })).toBeCloseTo(0.9)
+    expect(menWinChance(0, { tier: 3, practiceShare: 0.9 })).toBeCloseTo(0.45 + 0.3 * 0.5 * 0.9)
+    // A women's event is as it was: base 0.4, 0.3 for the whole team, nothing of the reader's.
+    expect(gameResult(GROUPS.volleyball, 1, 'x', { tier: 5, practiceShare: 1 })).toEqual(
+      gameResult(GROUPS.volleyball, 1, 'x')
+    )
+  })
+
+  it('wins more often with more Body and more practices, and ends the same way for the same seed', () => {
+    const tier1 = rate({ tier: 1, practiceShare: 1 })
+    const tier5 = rate({ tier: 5, practiceShare: 1 })
+    const tier5Skipping = rate({ tier: 5, practiceShare: 0.5 })
+    expect(tier5).toBeGreaterThan(tier5Skipping)
+    expect(tier5Skipping).toBeGreaterThan(tier1)
+    expect(tier5 - tier1).toBeGreaterThan(0.2)
+    expect(gameResult(GROUPS.basketball, 1, 'same', { tier: 4, practiceShare: 0.8 })).toEqual(
+      gameResult(GROUPS.basketball, 1, 'same', { tier: 4, practiceShare: 0.8 })
+    )
+  })
+
+  it('scores a football game in threes and sevens and a basketball game in a college range', () => {
+    const reachable = new Set<number>()
+    for (const sevens of [0, 1, 2, 3, 4, 5, 6, 7, 8]) {
+      for (const threes of [0, 1, 2, 3, 4, 5, 6]) reachable.add(7 * sevens + 3 * threes)
+    }
+    for (let run = 0; run < 400; run++) {
+      const football = gameResult(GROUPS.football, 0.5, `f-${run}`)
+      const [high, low] = [Math.max(football.home, football.away), Math.min(football.home, football.away)]
+      expect(reachable.has(high) && reachable.has(low)).toBe(true)
+      expect(high).toBeGreaterThan(low)
+      expect(football.home > football.away).toBe(football.won)
+
+      const hoops = gameResult(GROUPS.basketball, 0.5, `b-${run}`)
+      const [top, bottom] = [Math.max(hoops.home, hoops.away), Math.min(hoops.home, hoops.away)]
+      expect(top).toBeGreaterThanOrEqual(64)
+      expect(top).toBeLessThanOrEqual(95)
+      expect(bottom).toBeGreaterThanOrEqual(40)
+      expect(top).toBeGreaterThan(bottom)
+      expect(hoops.home > hoops.away).toBe(hoops.won)
+    }
+  })
+
+  it('takes a men\'s team with nobody of the roster as all there, and a team that has not practiced as all gone to', () => {
+    expect(teamStrength(GROUPS.basketball, [], () => false)).toBe(1)
+    expect(teamStrength(GROUPS.basketball, ['a', 'b'], (id) => id === 'a')).toBe(0.5)
+    expect(teamStrength(GROUPS.swimming, [], () => false)).toBe(0)
+    expect(practiceShareOf({ held: 0, attended: 0 })).toBe(1)
+    expect(practiceShareOf({ held: 10, attended: 9 })).toBeCloseTo(0.9)
+  })
+
+  it('dates a men\'s game for a team with nobody named, and for one whose men are all busy', () => {
+    const nobody = placeGroupEvents({ members: {}, occasions: [], avoid: [], freeCount: () => 0 })
+    const games = nobody.placed.filter((o) => o.id.includes('-game-'))
+    expect(games.map((o) => o.id)).toEqual([
+      'basketball-game-1',
+      'basketball-game-2',
+      'football-game-1',
+      'football-game-2'
+    ])
+    expect(games.every((o) => o.time === 1 && o.kind === 'campus')).toBe(true)
+    expect(nobody.leftOut.basketball ?? []).toEqual([])
+
+    // One man who is never free: the first night is the last choice, not none.
+    const busy = placeGroupEvents({
+      members: { basketball: ['m1'] },
+      occasions: [],
+      avoid: [],
+      freeCount: () => 0
+    })
+    expect(busy.placed.filter((o) => o.id.startsWith('basketball-game'))).toHaveLength(2)
+
+    // A women's team that cannot field two is still left out, as before.
+    const thin = placeGroupEvents({
+      members: { swimming: ['a', 'b', 'c'] },
+      occasions: [],
+      avoid: [],
+      freeCount: () => 1
+    })
+    expect(thin.leftOut.swimming?.map((e) => e.reason)).toEqual(['too_few_free', 'too_few_free'])
+  })
+
+  it('counts the practices held and the ones he went to along with the strikes', () => {
+    const t: GroupTeam = {
+      id: 'basketball',
+      since: 10,
+      strikes: 0,
+      settledThrough: 9,
+      attendedSlots: [13],
+      held: 0,
+      attended: 0
+    }
+    const heldSlots = new Set([13, 16, 27])
+    const settled = settleSessions(t, 30, (slotId) => heldSlots.has(slotId))
+    expect(settled.held).toBe(3)
+    expect(settled.attended).toBe(1)
+    expect(settled.total).toBe(2)
   })
 })

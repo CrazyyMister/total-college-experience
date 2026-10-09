@@ -3131,6 +3131,8 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
           : {
               ...team,
               strikes: settle.total,
+              held: team.held + settle.held,
+              attended: team.attended + settle.attended,
               settledThrough: settle.settledThrough,
               attendedSlots: team.attendedSlots.filter((slotId) => slotId > settle.settledThrough)
             },

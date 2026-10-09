@@ -98,6 +98,7 @@ import {
   groupFigurantLine,
   groupNewsClause,
   groupsInPlay,
+  readerPlaysEvent,
   readerTeamLines
 } from './groupPrompt'
 import { factLines } from './facts'
@@ -2027,7 +2028,11 @@ export function buildLedgerPrompt(
   // Classes, shifts and practices are scored by the app; every other hour with
   // company is judged here, one stat's worth.
   const castStats =
-    cast.length > 0 && !classScene && state.jobId === null && state.groupPractice !== true
+    cast.length > 0 &&
+    !classScene &&
+    state.jobId === null &&
+    state.groupPractice !== true &&
+    !readerPlaysEvent(state.groupEvent, state.playerTeam)
   const romance = ledgerAsksNpcRomance(
     cast,
     state.npcRomance,

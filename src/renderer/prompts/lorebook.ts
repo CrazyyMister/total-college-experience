@@ -110,6 +110,16 @@ export const LOREBOOK: readonly LoreEntry[] = [
     text: `Veridan State University is the giant public university on the other side of the city and the Venus Jackrabbits' great rival; its teams are the Wardens, and its colors are forest green and silver. The Copper Lantern is a lantern of beaten copper put on display on the campus of whoever wins the Venus-State classic; this semester it is on display on the ${SCHOOLS[COPPER_LANTERN_HOLDER].short} campus. The Jackrabbits' calendar this semester has no game against the State.`
   },
   {
+    id: 'ashgrove',
+    keys: ['Ashgrove', 'Ashgrove University', 'Ashgrove Owls'],
+    text: `Ashgrove University is the hilltop university north of the city, the Venus Jackrabbits' rival in basketball. Its teams are the Owls, and its colors are charcoal and amber.`
+  },
+  {
+    id: 'redmere',
+    keys: ['Redmere', 'Redmere Institute', 'Redmere Institute of Technology', 'Redmere Rivets'],
+    text: `Redmere Institute of Technology is the engineering school on the river flats, the Venus Jackrabbits' rival in football. Its teams are the Rivets, and its colors are rust and steel gray.`
+  },
+  {
     id: 'elysium_village',
     keys: ['Elysium Village', 'elysium', 'townhouse', 'senior housing', 'senior living'],
     text: `Elysium Village is the row of west-edge townhouses with spacious rooms, private patios, and surrounding woodland, claimed almost entirely by upperclassmen through a housing lottery, so an invite to a party there feels like being knighted. Residents keep a porch light code: on means visitors welcome, off means do not perceive me.`

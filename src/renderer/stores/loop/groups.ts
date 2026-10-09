@@ -1,15 +1,18 @@
+import { tierOf } from '@shared/playerStats'
 import {
-  eventStrength,
   GROUP_EVENT_TIME,
   GROUPS,
   gameResult,
   groupEventOf,
+  practiceShareOf,
   settleSessions as settleSessions_,
+  teamStrength,
   TRYOUT_TIME,
   tryoutOf,
   tryoutVerdict,
   type GroupId,
-  type GroupResult
+  type GroupResult,
+  type ReaderPlay
 } from '@shared/groups'
 import { classSlotForShift, globalSlotOf, shiftSlotFullLabel } from '@shared/jobs'
 import { shuffle } from '@shared/shuffle'
@@ -84,22 +87,47 @@ export function memberFreeAt(charId: string, date: number, time: Occasion['time'
 }
 
 /**
+ * What the reader brings to a game, or undefined: he is on the team that plays it by then and
+ * has the Body and the practices he has now. Only a game he is going to play has a part of his.
+ */
+function readerPlay(group: GroupId, slotId: number): ReaderPlay | undefined {
+  const game = useGameStore.getState()
+  const team = game.groupTeam
+  if (!team || team.id !== group || team.since > slotId) return undefined
+  return { tier: tierOf(game.stats.body), practiceShare: practiceShareOf(team) }
+}
+
+/**
  * How an event ended: the result already filed, or the one its night decides now and files. The
  * seed is the playthrough and the event, and the strength is how many of the team were free that
  * night, so the scene and the boundary reach the same score and the second never overwrites the
- * first.
+ * first. `playing` is the reader going to the game, as a player of his team: only then do his
+ * Body and his practices count, read as they stand when the scene opens; the boundary's pass
+ * after the night decides a game he did not go to without him.
  */
-export function resultOfEvent(occasion: Occasion): GroupResult | null {
+export function resultOfEvent(occasion: Occasion, playing = false): GroupResult | null {
   const game = useGameStore.getState()
   const filed = game.groupResults[occasion.id]
   if (filed) return filed
   const found = groupEventOf(occasion.id)
   if (!found || occasion.group !== found.group.id) return null
 
-  const strength = eventStrength(groupMembersOf(found.group.id), (charId) =>
+  const members = groupMembersOf(found.group.id)
+  const strength = teamStrength(found.group, members, (charId) =>
     memberFreeAt(charId, occasion.startDate, occasion.time)
   )
-  const result = gameResult(found.group, strength, `${game.playthroughId ?? 'game'}:${occasion.id}`)
+  const reader = playing
+    ? readerPlay(found.group.id, globalSlotOf(occasion.startDate, occasion.time ?? GROUP_EVENT_TIME))
+    : undefined
+  const result = gameResult(
+    found.group,
+    strength,
+    `${game.playthroughId ?? 'game'}:${occasion.id}`,
+    reader
+  )
+  console.log(
+    `[groups] ${occasion.id}: ${reader ? `reader plays, Body tier ${reader.tier}, practices ${Math.round(reader.practiceShare * 100)}%` : 'reader not playing'}, team strength ${strength.toFixed(2)}, ${result.won ? 'won' : 'lost'} ${Math.max(result.home, result.away)}–${Math.min(result.home, result.away)}.`
+  )
   game.setGroupResult(occasion.id, result)
   return useGameStore.getState().groupResults[occasion.id] ?? result
 }
@@ -302,7 +330,7 @@ export function planGroupEvent(eventId: string, required?: string): GroupEventPl
   if (tryout) {
     if (!canTryOut(eventId) || tryoutRefusal(eventId)) return null
     judgeTryout(occasion)
-  } else if (!resultOfEvent(occasion)) return null
+  } else if (!resultOfEvent(occasion, true)) return null
 
   const free = shuffle(
     groupMembersOf(occasion.group).filter((charId) =>

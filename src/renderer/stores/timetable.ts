@@ -6,6 +6,7 @@ import {
   groupsOfChar,
   practiceHeld,
   type GroupDef,
+  type GroupId,
   type PracticeContext
 } from '@shared/groups'
 import { homeOf, type HomeId } from '@shared/homes'
@@ -59,14 +60,18 @@ export function shiftNow(date?: number, time?: TimeSlot): ShiftSlot | null {
   return game.job.shifts.includes(slot) ? slot : null
 }
 
-/** Whether a slot of his team's own event holds the half-day. */
-function ownEventAt(groupId: string, slotId: number): boolean {
+/**
+ * Whether a group's event holds the half-day at his team's place: his own team's, or another's
+ * that shares the place, as the volleyball match shares the courts with basketball.
+ */
+function eventAtTeamPlace(groupId: GroupId, slotId: number): boolean {
   const { date, time } = slotFromId(slotId)
   return useGameStore
     .getState()
     .occasions.some(
       (occasion) =>
-        occasion.group === groupId &&
+        occasion.group !== undefined &&
+        (occasion.group === groupId || occasion.where === GROUPS[groupId].location) &&
         date >= occasion.startDate &&
         date <= occasion.endDate &&
         (occasion.time === null || occasion.time === time)
@@ -87,7 +92,7 @@ function practiceContext(): PracticeContext {
     },
     closedOn: (date) =>
       team ? hauntClosedOn(GROUPS[team.id].location, 'team', date, game.occasions) : true,
-    eventAt: (slotId) => (team ? ownEventAt(team.id, slotId) : false),
+    eventAt: (slotId) => (team ? eventAtTeamPlace(team.id, slotId) : false),
     otherCommitmentAt: (slotId) => {
       const { date, time } = slotFromId(slotId)
       return playerClassNow(date, time) !== null || shiftNow(date, time) !== null
@@ -201,6 +206,10 @@ export function charStandingHauntAt(charId: string, date: number, time: TimeSlot
     ? { location: event.where as string, kind: 'team' as const }
     : game.charInfo[charId]?.hiddenSchedule?.[shiftSlotOf(shiftWeekdayOf(date), time)]
   if (!haunt) return null
+  // A group's event takes its place over: another team's session there that half-day is not held.
+  if (!inEvent && event?.where !== undefined && haunt.kind === 'team' && haunt.location === event.where) {
+    return null
+  }
   // A class or a shift outranks a haunt: a save whose timetable moved under it (add/drop).
   if (charBusyNow(charId, date, time)) return null
   if (hauntClosedOn(haunt.location, haunt.kind, date, game.occasions)) return null
