@@ -199,6 +199,9 @@ You will need externally kept data for testing:
 - [ ] During your team's practice, press Go on the practice place on the map and verify it is the practice, then type a phrase set at the same place and verify it is an ordinary scene that counts as a miss.
 - [ ] On a game night press "Go to the game" and verify the score is stated from the first turn, is the same after reloading mid-scene, and that you play it when on the team and watch it when not.
 - [ ] In New Game with men on the roster, verify F9 dates two games for each men's team, none left out, and that a football score is one a game could end on.
+- [ ] In New Game setup, verify the four house cards: a woman ticked on one sorority is disabled on the other, ticking men on one fraternity lowers the other's maximum, and the ex is disabled on both sororities.
+- [ ] After Finalize, verify F9's Groups section lists each house's members with the ex in none, and that a member's contact page names her house.
+- [ ] Go to a Greek house and ask to go inside. Verify the background stays the house front by day and by night and nobody outside the cast is named.
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 
