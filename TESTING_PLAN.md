@@ -212,6 +212,9 @@ You will need externally kept data for testing:
 - [ ] On a party night and on a mixer night, go there by the button and by typing a walk there. Verify the scene may use only the host house's living room or party space (a sorority's living room at its mixer), never a bedroom, and that the free members stand at the house on the map.
 - [ ] On a night with no event, walk to a Greek house and ask to go inside. Verify the background stays the house front.
 - [ ] Verify by data/app.log's [invite] lines that a party invitation by text only ever comes from a member of the house.
+- [ ] Pledge a fraternity, miss three meetings and verify the house texts after each, you are put out on the third, still in Lowrise 4, and no member has a new memory.
+- [ ] As a pledge, verify no meeting falls on Presidents' Day or on a night of the house's party or mixer, and that the calendar, the job board and add/drop keep clear of the meetings.
+- [ ] Once put out, verify the house's members no longer ask you to its events and a scene at the house carries the put-out line in data/app.log.
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 
