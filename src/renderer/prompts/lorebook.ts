@@ -5,7 +5,7 @@
  */
 import { yearLabel } from '@shared/classes'
 import { COPPER_LANTERN_HOLDER, groupSentence, SCHOOLS } from '@shared/groups'
-import { homeOf, homeSentence, type HomeId } from '@shared/homes'
+import { homeOf, homeSentence, officeAt, type HomeId } from '@shared/homes'
 import { jobDefOf } from '@shared/jobs'
 import { npcBestFriendOf, type NpcRelationshipMap } from '@shared/npcRelationships'
 import { affectionFor } from '@shared/relationship'
@@ -433,7 +433,7 @@ function characterParagraphs(
     lines.push(
       `${fullNameOf(character)} is a ${yearLabel(info.year).toLowerCase()} majoring in ${info.major}.` +
         appearanceSentence(character) +
-        (home ? homeSentence(home, character.gender) : '') +
+        (home ? homeSentence(home, character.gender, officeAt(info, home)) : '') +
         groupSentence(info.groups, character.gender) +
         `${employer ? ` ${pronounsOf(character.gender).Subject} works part-time at ${employer}.` : ''}` +
         ` ${character.personality} ${absentNote(character)}` +

@@ -383,6 +383,7 @@ export function promptState(): PromptState {
     visitJobId: game.sceneVisitJob,
     groupEvent: game.sceneGroupEvent,
     groupResults: game.groupResults,
+    houseOffices: game.houseOffices,
     groupTryouts: game.groupTryouts,
     playerTeam: game.groupTeam?.id ?? null,
     // Whoever the action named without bringing along, and where it set the scene — both scanned

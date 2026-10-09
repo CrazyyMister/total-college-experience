@@ -316,14 +316,24 @@ describe('a playthrough with a team', () => {
       dorm: 'lowrise_1',
       major: 'Music',
       schedule: {},
-      house: 'sig_lam'
+      house: 'sig_lam',
+      office: 'treasurer'
     }
     const housed = await saveService.createPlaythrough(
-      record({ chars: ['a'], profiles: { a: profile } }),
+      record({
+        chars: ['a'],
+        profiles: { a: profile },
+        houseOffices: { sig_lam: ['president', 'rush'], xi_delt: ['president', 'social', 'rush', 'treasurer'] }
+      }),
       draft()
     )
     const read = await saveService.readSave(housed.save.playthroughId, housed.save.saveId)
     expect(read.record.profiles.a.house).toBe('sig_lam')
+    expect(read.record.profiles.a.office).toBe('treasurer')
+    expect(read.record.houseOffices).toEqual({
+      sig_lam: ['president', 'rush'],
+      xi_delt: ['president', 'social', 'rush', 'treasurer']
+    })
 
     const housesChoice = { sig_lam: { count: 3, picked: ['a'] } }
     const houses = { sig_lam: ['a', 'b'], kappa_row: ['c'] }

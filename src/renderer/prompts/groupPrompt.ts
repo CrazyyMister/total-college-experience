@@ -10,7 +10,15 @@ import {
   type GroupResult,
   type TryoutResult
 } from '@shared/groups'
-import { HOUSE_IDS, HOUSES, isHouse, type HouseId } from '@shared/houses'
+import {
+  HOUSE_IDS,
+  HOUSES,
+  houseAccess,
+  isHouse,
+  OFFICE_NAMES,
+  type HouseId,
+  type HouseOffices
+} from '@shared/houses'
 import { locationLabel } from '@shared/locations'
 import { andList } from '@shared/sentences'
 import type { Occasion, TimeSlot } from '@shared/types'
@@ -89,6 +97,30 @@ export function houseFigurantLine(location: string | null | undefined): string {
   const def = HOUSES[id]
   const member = def.kind === 'fraternity' ? 'brother' : 'sister'
   return `Every ${member} of ${def.nickname} who has not been named above is unnamed background: never give any of them a name, only "a ${member}".`
+}
+
+/**
+ * What a scene set at a Greek house is told about the door, with its blank line, or nothing
+ * anywhere else: where the reader stands, and who holds an office of the house that no named
+ * character does, so the writer gives them no name. Said below the cached prefix.
+ */
+export function houseDoorLines(
+  location: string | null | undefined,
+  offices: HouseOffices | undefined
+): string[] {
+  const id = houseAtPlace(location)
+  if (!id || houseAccess(id) !== 'door') return []
+  const def = HOUSES[id]
+  const lines = [
+    `The reader is outside ${def.nickname}, the ${def.kind} house on Laurel Row: this scene stays on the porch or in the street, and he does not go inside. Nothing in this scene takes place in the living room, the party space or the bedrooms.`
+  ]
+  const unnamed = offices?.[id] ?? []
+  if (unnamed.length > 0) {
+    lines.push(
+      `Whoever holds the offices of ${def.nickname} that no named character holds (${andList(unnamed.map((office) => `the ${OFFICE_NAMES[office]}`))}) is unnamed background: never give them a name.`
+    )
+  }
+  return [...lines, '']
 }
 
 /** The line saying which team the reader is on, or nothing where he is on none. */

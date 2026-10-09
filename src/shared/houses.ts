@@ -37,8 +37,10 @@ export interface HouseDef {
   maxMembers: number
   /** The outside every scene at the house may use. */
   frontBg: string
-  /** The insides, which a scene may use only where the house lets the reader in. */
+  /** The shared insides, which a scene may use only where the house lets the reader in. */
   insideBgs: readonly string[]
+  /** A member's room, which is the reader's to see only in the house he lives in. */
+  roomBg?: string
 }
 
 export const HOUSES: Readonly<Record<HouseId, HouseDef>> = {
@@ -53,7 +55,8 @@ export const HOUSES: Readonly<Record<HouseId, HouseDef>> = {
     minMembers: 1,
     maxMembers: 3,
     frontBg: 'kappa_row_front',
-    insideBgs: ['kappa_row_common', 'kappa_row_party', 'kappa_row_room']
+    insideBgs: ['kappa_row_common', 'kappa_row_party'],
+    roomBg: 'kappa_row_room'
   },
   xi_delt: {
     id: 'xi_delt',
@@ -66,7 +69,8 @@ export const HOUSES: Readonly<Record<HouseId, HouseDef>> = {
     minMembers: 1,
     maxMembers: 3,
     frontBg: 'xi_delt_front',
-    insideBgs: ['xi_delt_common', 'xi_delt_party', 'xi_delt_room']
+    insideBgs: ['xi_delt_common', 'xi_delt_party'],
+    roomBg: 'xi_delt_room'
   },
   sig_lam: {
     id: 'sig_lam',
@@ -98,15 +102,107 @@ export const HOUSES: Readonly<Record<HouseId, HouseDef>> = {
 
 /** Every background that shows the inside of a house, once each. */
 export const HOUSE_INSIDE_BGS: readonly string[] = [
-  ...new Set(HOUSE_IDS.flatMap((id) => HOUSES[id].insideBgs))
+  ...new Set(
+    HOUSE_IDS.flatMap((id) => [
+      ...HOUSES[id].insideBgs,
+      ...(HOUSES[id].roomBg ? [HOUSES[id].roomBg] : [])
+    ])
+  )
 ]
 
+/** Whether the reader is let in a house, or kept at its door. */
+export type HouseAccess = 'door' | 'inside'
+
 /**
- * `bgs` without the insides of the Greek houses: a scene may use them only where the house lets
- * the reader in, and nothing yet does.
+ * How far the reader gets in a house: the front is always his, and the inside is for a house
+ * that lets him in, which nothing does yet. The one answer the scene's line and the backgrounds
+ * it may use both ask, so that opening the inside is changing this function and nothing else.
+ */
+export function houseAccess(_house: HouseId): HouseAccess {
+  return 'door'
+}
+
+/**
+ * `bgs` without the insides of the Greek houses: a scene may use the living room and the party
+ * space of a house that lets the reader in. A member's room is never among them until the house
+ * is his.
  */
 export function withoutClosedHouseBgs(bgs: readonly string[]): string[] {
-  return bgs.filter((bg) => !HOUSE_INSIDE_BGS.includes(bg))
+  const open = new Set(
+    HOUSE_IDS.filter((id) => houseAccess(id) === 'inside').flatMap((id) => HOUSES[id].insideBgs)
+  )
+  return bgs.filter((bg) => !HOUSE_INSIDE_BGS.includes(bg) || open.has(bg))
+}
+
+/** The four offices of a house, the president first. */
+export const OFFICE_IDS = ['president', 'social', 'rush', 'treasurer'] as const
+
+export type OfficeId = (typeof OFFICE_IDS)[number]
+
+export function isOffice(value: string): value is OfficeId {
+  return (OFFICE_IDS as readonly string[]).includes(value)
+}
+
+/** What an office is called in a sentence. */
+export const OFFICE_NAMES: Readonly<Record<OfficeId, string>> = {
+  president: 'president',
+  social: 'social chair',
+  rush: 'rush chair',
+  treasurer: 'treasurer'
+}
+
+/** How much more a senior weighs than anybody else in the draw for the presidency. */
+export const SENIOR_PRESIDENT_WEIGHT = 3
+
+/** The offices of each house that nobody of the roster holds. */
+export type HouseOffices = Partial<Record<HouseId, OfficeId[]>>
+
+/** Who of the roster holds which office, and the offices that are the unnamed's. */
+export interface OfficeDeal {
+  holders: Record<string, { house: HouseId; office: OfficeId }>
+  unnamed: HouseOffices
+}
+
+/**
+ * Deals the four offices of every house among its members of the roster: the presidency first,
+ * with a senior (year 4) weighing {@link SENIOR_PRESIDENT_WEIGHT} to one, then the rest by
+ * chance. Nobody holds two, and an office with nobody left is the unnamed's. The same seed deals
+ * the same offices.
+ */
+export function dealOffices(input: {
+  members: HouseMembers
+  years: Readonly<Record<string, number>>
+  seed: string
+}): OfficeDeal {
+  const holders: OfficeDeal['holders'] = {}
+  const unnamed: HouseOffices = {}
+  for (const house of HOUSE_IDS) {
+    const rand = seededRand(`${input.seed}:offices:${house}`)
+    const left = [...(input.members[house] ?? [])]
+    const held = new Set<OfficeId>()
+    if (left.length > 0) {
+      const weights = left.map((charId) => (input.years[charId] === 4 ? SENIOR_PRESIDENT_WEIGHT : 1))
+      let r = rand() * weights.reduce((sum, weight) => sum + weight, 0)
+      let at = 0
+      while (at < left.length - 1 && r >= weights[at]) {
+        r -= weights[at]
+        at += 1
+      }
+      holders[left[at]] = { house, office: 'president' }
+      held.add('president')
+      left.splice(at, 1)
+    }
+    const rest = shuffle(OFFICE_IDS.filter((office) => office !== 'president'), rand)
+    const people = shuffle(left, rand)
+    rest.forEach((office, at) => {
+      if (people[at] === undefined) return
+      holders[people[at]] = { house, office }
+      held.add(office)
+    })
+    const open = OFFICE_IDS.filter((office) => !held.has(office))
+    if (open.length > 0) unnamed[house] = [...open]
+  }
+  return { holders, unnamed }
 }
 
 /** What New Game asked for one house: how many, and who by name; the rest are drawn. */
@@ -231,13 +327,17 @@ export const HOUSE_SPOTS: readonly HouseSpot[] = HOUSE_IDS.map((id) => ({
 }))
 
 /** The ` | She lives in …` tail of a cast block's labeled facts line. */
-export function houseClause(house: HouseId, gender: Gender): string {
-  return ` | ${pronounsOf(gender).Subject} lives in ${houseResidence(house)}, in a room of ${pronounsOf(gender).possessive} own.`
+export function houseClause(house: HouseId, gender: Gender, office?: OfficeId): string {
+  return ` | ${pronounsOf(gender).Subject} lives in ${houseResidence(house)}, in a room of ${pronounsOf(gender).possessive} own${officeTail(office)}.`
 }
 
 /** The same fact as lorebook prose. */
-export function houseSentence(house: HouseId, gender: Gender): string {
-  return ` ${pronounsOf(gender).Subject} lives in ${houseResidence(house)}, in a room of ${pronounsOf(gender).possessive} own.`
+export function houseSentence(house: HouseId, gender: Gender, office?: OfficeId): string {
+  return ` ${pronounsOf(gender).Subject} lives in ${houseResidence(house)}, in a room of ${pronounsOf(gender).possessive} own${officeTail(office)}.`
+}
+
+function officeTail(office: OfficeId | undefined): string {
+  return office ? `, and is its ${OFFICE_NAMES[office]}` : ''
 }
 
 function houseResidence(house: HouseId): string {

@@ -67,6 +67,7 @@ import {
   type SessionSettle,
   type TryoutResult
 } from '@shared/groups'
+import type { HouseOffices } from '@shared/houses'
 import type { CoachTexts } from './loop/coach'
 import { withHomeMove, type HomeId } from '@shared/homes'
 import {
@@ -318,6 +319,8 @@ interface GameStoreState {
   playerCourse: string | null
   /** When each group meets, from the playthrough's record. */
   groups: GroupsRecord
+  /** The offices of each Greek house nobody of the roster holds, from the record. */
+  houseOffices: HouseOffices
   /** What the reader has bought and not yet given away. Persisted. */
   inventory: OwnedItem[]
   /** What each of his classes has accumulated, keyed by class code. Persisted. */
@@ -1203,7 +1206,8 @@ const PROFILE_KEYS: Record<keyof CharProfile, true> = {
   handle: true,
   springBreakPlans: true,
   groups: true,
-  house: true
+  house: true,
+  office: true
 }
 
 /** The half of one entry a save file carries: everything the record already holds, dropped. */
@@ -1477,6 +1481,7 @@ const initialState = {
   ex: null as ExChoice | null,
   playerCourse: null as string | null,
   groups: {} as GroupsRecord,
+  houseOffices: {} as HouseOffices,
   inventory: [] as OwnedItem[],
   classRecords: {} as Record<string, ClassRecord>,
   gradesStanding: null as 'good' | 'bad' | null,
@@ -1615,6 +1620,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       ex: exOf(record.ex, characters, record.chars),
       playerCourse: courseOf(record.playerCourse),
       groups: record.groups ?? {},
+      houseOffices: record.houseOffices ?? {},
       inventory: save.inventory,
       classRecords: save.classRecords,
       gradesStanding: save.gradesStanding,

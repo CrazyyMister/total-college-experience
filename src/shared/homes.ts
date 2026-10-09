@@ -24,7 +24,8 @@ import {
   houseClause,
   houseSentence,
   isHouse,
-  type HouseId
+  type HouseId,
+  type OfficeId
 } from './houses'
 import { ELYSIUM_LOCATION, locationDefOf, LOWRISE_LOCATION } from './locations'
 import type { CharInfo, Gender } from './types'
@@ -94,13 +95,23 @@ export function homeLabel(home: HomeId): string {
 }
 
 /** The ` | She has a single room at …` tail of a cast block's labeled facts line. */
-export function homeClause(home: HomeId, gender: Gender): string {
-  return isHouse(home) ? houseClause(home, gender) : dormClause(home, gender)
+export function homeClause(home: HomeId, gender: Gender, office?: OfficeId): string {
+  return isHouse(home) ? houseClause(home, gender, office) : dormClause(home, gender)
 }
 
 /** The same fact as lorebook prose. */
-export function homeSentence(home: HomeId, gender: Gender): string {
-  return isHouse(home) ? houseSentence(home, gender) : dormSentence(home, gender)
+export function homeSentence(home: HomeId, gender: Gender, office?: OfficeId): string {
+  return isHouse(home) ? houseSentence(home, gender, office) : dormSentence(home, gender)
+}
+
+/** The office somebody holds in the house she lives in now, or none: a move out gives it up. */
+export function officeAt(
+  info: Pick<CharInfo, 'house' | 'office'> | undefined,
+  home: HomeId | undefined
+): OfficeId | undefined {
+  return info?.office !== undefined && info.house !== undefined && info.house === home
+    ? info.office
+    : undefined
 }
 
 /** The building a home is in, or null for somebody who has none. */

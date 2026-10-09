@@ -26,6 +26,7 @@ import {
 } from '@shared/groups'
 import {
   dealHouses,
+  dealOffices,
   HOUSE_IDS,
   HOUSES,
   houseOfMember,
@@ -1116,6 +1117,14 @@ export function NewGameView(): JSX.Element {
       })
     )
 
+    // The offices of the houses, dealt now that the years are known: the presidency leans to the
+    // seniors, and an office with nobody of the roster left is the unnamed's.
+    const officeDeal = dealOffices({
+      members: houses,
+      years: Object.fromEntries(roster.map((c) => [c.charId, perChar[c.charId]?.year ?? 1])),
+      seed: playthroughId ?? 'new-game'
+    })
+
     // What this semester settled and nothing afterwards rewrites; every save reads it.
     const profiles: Record<string, CharProfile> = Object.fromEntries(
       roster.map((c, i) => {
@@ -1136,7 +1145,8 @@ export function NewGameView(): JSX.Element {
               ? { springBreakPlans: springBreakPlans[c.charId] }
               : {}),
             ...(memberOf(c.charId).length > 0 ? { groups: memberOf(c.charId) } : {}),
-            ...(houseOfMember(houses, c.charId) ? { house: houseOfMember(houses, c.charId) } : {})
+            ...(houseOfMember(houses, c.charId) ? { house: houseOfMember(houses, c.charId) } : {}),
+            ...(officeDeal.holders[c.charId] ? { office: officeDeal.holders[c.charId].office } : {})
           }
         ]
       })
@@ -1157,6 +1167,7 @@ export function NewGameView(): JSX.Element {
         weather,
         profiles,
         ...(Object.keys(groupAgendas).length > 0 ? { groups: groupAgendas } : {}),
+        ...(Object.keys(officeDeal.unnamed).length > 0 ? { houseOffices: officeDeal.unnamed } : {}),
         ...(exSeed && activeEx ? { ex: activeEx } : {}),
         ...(courseChoice ? { playerCourse: courseChoice } : {})
       },

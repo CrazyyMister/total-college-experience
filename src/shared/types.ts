@@ -14,7 +14,7 @@ import type { PromptKind } from './promptKinds'
 import type { RumorPassOutcome } from './rumors'
 import type { DormId } from './dorms'
 import type { GroupId, GroupsRecord, GroupsSave, TeamsChoice } from './groups'
-import type { HouseId, HouseMembers, HousesChoice } from './houses'
+import type { HouseId, HouseMembers, HouseOffices, HousesChoice, OfficeId } from './houses'
 import type { HomeId } from './homes'
 import type { AudioGroup } from './audio'
 import type { ComfyGpu } from './setupManifest'
@@ -783,6 +783,8 @@ export interface CharProfile extends CharSchedule {
   groups?: GroupId[]
   /** The Greek house she lives in from the first day, settled at New Game; absent for anybody in none. */
   house?: HouseId
+  /** The office she holds in it, settled at New Game; absent for anybody who holds none. */
+  office?: OfficeId
 }
 
 /** The half a playthrough accumulates — what every save file carries about her. */
@@ -1927,6 +1929,8 @@ export interface PlaythroughRecord {
   playerCourse?: string
   /** When each group meets, keyed by group id; absent where New Game formed no group. */
   groups?: GroupsRecord
+  /** The offices of each Greek house that nobody of the roster holds; absent where every one is held. */
+  houseOffices?: HouseOffices
 }
 
 /** The record as New Game hands it over; `saveService` stamps the version. */

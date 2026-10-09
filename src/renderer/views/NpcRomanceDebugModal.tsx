@@ -4,7 +4,7 @@ import { motion } from 'motion/react'
 import { breakthroughMeterNow, lastBreakthroughUse, METER_MAX } from '@shared/breakthrough'
 import { factsKnownBy } from '@shared/facts'
 import { GROUP_IDS, GROUPS } from '@shared/groups'
-import { HOUSE_IDS, HOUSES } from '@shared/houses'
+import { HOUSE_IDS, HOUSES, OFFICE_IDS, OFFICE_NAMES } from '@shared/houses'
 import { MAX_STRIKES, shiftSlotFullLabel } from '@shared/jobs'
 import { locationLabel } from '@shared/locations'
 import { pairKeyOf } from '@shared/npcRelationships'
@@ -198,15 +198,18 @@ function sectionsOf(): DebugSection[] {
   // Who lives in each Greek house, from the profiles; a house with nobody of the roster is the
   // unnamed.
   for (const id of HOUSE_IDS) {
-    const named = game.chars
-      .filter((charId) => game.charInfo[charId]?.house === id)
-      .map((charId) => game.characters[charId]?.firstName ?? charId)
+    const lived = game.chars.filter((charId) => game.charInfo[charId]?.house === id)
+    const named = lived.map((charId) => game.characters[charId]?.firstName ?? charId)
+    const offices = OFFICE_IDS.map((office) => {
+      const holder = lived.find((charId) => game.charInfo[charId]?.office === office)
+      return `${OFFICE_NAMES[office]} ${holder ? (game.characters[holder]?.firstName ?? holder) : 'unnamed'}`
+    }).join(', ')
     groupRows.push({
       key: id,
       who: HOUSES[id].name,
       facts: `${HOUSES[id].nickname}, a ${HOUSES[id].kind}: ${
         named.length === 0 ? 'nobody from the roster' : `${named.length} of the roster (${named.join(', ')})`
-      }`
+      } · ${offices}`
     })
   }
   if (groupRows.length === 0) {

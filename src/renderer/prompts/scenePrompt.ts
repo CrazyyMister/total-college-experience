@@ -8,7 +8,7 @@ import {
   type GroupResult,
   type TryoutResult
 } from '@shared/groups'
-import { homeClause, homeOf, type HomeId } from '@shared/homes'
+import { homeClause, homeOf, officeAt, type HomeId } from '@shared/homes'
 import { EMOTIONS } from '@shared/emotions'
 import { isStockOutfitSet, outfitTagsFor, spriteRefsFor, STOCK_OUTFIT_SETS } from '@shared/outfits'
 import { wornSetOf } from '@shared/wardrobe'
@@ -97,13 +97,14 @@ import {
   groupOfEvent,
   groupFigurantLine,
   groupNewsClause,
+  houseDoorLines,
   houseFigurantLine,
   groupsInPlay,
   readerPlaysEvent,
   readerTeamLines
 } from './groupPrompt'
 import { factLines } from './facts'
-import { withoutClosedHouseBgs } from '@shared/houses'
+import { withoutClosedHouseBgs, type HouseOffices } from '@shared/houses'
 import { moodLine } from './moods'
 import { springBreakLines } from './springBreak'
 import {
@@ -313,6 +314,8 @@ export interface PromptState {
   groupResults?: Readonly<Record<string, GroupResult>>
   /** How each tryout the reader went to ended, by occasion id. */
   groupTryouts?: Readonly<Record<string, TryoutResult>>
+  /** The offices of each Greek house nobody of the roster holds. */
+  houseOffices?: HouseOffices
   /** The team the reader is on, or null. */
   playerTeam?: GroupId | null
   /**
@@ -796,7 +799,7 @@ export function yearMajorLine(
   home: HomeId | undefined,
   news = ''
 ): string {
-  return `Year: ${yearLabel(info.year)} | Major: ${info.major}.${home ? homeClause(home, gender) : ''}${groupClause(info.groups, gender)}${news}`
+  return `Year: ${yearLabel(info.year)} | Major: ${info.major}.${home ? homeClause(home, gender, officeAt(info, home)) : ''}${groupClause(info.groups, gender)}${news}`
 }
 
 /** Everything written about who a character *is*, shared by the cast block and the phone. */
@@ -1114,7 +1117,8 @@ function figurantLines(cast: readonly Character[], state: PromptState): string[]
     )
   )
   const house = houseFigurantLine(state.sceneLocation)
-  return [...(line ? [line] : []), ...(house ? [house] : []), ...(line || house ? [''] : [])]
+  const door = houseDoorLines(state.sceneLocation, state.houseOffices)
+  return [...door, ...(line ? [line] : []), ...(house ? [house] : []), ...(line || house ? [''] : [])]
 }
 
 /**
@@ -1574,6 +1578,7 @@ export function buildSoloPrompt(
     ...readerTeamLines(state.playerTeam),
     '',
     ...groupEventLines(state.groupEvent, state),
+    ...houseDoorLines(state.sceneLocation, state.houseOffices),
     ...(figurant ? [figurant, ''] : []),
     'YOUR TURN',
     'Solo mission, RITA! The reader is on their own for this one, so write it start to finish in one go.',

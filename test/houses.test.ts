@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { dealHouses, HOUSE_IDS, HOUSES, type HousesChoice } from '@shared/houses'
+import { dealHouses, dealOffices, HOUSE_IDS, HOUSES, OFFICE_IDS, type HousesChoice } from '@shared/houses'
 import type { StatKey } from '@shared/playerStats'
 import type { Gender } from '@shared/types'
 
@@ -74,3 +74,39 @@ describe('dealing the Greek houses', () => {
     expect(members.pi_theta).toBeUndefined()
   })
 })
+
+describe('dealing the offices of the houses', () => {
+  const members = {
+    kappa_row: ['m0', 'm1', 'm2'],
+    sig_lam: ['w0', 'w1'],
+    pi_theta: ['w2', 'w3', 'w4', 'w5']
+  }
+  const years = Object.fromEntries(
+    [...members.kappa_row, ...members.sig_lam, ...members.pi_theta].map((id, at) => [id, 2 + (at % 3)])
+  )
+
+  it('gives each person at most one office and each office to one person, the rest to the unnamed', () => {
+    for (let run = 0; run < 40; run++) {
+      const { holders, unnamed } = dealOffices({ members, years, seed: `run-${run}` })
+      for (const house of HOUSE_IDS) {
+        const named = Object.entries(holders).filter(([, held]) => held.house === house)
+        const offices = named.map(([, held]) => held.office)
+        expect(new Set(offices).size).toBe(offices.length)
+        expect(named).toHaveLength(Math.min((members as Record<string, string[]>)[house]?.length ?? 0, OFFICE_IDS.length))
+        // Every office is somebody's of the roster or the unnamed's, never both and never neither.
+        for (const office of OFFICE_IDS) {
+          expect(offices.includes(office) !== (unnamed[house] ?? []).includes(office)).toBe(true)
+        }
+      }
+      // A house with nobody of the roster holds all four offices unnamed, the president named where it has anybody.
+      expect(unnamed.xi_delt).toEqual([...OFFICE_IDS])
+      expect(unnamed.pi_theta).toBeUndefined()
+      expect(Object.values(holders).filter((held) => held.office === 'president')).toHaveLength(3)
+    }
+  })
+
+  it('deals the same offices from the same seed', () => {
+    expect(dealOffices({ members, years, seed: 'same' })).toEqual(dealOffices({ members, years, seed: 'same' }))
+  })
+})
+
