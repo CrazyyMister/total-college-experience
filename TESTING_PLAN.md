@@ -202,6 +202,9 @@ You will need externally kept data for testing:
 - [ ] In New Game setup, verify the four house cards: a woman ticked on one sorority is disabled on the other, ticking men on one fraternity lowers the other's maximum, and the ex is disabled on both sororities.
 - [ ] After Finalize, verify F9's Groups section lists each house's members with the ex in none, and that a member's contact page names her house.
 - [ ] Go to a Greek house and ask to go inside. Verify the background stays the house front by day and by night and nobody outside the cast is named.
+- [ ] After Finalize, verify F9's Groups section lists the four offices of each house, each held by a named character or "unnamed", and nobody holds two.
+- [ ] Type a walk to a Greek house with nobody home and verify data/app.log has the door line, saying fraternity or sorority as the house is, and the unnamed-background line, and that going inside never shows an inside background.
+- [ ] In a scene away from the houses, mention one of them and verify data/app.log has no house line.
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 
