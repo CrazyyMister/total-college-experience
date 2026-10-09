@@ -205,6 +205,9 @@ You will need externally kept data for testing:
 - [ ] After Finalize, verify F9's Groups section lists the four offices of each house, each held by a named character or "unnamed", and nobody holds two.
 - [ ] Type a walk to a Greek house with nobody home and verify data/app.log has the door line, saying fraternity or sorority as the house is, and the unnamed-background line, and that going inside never shows an inside background.
 - [ ] In a scene away from the houses, mention one of them and verify data/app.log has no house line.
+- [ ] During rush, go to a fraternity's rush event by its button and by typing a walk there. Verify the scene may use that house's living room or party space but never a bedroom, unnamed brothers stay unnamed, nothing promises a bid, and the map's Go to another house stays at its door.
+- [ ] Reach the Monday after rush having gone to its events. Verify the bid window lists only the houses data/app.log's [bid] lines scored as bidding, ignores Escape, right-click and outside clicks, comes back after a reload until answered and never after, and that pledging shows the house on the Profile.
+- [ ] Be on a team whose practice clashes with a house's meetings and verify the bid window says in one line why that house did not bid, with only a Close button.
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 
