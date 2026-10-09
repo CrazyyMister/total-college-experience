@@ -4,16 +4,17 @@ import type { NpcGroup } from '@shared/npcRelationships'
 import {
   GROUPS,
   groupsOfChar,
+  PLEDGE_LAST_DAY,
   practiceHeld,
   type GroupDef,
   type GroupId,
   type PracticeContext
 } from '@shared/groups'
 import { homeOf, type HomeId } from '@shared/homes'
-import { occasionHouses } from '@shared/houses'
+import { occasionHouses, type HouseId } from '@shared/houses'
 import { globalSlotOf, shiftSlotOf, slotFromId } from '@shared/jobs'
 import { ROOM_LOCATION } from '@shared/locations'
-import { classSlotOf, hauntClosedOn, jobClosedOn } from '../prompts/occasions'
+import { classSlotOf, closureOn, hauntClosedOn, jobClosedOn } from '../prompts/occasions'
 import type { PracticeWeek } from '../prompts/scenePrompt'
 import { charJobAt, shiftWeekdayOf } from '../prompts/gameDate'
 import { isMoodHomebound } from '../prompts/moods'
@@ -110,42 +111,116 @@ export function practiceHeldAt(slotId: number): boolean {
   return practiceHeld(team, sessions, slotId, practiceContext())
 }
 
-/** A practice of the reader's team: which team, and the period of the week it falls in. */
+/** The label of a pledge meeting, in the calendar, the week the writer reads and the actions. */
+const PLEDGE_MEETING_LABEL = 'pledge meeting'
+
+/**
+ * What decides whether his house meets in a slot, read off the store: a slot the university is
+ * shut in, one that an event of his house or a game of his team holds, and one a class, a shift
+ * or his team's practice holds. A pledge meeting is outranked by all of them and costs no strike.
+ */
+function meetingContext(): PracticeContext {
+  const game = useGameStore.getState()
+  const house = game.groupHouse?.id
+  const team = game.groupTeam?.id
+  return {
+    shiftSlotAt: (slotId) => {
+      const { date, time } = slotFromId(slotId)
+      return shiftSlotOf(shiftWeekdayOf(date), time)
+    },
+    closedOn: (date) => closureOn(date, game.occasions) !== null,
+    eventAt: (slotId) => {
+      const { date, time } = slotFromId(slotId)
+      return game.occasions.some(
+        (occasion) =>
+          date >= occasion.startDate &&
+          date <= occasion.endDate &&
+          (occasion.time === null || occasion.time === time) &&
+          ((house !== undefined &&
+            occasion.house !== undefined &&
+            occasionHouses(occasion).includes(house)) ||
+            (team !== undefined && occasion.group === team))
+      )
+    },
+    otherCommitmentAt: (slotId) => {
+      const { date, time } = slotFromId(slotId)
+      return playerClassNow(date, time) !== null || shiftNow(date, time) !== null || practiceHeldAt(slotId)
+    }
+  }
+}
+
+/** Whether his house holds a pledge meeting in a global slot. */
+export function houseMeetingHeldAt(slotId: number): boolean {
+  const game = useGameStore.getState()
+  const house = game.groupHouse
+  if (!house) return false
+  const sessions = game.houseAgendas[house.id]?.sessions ?? []
+  return practiceHeld(
+    { since: house.since + 1 },
+    sessions,
+    slotId,
+    meetingContext(),
+    PLEDGE_LAST_DAY
+  )
+}
+
+/** A commitment of the reader's to a group: his team's practice or his house's pledge meeting. */
 export interface PlayerGroupSlot {
-  group: GroupDef
-  /** What kind of group commitment it is; a house's meetings will be `'house'`. */
-  kind: 'team'
+  kind: 'team' | 'house'
+  /** The team, for a practice. */
+  group?: GroupDef
+  /** The house, for a pledge meeting. */
+  house?: HouseId
+  /** The period of the week it falls in. */
   slot: ShiftSlot
+  /** What it is called: "basketball practice", "pledge meeting". */
+  label: string
+  /** The place it is held at. */
+  location: string
 }
 
 /**
  * The group commitment the reader has in a slot, defaulting to now, or null: his team practices
- * then. The sibling of {@link shiftNow} for everything that asks whether his time is spoken for.
+ * then, or his house holds a pledge meeting. The sibling of {@link shiftNow} for everything that
+ * asks whether his time is spoken for.
  */
 export function playerGroupNow(date?: number, time?: TimeSlot): PlayerGroupSlot | null {
   const game = useGameStore.getState()
-  const team = game.groupTeam
-  if (!team) return null
   const on = date ?? game.date
   const half = time ?? game.time
-  if (!practiceHeldAt(globalSlotOf(on, half))) return null
-  return {
-    group: GROUPS[team.id],
-    kind: 'team',
-    slot: shiftSlotOf(shiftWeekdayOf(on), half)
+  const slotId = globalSlotOf(on, half)
+  const slot = shiftSlotOf(shiftWeekdayOf(on), half)
+  const team = game.groupTeam
+  if (team && practiceHeldAt(slotId)) {
+    const group = GROUPS[team.id]
+    return { kind: 'team', group, slot, label: group.practice, location: group.location }
   }
+  const house = game.groupHouse
+  if (house && houseMeetingHeldAt(slotId)) {
+    return { kind: 'house', house: house.id, slot, label: PLEDGE_MEETING_LABEL, location: house.id }
+  }
+  return null
 }
 
 /**
- * His team's practice periods, for the lines that tell the writer his week: nothing once classes
- * are over or when he is on no team.
+ * His team's practice periods and his house's pledge meetings, for the lines that tell the writer
+ * his week: the practices stop once classes are over and the meetings with the pledge, and
+ * nothing is said of a team or a house he has none of.
  */
-export function playerPracticeWeek(): PracticeWeek | null {
+export function playerPracticeWeek(): PracticeWeek[] {
   const game = useGameStore.getState()
+  const weeks: PracticeWeek[] = []
   const team = game.groupTeam
-  if (!team || game.date > LAST_CLASS_DATE) return null
-  const slots = game.groups[team.id]?.sessions ?? []
-  return slots.length > 0 ? { label: GROUPS[team.id].practice, slots: [...slots] } : null
+  if (team && game.date <= LAST_CLASS_DATE) {
+    const slots = game.groups[team.id]?.sessions ?? []
+    if (slots.length > 0) weeks.push({ label: GROUPS[team.id].practice, slots: [...slots] })
+  }
+  const house = game.groupHouse
+  if (house && game.date <= PLEDGE_LAST_DAY) {
+    const slots = game.houseAgendas[house.id]?.sessions ?? []
+    if (slots.length > 0) weeks.push({ label: PLEDGE_MEETING_LABEL, slots: [...slots] })
+  }
+  return weeks
 }
 
 /**
@@ -210,12 +285,19 @@ export function charStandingHauntAt(charId: string, date: number, time: TimeSlot
     event.where !== undefined &&
     houseOfChar !== undefined &&
     occasionHouses(event).includes(houseOfChar)
+  // His pledge meeting: whoever lives in the house he pledges is at it while it is held.
+  const inMeeting =
+    game.groupHouse !== null &&
+    houseOfChar === game.groupHouse.id &&
+    houseMeetingHeldAt(globalSlotOf(date, time))
   const inEvent = inTeamEvent || inHouseEvent
   const haunt: Haunt | undefined = inHouseEvent
     ? { location: event.where as string, kind: 'event', doing: `at the ${event.title}` }
     : inTeamEvent
       ? { location: event.where as string, kind: 'team' }
-      : game.charInfo[charId]?.hiddenSchedule?.[shiftSlotOf(shiftWeekdayOf(date), time)]
+      : inMeeting
+        ? { location: game.groupHouse?.id as string, kind: 'event', doing: 'at the pledge meeting' }
+        : game.charInfo[charId]?.hiddenSchedule?.[shiftSlotOf(shiftWeekdayOf(date), time)]
   if (!haunt) return null
   // A group's event takes its place over: another team's session there that half-day is not held.
   if (!inEvent && event?.where !== undefined && haunt.kind === 'team' && haunt.location === event.where) {

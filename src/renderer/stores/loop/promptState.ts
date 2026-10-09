@@ -374,6 +374,8 @@ export function promptState(): PromptState {
     playerJob: game.job,
     playerPractice: playerPracticeWeek(),
     groupPractice: game.sceneGroupPractice,
+    houseMeeting: game.sceneHouseMeeting,
+    houseDropped: game.groupDropped?.house ?? null,
     occasions: game.occasions,
     weather: game.weather,
     bg: stage.bg,

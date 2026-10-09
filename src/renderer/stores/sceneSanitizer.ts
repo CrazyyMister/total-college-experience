@@ -145,7 +145,8 @@ export function createSceneSanitizer(options: SanitizerOptions = {}): {
   // The insides of the Greek houses are closed to every scene but the one of the house's own event.
   const backgrounds = new Set(
     withoutClosedHouseBgs(allBackgrounds(useAssetStore.getState().backgrounds), {
-      event: game.sceneGroupEvent
+      event: game.sceneGroupEvent,
+      meeting: game.sceneHouseMeeting
     })
   )
   // Cast members' room bgs are legal exactly when the prompt offered them: both images on disk.

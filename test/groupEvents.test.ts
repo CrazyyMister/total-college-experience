@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { gameResult, GROUPS, placeGroupEvents, tryoutVerdict, type GroupResult } from '@shared/groups'
 import { classSlotForShift, globalSlotOf, JOB_CATALOG, newJobState } from '@shared/jobs'
-import { rushOccasion, RUSH_EVENTS } from '@shared/houses'
+import { mixerOccasion, partyOccasion, rushOccasion, RUSH_EVENTS } from '@shared/houses'
 import type { GameSave, Occasion, ShiftSlot } from '@shared/types'
 import { groupNewsClause } from '../src/renderer/prompts/groupPrompt'
 import { SPRING_BREAK } from '../src/renderer/prompts/occasions'
@@ -13,6 +13,7 @@ import {
   planGroupEvent,
   resultOfEvent,
   settleGroupResults,
+  settlePledge,
   settleSessions,
   tryoutRefusal
 } from '../src/renderer/stores/loop/groups'
@@ -158,7 +159,12 @@ describe('the rush and the bid', () => {
 
     useGameStore.getState().answerBid('kappa_row', 29)
     useGameStore.getState().answerBid(null, 31)
-    expect(useGameStore.getState().groupHouse).toEqual({ id: 'kappa_row', stage: 'pledge', since: 29 })
+    expect(useGameStore.getState().groupHouse).toMatchObject({
+      id: 'kappa_row',
+      stage: 'pledge',
+      since: 29,
+      strikes: 0
+    })
     expect(useGameStore.getState().groupRush.bid?.answer).toBe('kappa_row')
   })
 
@@ -458,7 +464,7 @@ describe('the practices of the team he is on', () => {
 
   it('offers the practice only in its period, and the coach says goodbye when he leaves', () => {
     onTeam(6, 1)
-    expect(playerGroupNow()?.group.id).toBe('basketball')
+    expect(playerGroupNow()?.group?.id).toBe('basketball')
     expect(playerGroupNow(6, 0)).toBeNull()
     leaveTeamNow()
     expect(useGameStore.getState().groupTeam).toBeNull()
@@ -603,5 +609,223 @@ describe('a game of the men\'s team', () => {
     expect(playerGroupNow(GAME_DAY, 1)).toBeNull()
     useGameStore.setState({ occasions: [] })
     expect(playerGroupNow(GAME_DAY, 1)).not.toBeNull()
+  })
+})
+
+describe('the pledge meetings of the house he has said yes to', () => {
+  // The house meets in periods 2 and 9 of the week (Tuesday daytime and Friday night), so from
+  // day 14 its meetings fall in slots 30 (day 15), 37 (day 18), 44 (day 22) and so on; he said
+  // yes in slot 28, so the first meeting judged is the one after it.
+  const SESSIONS: ShiftSlot[] = [2, 9]
+  const CHAT = 'house:kappa_row'
+  const AGENDAS = { kappa_row: { sessions: SESSIONS } }
+  const standing = {
+    id: 'kappa_row' as const,
+    stage: 'pledge' as const,
+    since: 28,
+    strikes: 0,
+    settledThrough: 28,
+    attendedSlots: [] as number[],
+    held: 0,
+    attended: 0
+  }
+
+  /** A reader pledging Kappa Row, the clock at the given half-day and nothing judged yet. */
+  function pledging(date: number, time: 0 | 1, over: Record<string, unknown> = {}): void {
+    useGameStore.getState().reset()
+    useGameStore.setState({
+      playthroughId: 'p1',
+      date,
+      time,
+      houseAgendas: AGENDAS,
+      groupHouse: { ...standing },
+      chars: ['a'],
+      characters: charactersById(character({ charId: 'a' })),
+      charInfo: { a: charInfo({ house: 'kappa_row' }) },
+      ...over
+    })
+  }
+  const texts = (): string[] =>
+    (useGameStore.getState().bunnyboard.conversations[CHAT]?.messages ?? []).map((m) => m.text)
+
+  it('files the strike, the slot judged through and the text of the house in one write', () => {
+    pledging(16, 0)
+    const seen: Array<[number, number]> = []
+    const unsubscribe = useGameStore.subscribe((state) => {
+      seen.push([
+        state.groupHouse?.strikes ?? -1,
+        state.bunnyboard.conversations[CHAT]?.messages.length ?? 0
+      ])
+    })
+    settlePledge()
+    unsubscribe()
+    expect(seen).toEqual([[1, 1]])
+    expect(useGameStore.getState().groupHouse).toMatchObject({ settledThrough: 31, held: 1, attended: 0 })
+    expect(texts()).toEqual([
+      "You weren't at the meeting. That's one. Three misses and your pledge is over."
+    ])
+
+    // Asked again, nothing is judged or sent a second time.
+    settlePledge()
+    expect(useGameStore.getState().groupHouse?.strikes).toBe(1)
+    expect(texts()).toHaveLength(1)
+  })
+
+  it('counts a replayed boundary once, from the save taken before it or after it', () => {
+    pledging(16, 0)
+    const before = JSON.parse(JSON.stringify(useGameStore.getState().toGameSave())) as GameSave
+    settlePledge()
+    const after = JSON.parse(JSON.stringify(useGameStore.getState().toGameSave())) as GameSave
+
+    for (const save of [before, after]) {
+      useGameStore.getState().reset()
+      useGameStore.getState().loadSave(save, playthroughRecord({ houseAgendas: AGENDAS }), {})
+      settlePledge()
+      expect(useGameStore.getState().groupHouse?.strikes).toBe(1)
+      expect(texts()).toHaveLength(1)
+    }
+  })
+
+  it('spares a meeting he went to, filed once, and forgets it once judged', () => {
+    pledging(16, 0)
+    useGameStore.getState().recordMeetingAttended(30)
+    useGameStore.getState().recordMeetingAttended(30)
+    expect(useGameStore.getState().groupHouse?.attendedSlots).toEqual([30])
+    settlePledge()
+    expect(useGameStore.getState().groupHouse).toMatchObject({
+      strikes: 0,
+      settledThrough: 31,
+      attendedSlots: [],
+      held: 1,
+      attended: 1
+    })
+    expect(texts()).toEqual([])
+  })
+
+  it('puts him out on the third miss with a text for each, marks the house, and leaves no memory', () => {
+    pledging(22, 1)
+    settlePledge()
+    const game = useGameStore.getState()
+    expect(game.groupHouse).toBeNull()
+    expect(game.groupDropped).toEqual({ house: 'kappa_row', day: 22 })
+    expect(game.charInfo.a.memories).toEqual([])
+    expect(texts()).toEqual([
+      "You weren't at the meeting. That's one. Three misses and your pledge is over.",
+      "That's two. One more and your pledge is over.",
+      "That's three. Your pledge is over. You're not one of us."
+    ])
+    // The bid is not asked again, and a replayed boundary changes nothing.
+    settlePledge()
+    expect(texts()).toHaveLength(3)
+    expect(useGameStore.getState().groupDropped).toEqual({ house: 'kappa_row', day: 22 })
+  })
+
+  it('does not hold a meeting on a closed day, on the night of an event of the house or of its mixer, or on a game of his team', () => {
+    // Presidents' Day, a Monday: the house meets Mondays by day.
+    pledging(29, 0, {
+      houseAgendas: { kappa_row: { sessions: [0] } },
+      groupHouse: { ...standing, since: 20, settledThrough: 55 }
+    })
+    settlePledge()
+    expect(useGameStore.getState().groupHouse).toMatchObject({ strikes: 0, settledThrough: 57 })
+
+    // A party of the house on a Saturday night, and a mixer a sorority hosts with it on a Thursday.
+    pledging(20, 0, {
+      houseAgendas: { kappa_row: { sessions: [7, 11] } },
+      occasions: [partyOccasion('kappa_row', 3, 19), mixerOccasion('sig_lam', 2, 17)],
+      groupHouse: { ...standing, settledThrough: 33 }
+    })
+    settlePledge()
+    expect(useGameStore.getState().groupHouse).toMatchObject({ strikes: 0, held: 0 })
+
+    // A game of the team he is on, on a Saturday night.
+    const game: Occasion = {
+      id: 'basketball-game-1',
+      title: 'Game',
+      description: 'A game.',
+      startDate: 26,
+      endDate: 26,
+      time: 1,
+      cancelsClasses: false,
+      kind: 'campus',
+      group: 'basketball',
+      where: 'palaestra_courts'
+    }
+    pledging(27, 0, {
+      houseAgendas: { kappa_row: { sessions: [11] } },
+      occasions: [game],
+      groupHouse: { ...standing, settledThrough: 51 },
+      groupTeam: {
+        id: 'basketball',
+        since: 11,
+        strikes: 0,
+        settledThrough: 100,
+        attendedSlots: [],
+        held: 0,
+        attended: 0
+      }
+    })
+    settlePledge()
+    expect(useGameStore.getState().groupHouse).toMatchObject({ strikes: 0, held: 0 })
+    expect(playerGroupNow(26, 1)).toBeNull()
+
+    // The same Saturday night with no game is a meeting he missed.
+    useGameStore.setState({ occasions: [], groupHouse: { ...standing, settledThrough: 51 } })
+    expect(playerGroupNow(26, 1)?.kind).toBe('house')
+    settlePledge()
+    expect(useGameStore.getState().groupHouse?.strikes).toBe(1)
+  })
+
+  it('stops holding meetings after the last day of the pledge and when a shift holds the period', () => {
+    pledging(43, 0, {
+      houseAgendas: { kappa_row: { sessions: [0] } },
+      groupHouse: { ...standing, settledThrough: 83 }
+    })
+    settlePledge()
+    expect(useGameStore.getState().groupHouse).toMatchObject({ strikes: 0, settledThrough: 85 })
+
+    pledging(16, 0, { job: newJobState(JOB_CATALOG[0].id, [2], 0) })
+    expect(playerGroupNow(15, 0)).toBeNull()
+    settlePledge()
+    expect(useGameStore.getState().groupHouse?.strikes).toBe(0)
+  })
+
+  it('answers the bid with the standing and the first text of the house in one write', () => {
+    useGameStore.getState().reset()
+    useGameStore.setState({
+      groupRush: { attended: [], bid: { day: 13, invited: ['kappa_row'], clashed: [], scores: {} } }
+    })
+    const welcome = {
+      messages: [{ id: 'm', sender: 'contact' as const, text: 'Welcome.', date: 14, time: 0 as const }],
+      unread: 1
+    }
+    useGameStore.getState().answerBid('kappa_row', 28, welcome)
+    expect(useGameStore.getState().groupHouse).toEqual(standing)
+    expect(useGameStore.getState().bunnyboard.conversations[CHAT]?.messages).toHaveLength(1)
+  })
+
+  it('goes through the save and back, with the mark of the house that put him out, and reads an old pledge as judged from here', () => {
+    pledging(22, 1)
+    settlePledge()
+    const out = JSON.parse(JSON.stringify(useGameStore.getState().toGameSave())) as GameSave
+    expect(out.groups?.dropped).toEqual({ house: 'kappa_row', day: 22 })
+    expect(out.groups?.house).toBeUndefined()
+    useGameStore.getState().reset()
+    useGameStore.getState().loadSave(out, playthroughRecord(), {})
+    expect(useGameStore.getState().groupDropped).toEqual({ house: 'kappa_row', day: 22 })
+    expect(useGameStore.getState().groupHouse).toBeNull()
+
+    // A save from the part before meetings counted: nothing is charged for the weeks before it.
+    pledging(30, 0, { groupHouse: { id: 'kappa_row', stage: 'pledge', since: 28 } })
+    const old = JSON.parse(JSON.stringify(useGameStore.getState().toGameSave())) as GameSave
+    expect(old.groups?.house).toEqual({ id: 'kappa_row', stage: 'pledge', since: 28 })
+    useGameStore.getState().reset()
+    useGameStore.getState().loadSave(old, playthroughRecord({ houseAgendas: AGENDAS }), {})
+    expect(useGameStore.getState().groupHouse).toEqual({
+      ...standing,
+      settledThrough: globalSlotOf(30, 0) - 1
+    })
+    settlePledge()
+    expect(useGameStore.getState().groupHouse?.strikes).toBe(0)
   })
 })

@@ -11,7 +11,13 @@ import { statActionBag, statActionsFor } from '../prompts/statActions'
 import { useGameStore } from './gameStore'
 import { useGrabBagStore } from './grabBagStore'
 import type { Verdict } from './loop/classify'
-import { canTryOut, groupEventVerdict, MAP_ACTION, PRACTICE_ACTION } from './loop/groups'
+import {
+  canTryOut,
+  groupEventVerdict,
+  MAP_ACTION,
+  MEETING_ACTION,
+  PRACTICE_ACTION
+} from './loop/groups'
 import { projectsNeedingWork } from './loop/jobs'
 import { groupEventAt, playerClassNow, playerGroupNow, shiftNow } from './timetable'
 
@@ -139,12 +145,21 @@ function commitments(): SlotAction[] {
 
   // His team's practice, which sets the scene at the team's place.
   const practice = playerGroupNow()
-  if (practice) {
+  if (practice?.kind === 'team' && practice.group) {
     actions.push({
       key: `practice:${practice.group.id}`,
       text: `Go to ${practice.group.practice}`,
       tone: 'plan',
       verdict: { ...knownVerdict(PRACTICE_ACTION), sceneLocation: practice.group.location }
+    })
+  }
+  // His pledge meeting, which sets the scene at his house.
+  if (practice?.kind === 'house') {
+    actions.push({
+      key: `meeting:${practice.house}`,
+      text: 'Go to the pledge meeting',
+      tone: 'plan',
+      verdict: { ...knownVerdict(MEETING_ACTION), sceneLocation: practice.location }
     })
   }
 

@@ -1,4 +1,13 @@
-import { coachChatIdOf, coachText, type CoachKind, type GroupDef } from '@shared/groups'
+import {
+  coachChatIdOf,
+  coachText,
+  houseChatIdOf,
+  pledgeText,
+  type CoachKind,
+  type GroupDef,
+  type PledgeKind
+} from '@shared/groups'
+import type { HouseId } from '@shared/houses'
 import type { ChatMessage, ShiftSlot } from '@shared/types'
 import { useBunnyboardStore } from '../bunnyboardStore'
 import { useGameStore } from '../gameStore'
@@ -46,4 +55,24 @@ export function coachTexts(
       : []
   })
   return { messages, unread: isViewing(coachChatIdOf(group.id)) ? 0 : messages.length }
+}
+
+/**
+ * The texts a house sends its pledge now, in order, stamped with the clock; `strikes` is the
+ * count each one is sent at. Built before the store action that files them, like the coach's.
+ */
+export function houseTexts(
+  house: HouseId,
+  sessions: readonly ShiftSlot[],
+  sends: ReadonlyArray<{ kind: PledgeKind; strikes?: number }>
+): CoachTexts {
+  const game = useGameStore.getState()
+  const messages: ChatMessage[] = sends.map(({ kind, strikes }) => ({
+    id: crypto.randomUUID(),
+    sender: 'contact' as const,
+    text: pledgeText(house, kind, sessions, strikes),
+    date: game.date,
+    time: game.time
+  }))
+  return { messages, unread: isViewing(houseChatIdOf(house)) ? 0 : messages.length }
 }

@@ -266,6 +266,21 @@ function sectionsOf(): DebugSection[] {
       })
     }
   }
+  if (game.groupHouse) {
+    const standing = game.groupHouse
+    groupRows.push({
+      key: 'pledge',
+      who: `Pledge of ${HOUSES[standing.id].nickname}`,
+      facts: `${standing.strikes} missed, ${standing.attended} of ${standing.held} meetings judged went to, judged through slot ${standing.settledThrough}`
+    })
+  }
+  if (game.groupDropped) {
+    groupRows.push({
+      key: 'dropped',
+      who: 'Put out of a pledge',
+      facts: `${HOUSES[game.groupDropped.house].nickname}, on day ${game.groupDropped.day}`
+    })
+  }
   const bid = game.groupRush.bid
   if (bid) {
     groupRows.push({

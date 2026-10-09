@@ -89,7 +89,7 @@ import { resetPhotos, showPhoto } from './photoStore'
 import { noNsfwImagesOf, textPhotosOf, useSettingsStore } from './settingsStore'
 import { useSetupStore } from './setupStore'
 import { useGameStore } from './gameStore'
-import { GROUP_EVENT_TIME, groupOfCoachChat, tryoutOf } from '@shared/groups'
+import { GROUP_EVENT_TIME, groupOfCoachChat, houseOfChatId, tryoutOf } from '@shared/groups'
 import type { Verdict } from './loop/classify'
 import { canTryOut, groupEventVerdict, photoWornSet } from './loop/groups'
 import { prefetchHangoutScene, startHangoutScene } from './loop/hooks'
@@ -697,7 +697,8 @@ export async function sendMessage(charId: string, text: string): Promise<void> {
     isBossChat(charId) ||
     isVenusChat(charId) ||
     isBunnybotChat(charId) ||
-    groupOfCoachChat(charId)
+    groupOfCoachChat(charId) ||
+    houseOfChatId(charId)
   ) {
     return
   }
@@ -1457,7 +1458,9 @@ export function pickOccasionAsker(
     if (charUnavailableNow(charId, day, half)) continue
     // A group's event is asked by one of its members, and a house's by one who lives in it.
     if (occasion?.group && !game.charInfo[charId]?.groups?.includes(occasion.group)) continue
-    if (occasion && !mayAskTo(occasion, game.charInfo[charId]?.house)) continue
+    if (occasion && !mayAskTo(occasion, game.charInfo[charId]?.house, game.groupDropped?.house)) {
+      continue
+    }
     // She is already asking him something else.
     if (conversations[charId]?.pendingHangout) continue
     // Her own backoff still counts; the roster's spell of quiet does not.

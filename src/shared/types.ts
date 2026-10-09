@@ -1351,6 +1351,8 @@ export interface SceneState {
   groupEvent?: string
   /** Set when the scene is one of his team's practices, which pays him and spares him a strike. */
   groupPractice?: true
+  /** Set to the house when the scene is one of its pledge meetings, which the boundary files as attended. */
+  houseMeeting?: HouseId
   /**
    * Roster charIds the action named without their being in the scene — bought for, thought
    * about, asked after — or absent when it named nobody absent.

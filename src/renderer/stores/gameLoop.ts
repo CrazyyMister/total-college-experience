@@ -3,7 +3,7 @@ import { checkFacts } from '@shared/facts'
 import { gameOverLines, gameOverReasonOf } from '@shared/gameOver'
 import { GAME_GAIN, GROUPS, PRACTICE_GAIN } from '@shared/groups'
 import { homeOf, READER, withHomeMove } from '@shared/homes'
-import { houseEventOf, mayAskTo, rushEventOf } from '@shared/houses'
+import { HOUSES, houseEventOf, mayAskTo, rushEventOf } from '@shared/houses'
 import { settleOccasionAskers } from './slotAskers'
 import { locationLabel } from '@shared/locations'
 import { earnLine, spendLine, spentOf } from '@shared/money'
@@ -227,11 +227,15 @@ import { failTurn, runSceneTurn } from './loop/turn'
 import {
   decideBid,
   groupEventIdFor,
+  isMeetingVerdict,
   isPracticeVerdict,
+  NO_MEETING_MESSAGE,
   NO_PRACTICE_MESSAGE,
   planGroupEvent,
+  planMeeting,
   planPractice,
   settleGroupResults,
+  settlePledge,
   settleSessions,
   tryoutRefusal
 } from './loop/groups'
@@ -416,6 +420,9 @@ async function beginSlot(): Promise<void> {
 
   // So is every practice, beside it: the strikes and the coach's texts are one write.
   settleSessions()
+
+  // And every pledge meeting, the same way: the strikes and the house's texts are one write.
+  settlePledge()
 
   // The two grade notifications: the standing heads the slot, the finals close it.
   const grades = settleGrades()
@@ -768,7 +775,8 @@ async function fetchSlotIntro(
   // slot the dice picked nobody for, or picked only people who are not the ones a house's occasion
   // is asked by.
   const mayCarry = (charKey: string): boolean =>
-    occasion === null || mayAskTo(occasion, view.charInfo[game.charKeyToId[charKey]]?.house)
+    occasion === null ||
+    mayAskTo(occasion, view.charInfo[game.charKeyToId[charKey]]?.house, game.groupDropped?.house)
   const askerKeys = occasion
     ? settleOccasionAskers(pickSlotAskers(date, time, view, occasion), mayCarry, () =>
         pickOccasionAsker(date, time, view, npcOverlay, occasion)
@@ -1395,6 +1403,8 @@ async function castTurn(
     ? castGroupTurn(eventId, trimmed, snapshot)
     : isPracticeVerdict(verdict)
       ? castPracticeTurn(trimmed, snapshot)
+      : isMeetingVerdict(verdict)
+      ? castMeetingTurn(trimmed, snapshot)
       : actionType.startsWith('goto_class:')
       ? await castClassTurn(actionType, mentioned, trimmed, snapshot)
       : actionType === 'job'
@@ -1499,6 +1509,28 @@ function castPracticeTurn(sceneAction: string, snapshot: TurnSnapshot): CastPlan
     sceneAction: [
       sceneAction,
       `(He is at his ${group.practice} at ${locationLabel(group.location)}.)`
+    ].join('\n')
+  }
+}
+
+/**
+ * His pledge meeting, played with whoever of the house is free: refused, and costing him
+ * nothing, when his house is not meeting now. The attendance is filed at the boundary.
+ */
+function castMeetingTurn(sceneAction: string, snapshot: TurnSnapshot): CastPlan | null {
+  const planned = planMeeting()
+  if (!planned || !planned.scene.houseMeeting) {
+    failTurn(rejection(NO_MEETING_MESSAGE), snapshot)
+    return null
+  }
+  return {
+    cast: planned.cast,
+    scene: planned.scene,
+    passerby: null,
+    // Under the action, like a practice's note, so the Chat Log shows it too.
+    sceneAction: [
+      sceneAction,
+      `(He is at a pledge meeting at the ${HOUSES[planned.scene.houseMeeting].nickname} house.)`
     ].join('\n')
   }
 }
@@ -2890,6 +2922,11 @@ async function crossSlotBoundary(): Promise<void> {
   // finds him there.
   if (useGameStore.getState().sceneGroupPractice) {
     useGameStore.getState().recordPracticeAttended(globalSlotOf(game.date, game.time))
+  }
+  // So is a pledge meeting he went to, once.
+  const meetingHouse = useGameStore.getState().sceneHouseMeeting
+  if (meetingHouse) {
+    useGameStore.getState().recordMeetingAttended(globalSlotOf(game.date, game.time))
   }
   // A rush event he went to is filed as the boundary closes it; an event is filed once.
   const rushEventId = useGameStore.getState().sceneGroupEvent

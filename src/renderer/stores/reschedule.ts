@@ -66,7 +66,7 @@ function readerVerdict(event: CalendarEvent, date: number, time: TimeSlot): Verd
 
   const practice = playerGroupNow(date, time)
   if (practice) {
-    const name = practice.group.practice
+    const name = practice.label
     return { blocked: 'practice', label: `${name.charAt(0).toUpperCase()}${name.slice(1)}` }
   }
 

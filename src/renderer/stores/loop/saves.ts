@@ -200,6 +200,8 @@ export function queuedScene(
   else delete scene.groupEvent
   if (game.sceneGroupPractice) scene.groupPractice = true
   else delete scene.groupPractice
+  if (game.sceneHouseMeeting) scene.houseMeeting = game.sceneHouseMeeting
+  else delete scene.houseMeeting
   if (game.sceneTextLedgerSkip) scene.textLedgerSkip = game.sceneTextLedgerSkip
   else delete scene.textLedgerSkip
   if (game.sceneTextLedger) scene.textLedger = { ...game.sceneTextLedger }

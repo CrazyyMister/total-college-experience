@@ -7,7 +7,7 @@ import {
   scheduleComplaint,
   studentsOf
 } from '@shared/classes'
-import { GROUPS } from '@shared/groups'
+import { GROUPS, PLEDGE_LAST_DAY } from '@shared/groups'
 import { classSlotForShift, jobDefOf } from '@shared/jobs'
 import type { ClassEntry, ClassSlot } from '@shared/types'
 import { useModalShell } from '../components/useModalShell'
@@ -41,6 +41,9 @@ export function ClassScheduleModal({ theme, onClose }: ClassScheduleModalProps):
   const job = useGameStore((s) => s.job)
   const team = useGameStore((s) => s.groupTeam)
   const agendas = useGameStore((s) => s.groups)
+  const house = useGameStore((s) => s.groupHouse)
+  const houseAgendas = useGameStore((s) => s.houseAgendas)
+  const today = useGameStore((s) => s.date)
   const droppedClasses = useGameStore((s) => s.droppedClasses)
   const current = useGameStore((s) => s.playerSchedule)
 
@@ -70,8 +73,15 @@ export function ClassScheduleModal({ theme, onClose }: ClassScheduleModalProps):
         if (slot !== null) map[slot] = name
       }
     }
+    // And the periods his house meets in, while he pledges it.
+    if (house && today <= PLEDGE_LAST_DAY) {
+      for (const shift of houseAgendas[house.id]?.sessions ?? []) {
+        const slot = classSlotForShift(shift)
+        if (slot !== null) map[slot] = 'Pledge meeting'
+      }
+    }
     return map
-  }, [job, team, agendas])
+  }, [job, team, agendas, house, houseAgendas, today])
 
   const { host, overlayProps } = useModalShell(onClose)
 

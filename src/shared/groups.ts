@@ -11,6 +11,7 @@ import { isLocationOpen, locationLabel } from './locations'
 import {
   HOUSE_IDS,
   HOUSES,
+  isHouse,
   houseNights,
   mixerHost,
   mixerEventId,
@@ -22,10 +23,11 @@ import {
   rushCandidates,
   rushEventOf,
   rushOccasion,
+  type DroppedHouse,
   type HouseId,
   type HouseMembers,
-  type HouseStanding,
-  type RushSave
+  type RushSave,
+  type SavedHouseStanding
 } from './houses'
 import { MAX_TIER, tierOf, type ShiftGain } from './playerStats'
 import { pronounsOf } from './pronouns'
@@ -304,6 +306,9 @@ export const TEAM_SESSIONS_PER_WEEK = 2
 /** How many meetings a fraternity holds in a week. */
 export const PLEDGE_SESSIONS_PER_WEEK = 2
 
+/** The last day of a pledge: the end of the fifth week. It runs from the slot after his answer. */
+export const PLEDGE_LAST_DAY = 41
+
 /** The fewest members who must be free for a session to be held at all. */
 export const MIN_SESSION_ATTENDEES = 2
 
@@ -408,7 +413,9 @@ export interface GroupsSave {
   /** The rush events he went to and the bid they led to. */
   rush?: RushSave
   /** The house he has said yes to. */
-  house?: HouseStanding
+  house?: SavedHouseStanding
+  /** The house that put him out of its pledge, kept so that its scenes and its people know. */
+  dropped?: DroppedHouse
 }
 
 /** Every group's agenda in a playthrough, keyed by group id. */
@@ -1234,17 +1241,19 @@ export interface PracticeContext {
  * Whether his team practices in a slot: it is one of the team's sessions, he is on the team
  * by then, classes still meet, the university is open, and neither a group's event at his
  * team's place nor a class or a shift of his holds it. The one rule the clock's commitments and the strikes both ask.
+ * A house's pledge meeting is asked the same, from the slot after he said yes to `lastDate`.
  */
 export function practiceHeld(
   team: Pick<GroupTeam, 'since'>,
   sessions: readonly ShiftSlot[],
   slotId: number,
-  context: PracticeContext
+  context: PracticeContext,
+  lastDate: number = LAST_CLASS_DATE
 ): boolean {
   const date = Math.floor(slotId / 2)
   return (
     slotId >= team.since &&
-    date <= LAST_CLASS_DATE &&
+    date <= lastDate &&
     sessions.includes(context.shiftSlotAt(slotId)) &&
     !context.closedOn(date) &&
     !context.eventAt(slotId) &&
@@ -1254,6 +1263,12 @@ export function practiceHeld(
 
 /** The coach's text for a missed practice, by how many he has missed. */
 export type StrikeKind = 'missed' | 'missed2' | 'expelled'
+
+/** What {@link settleSessions} reads of a team or a pledge: how its sessions stand. */
+export type SessionStanding = Pick<
+  GroupTeam,
+  'strikes' | 'settledThrough' | 'attendedSlots' | 'held' | 'attended'
+>
 
 /** What {@link settleSessions} concluded, as data the caller applies. */
 export interface SessionSettle {
@@ -1277,7 +1292,7 @@ export interface SessionSettle {
  * judges it again.
  */
 export function settleSessions(
-  team: GroupTeam,
+  team: SessionStanding,
   throughSlot: number,
   held: (slotId: number) => boolean
 ): SessionSettle {
@@ -1324,19 +1339,62 @@ export function coachText(
 ): string | null {
   const template = group.coach?.texts[kind]
   if (!template) return null
-  const values: Record<string, number | string> = {
+  return fillTemplate(template, {
     hours: sessions.map(shiftSlotFullLabel).join(' and '),
     place: locationLabel(group.location),
     limit: MAX_STRIKES,
     strike: strikes,
     left: Math.max(0, MAX_STRIKES - strikes)
-  }
+  })
+}
+
+/** Writes the values into a text's `{token}`s; a capitalized token capitalizes a count. */
+function fillTemplate(template: string, values: Record<string, number | string>): string {
   return template.replace(/\{(\w+)\}/g, (whole, token: string) => {
     const key = `${token.charAt(0).toLowerCase()}${token.slice(1)}`
     const value = values[key]
     if (value === undefined) return whole
     return typeof value === 'number' ? countWord(value, token !== key) : value
   })
+}
+
+/** The kinds of text a house sends its pledge. */
+export type PledgeKind = 'intro' | 'missed' | 'missed2' | 'expelled'
+
+/** What a house says to its pledge, in the game's own fixed words. */
+const PLEDGE_TEXTS: Record<PledgeKind, string> = {
+  intro: "Welcome to {house}. You're a pledge now. We meet {hours} at the house. Be there, every time.",
+  missed: "You weren't at the meeting. That's {strike}. {Limit} misses and your pledge is over.",
+  missed2: "That's {strike}. {Left} more and your pledge is over.",
+  expelled: "That's {strike}. Your pledge is over. You're not one of us."
+}
+
+/** The house's text to its pledge, with the meeting periods and the count written in. */
+export function pledgeText(
+  house: HouseId,
+  kind: PledgeKind,
+  sessions: readonly ShiftSlot[],
+  strikes = 0
+): string {
+  return fillTemplate(PLEDGE_TEXTS[kind], {
+    house: HOUSES[house].nickname,
+    hours: sessions.map(shiftSlotFullLabel).join(' and '),
+    limit: MAX_STRIKES,
+    strike: strikes,
+    left: Math.max(0, MAX_STRIKES - strikes)
+  })
+}
+
+/** The Bunnyboard conversation key for a house's texts to its pledge, one per house. */
+export function houseChatIdOf(id: HouseId): string {
+  return `house:${id}`
+}
+
+/** The house behind a conversation key, or `undefined` for a key that is not one. */
+export function houseOfChatId(chatId: string): HouseId | undefined {
+  if (!chatId.startsWith('house:')) return undefined
+  const id = chatId.slice('house:'.length)
+  return isHouse(id) ? id : undefined
 }
 
 /** The Bunnyboard conversation key for a team's coach, one per team. */

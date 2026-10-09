@@ -98,6 +98,7 @@ import {
   groupFigurantLine,
   groupNewsClause,
   houseDoorLines,
+  houseMeetingLines,
   houseFigurantLine,
   groupsInPlay,
   readerPlaysEvent,
@@ -252,8 +253,12 @@ export interface PromptState {
   addedNotices?: readonly AddedNotice[]
   /** The part-time job the reader holds, or null — the other half of his week. */
   playerJob: JobState | null
-  /** His team's practice periods while it practices, or null — the third part of his week. */
-  playerPractice?: PracticeWeek | null
+  /** His team's practice periods and his pledge meetings while they run — the third part of his week. */
+  playerPractice?: readonly PracticeWeek[]
+  /** The house whose pledge meeting the scene is, or null. */
+  houseMeeting?: HouseId | null
+  /** The house that put him out of its pledge, or null. */
+  houseDropped?: HouseId | null
   /** Whether the scene is one of his team's practices, which the game pays itself. */
   groupPractice?: boolean
   /** The girl he starts with as an ex, where New Game picked one. */
@@ -847,7 +852,7 @@ export function scheduleLines(
   classes: Record<string, ClassEntry>,
   job?: { jobId: string; shifts: readonly ShiftSlot[]; startsOn?: number } | null,
   date?: number,
-  practice?: PracticeWeek | null
+  practice?: readonly PracticeWeek[]
 ): string[] {
   const rows: (readonly [number, string])[] = Object.entries(schedule)
     .map(([slot, code]) => [Number(slot) as ClassSlot, classes[code]] as const)
@@ -861,8 +866,10 @@ export function scheduleLines(
       rows.push([slot as number, `${shiftSlotFullLabel(slot)}: shift at ${employer}`] as const)
     }
   }
-  for (const slot of practice?.slots ?? []) {
-    rows.push([slot as number, `${shiftSlotFullLabel(slot)}: ${practice?.label}`] as const)
+  for (const week of practice ?? []) {
+    for (const slot of week.slots) {
+      rows.push([slot as number, `${shiftSlotFullLabel(slot)}: ${week.label}`] as const)
+    }
   }
 
   if (rows.length === 0) return []
@@ -1031,7 +1038,10 @@ function sceneSchema(
     bg: {
       type: 'string',
       enum: [
-        ...withoutClosedHouseBgs(allBackgrounds(backgrounds), { event: state.groupEvent }),
+        ...withoutClosedHouseBgs(allBackgrounds(backgrounds), {
+          event: state.groupEvent,
+          meeting: state.houseMeeting
+        }),
         ...castRoomBgs(cast, state)
       ]
     },
@@ -1108,7 +1118,8 @@ function whoBlock(cast: readonly Character[], state: PromptState, reader: string
     ...castBlock(cast, state),
     '',
     ...figurantLines(cast, state),
-    ...groupEventLines(state.groupEvent, state)
+    ...groupEventLines(state.groupEvent, state),
+    ...houseMeetingLines(state.houseMeeting)
   ]
 }
 
@@ -1122,7 +1133,13 @@ function figurantLines(cast: readonly Character[], state: PromptState): string[]
     )
   )
   const house = houseFigurantLine(state.sceneLocation, state.groupEvent)
-  const door = houseDoorLines(state.sceneLocation, state.houseOffices, state.groupEvent)
+  const door = houseDoorLines(
+    state.sceneLocation,
+    state.houseOffices,
+    state.groupEvent,
+    state.houseMeeting,
+    state.houseDropped
+  )
   return [...door, ...(line ? [line] : []), ...(house ? [house] : []), ...(line || house ? [''] : [])]
 }
 
@@ -1570,8 +1587,9 @@ export function buildSoloPrompt(
     groupOfEvent(state.groupEvent) ??
     (state.groupPractice && state.playerTeam ? GROUPS[state.playerTeam] : undefined)
   const inPlay = groupsInPlay([], state.sceneLocation)
-  // A house's event (rush, party or mixer) is its own, with brothers and sisters nobody names.
-  const houseScene = houseEventOf(state.groupEvent) !== undefined
+  // A house's event (rush, party or mixer) or its pledge meeting is its own, with brothers and
+  // sisters nobody names.
+  const houseScene = houseEventOf(state.groupEvent) !== undefined || Boolean(state.houseMeeting)
   const figurant = [
     groupFigurantLine(eventGroup && !inPlay.includes(eventGroup) ? [eventGroup, ...inPlay] : inPlay),
     ...(houseScene ? [houseFigurantLine(state.sceneLocation, state.groupEvent)] : [])
@@ -1588,7 +1606,14 @@ export function buildSoloPrompt(
     ...readerTeamLines(state.playerTeam),
     '',
     ...groupEventLines(state.groupEvent, state),
-    ...houseDoorLines(state.sceneLocation, state.houseOffices, state.groupEvent),
+    ...houseMeetingLines(state.houseMeeting),
+    ...houseDoorLines(
+      state.sceneLocation,
+      state.houseOffices,
+      state.groupEvent,
+      state.houseMeeting,
+      state.houseDropped
+    ),
     ...(figurant ? [figurant, ''] : []),
     'YOUR TURN',
     'Solo mission, RITA! The reader is on their own for this one, so write it start to finish in one go.',

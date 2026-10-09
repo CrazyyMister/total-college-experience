@@ -58,6 +58,7 @@ import {
 import { FALLBACK_DORM } from '@shared/dorms'
 import {
   coachChatIdOf,
+  houseChatIdOf,
   teamOfSave,
   type GroupAgenda,
   type GroupId,
@@ -68,7 +69,15 @@ import {
   type SessionSettle,
   type TryoutResult
 } from '@shared/groups'
-import type { BidOffer, HouseId, HouseOffices, HouseStanding, RushSave } from '@shared/houses'
+import {
+  standingOfSave,
+  type BidOffer,
+  type DroppedHouse,
+  type HouseId,
+  type HouseOffices,
+  type HouseStanding,
+  type RushSave
+} from '@shared/houses'
 import type { CoachTexts } from './loop/coach'
 import { withHomeMove, type HomeId } from '@shared/homes'
 import {
@@ -218,6 +227,8 @@ export interface SceneKind {
   groupEvent?: string | null
   /** Whether the scene is one of the reader's team's practices. */
   groupPractice?: boolean
+  /** The house whose pledge meeting the scene is. */
+  houseMeeting?: HouseId | null
   /** The stats the shift's rolled gain moves, when the employer has more than one to roll. */
   jobStats?: readonly StatKey[]
   /** Roster charIds the action named without bringing along. */
@@ -245,6 +256,7 @@ function sceneKindFields(scene: SceneKind | null | undefined) {
     sceneGroup: scene?.groupId ?? null,
     sceneGroupEvent: scene?.groupEvent ?? null,
     sceneGroupPractice: scene?.groupPractice === true,
+    sceneHouseMeeting: scene?.houseMeeting ?? null,
     sceneJobStats: [...(scene?.jobStats ?? [])],
     sceneMentions: [...(scene?.mentions ?? [])],
     sceneLocation: scene?.location ?? null,
@@ -390,6 +402,8 @@ interface GameStoreState {
   groupRush: RushSave
   /** The house he has said yes to, or null. Persisted. */
   groupHouse: HouseStanding | null
+  /** The house that put him out of its pledge, or null. Persisted. */
+  groupDropped: DroppedHouse | null
   /** The graduation narration has played. Persisted. */
   graduationSeen: boolean
   /** Who the reader has already said goodbye to. Persisted. */
@@ -446,6 +460,8 @@ interface GameStoreState {
   sceneGroupEvent: string | null
   /** The scene is one of his team's practices. */
   sceneGroupPractice: boolean
+  /** The house whose pledge meeting the scene is, or null. Persisted with the scene. */
+  sceneHouseMeeting: HouseId | null
   /**
    * Who this scene is *about* without their being in it — the classifier's mentioned-only
    * list, resolved to charIds.
@@ -1055,9 +1071,22 @@ interface GameStoreState {
   fileBid: (offer: BidOffer) => void
   /**
    * Answers the bid: a house he pledges, or null for none. Answered once; the first answer stays.
-   * `since` is the slot id he answers in.
+   * `since` is the slot id he answers in, and `welcome` is the house's first text to its pledge,
+   * filed in the same write.
    */
-  answerBid: (house: HouseId | null, since: number) => void
+  answerBid: (house: HouseId | null, since: number, welcome?: CoachTexts) => void
+  /**
+   * Files a pledge meeting he went to, so the pass that judges it finds him there. A slot is
+   * filed once.
+   */
+  recordMeetingAttended: (slotId: number) => void
+  /**
+   * Applies a pass of {@link settleSessions} to his pledge: his strikes, the slot judged through
+   * and the house's text for each strike, in one write; a pass that put him out also takes him
+   * out of the house and marks the house that did it, on `today`. A pass that judged nothing new
+   * changes nothing.
+   */
+  settleHouse: (settle: SessionSettle, texts: CoachTexts, today: number) => void
   /**
    * Applies a pass of {@link settleSessions}: his strikes, the slot judged through and the
    * coach's texts for each strike, in one write, and takes him off the team when the pass put
@@ -1204,6 +1233,20 @@ function withCoachTexts(
 ): Partial<GameStoreState> {
   if (texts.messages.length === 0) return {}
   return patchConversation(state, coachChatIdOf(id), (chat) => ({
+    ...chat,
+    messages: [...chat.messages, ...texts.messages],
+    unread: chat.unread + texts.unread
+  }))
+}
+
+/** The write that files a house's texts in its thread, or nothing where there are none. */
+function withHouseTexts(
+  state: GameStoreState,
+  id: HouseId,
+  texts: CoachTexts
+): Partial<GameStoreState> {
+  if (texts.messages.length === 0) return {}
+  return patchConversation(state, houseChatIdOf(id), (chat) => ({
     ...chat,
     messages: [...chat.messages, ...texts.messages],
     unread: chat.unread + texts.unread
@@ -1538,6 +1581,7 @@ const initialState = {
   groupTeam: null as GroupTeam | null,
   groupRush: { attended: [] } as RushSave,
   groupHouse: null as HouseStanding | null,
+  groupDropped: null as DroppedHouse | null,
   graduationSeen: false,
   farewellsDone: [] as string[],
   endingArtWanted: false,
@@ -1557,6 +1601,7 @@ const initialState = {
   sceneGroup: null as GroupId | null,
   sceneGroupEvent: null as string | null,
   sceneGroupPractice: false,
+  sceneHouseMeeting: null as HouseId | null,
   sceneMentions: [] as string[],
   sceneLocation: null as string | null,
   sceneInPublic: true,
@@ -1678,7 +1723,10 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       groupResults: save.groups?.results ?? {},
       groupTryouts: save.groups?.tryouts ?? {},
       groupRush: save.groups?.rush ?? { attended: [] },
-      groupHouse: save.groups?.house ?? null,
+      groupHouse: save.groups?.house
+        ? standingOfSave(save.groups.house, globalSlotOf(save.date, save.time))
+        : null,
+      groupDropped: save.groups?.dropped ?? null,
       groupTeam: save.groups?.team
         ? teamOfSave(save.groups.team, globalSlotOf(save.date, save.time))
         : null,
@@ -1762,6 +1810,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       ...(state.sceneGroup ? { groupId: state.sceneGroup } : {}),
       ...(state.sceneGroupEvent ? { groupEvent: state.sceneGroupEvent } : {}),
       ...(state.sceneGroupPractice ? { groupPractice: true as const } : {}),
+      ...(state.sceneHouseMeeting ? { houseMeeting: state.sceneHouseMeeting } : {}),
       ...(state.sceneMentions.length > 0 ? { mentions: [...state.sceneMentions] } : {}),
       ...(state.sceneLocation ? { location: state.sceneLocation } : {}),
       // Written only when *false*: absent is the classifier's own default.
@@ -3172,14 +3221,60 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
           }
     ),
 
-  answerBid: (house, since) =>
+  answerBid: (house, since, welcome) =>
     set((state) => {
       const bid = state.groupRush.bid
       if (!bid || bid.answer !== undefined) return {}
       if (house !== null && !bid.invited.includes(house)) return {}
       return {
         groupRush: { ...state.groupRush, bid: { ...bid, answer: house } },
-        ...(house !== null ? { groupHouse: { id: house, stage: 'pledge' as const, since } } : {})
+        ...(house !== null
+          ? {
+              groupHouse: {
+                id: house,
+                stage: 'pledge' as const,
+                since,
+                strikes: 0,
+                settledThrough: since,
+                attendedSlots: [],
+                held: 0,
+                attended: 0
+              },
+              ...(welcome ? withHouseTexts(state, house, welcome) : {})
+            }
+          : {})
+      }
+    }),
+
+  recordMeetingAttended: (slotId) =>
+    set((state) =>
+      !state.groupHouse || state.groupHouse.attendedSlots.includes(slotId)
+        ? {}
+        : {
+            groupHouse: {
+              ...state.groupHouse,
+              attendedSlots: [...state.groupHouse.attendedSlots, slotId]
+            }
+          }
+    ),
+
+  settleHouse: (settle, texts, today) =>
+    set((state) => {
+      const house = state.groupHouse
+      if (!house || settle.settledThrough <= house.settledThrough) return {}
+      return {
+        groupHouse: settle.expelled
+          ? null
+          : {
+              ...house,
+              strikes: settle.total,
+              held: house.held + settle.held,
+              attended: house.attended + settle.attended,
+              settledThrough: settle.settledThrough,
+              attendedSlots: house.attendedSlots.filter((slotId) => slotId > settle.settledThrough)
+            },
+        ...(settle.expelled ? { groupDropped: { house: house.id, day: today } } : {}),
+        ...withHouseTexts(state, house.id, texts)
       }
     }),
 
@@ -3333,7 +3428,8 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       state.groupTeam ||
       state.groupRush.attended.length > 0 ||
       state.groupRush.bid ||
-      state.groupHouse
+      state.groupHouse ||
+      state.groupDropped
         ? {
             groups: {
               results: state.groupResults,
@@ -3344,7 +3440,8 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
               ...(state.groupRush.attended.length > 0 || state.groupRush.bid
                 ? { rush: state.groupRush }
                 : {}),
-              ...(state.groupHouse ? { house: state.groupHouse } : {})
+              ...(state.groupHouse ? { house: state.groupHouse } : {}),
+              ...(state.groupDropped ? { dropped: state.groupDropped } : {})
             }
           }
         : {}),

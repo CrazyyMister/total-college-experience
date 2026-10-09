@@ -116,6 +116,7 @@ import { useAudioStore } from '../stores/audioStore'
 import { useBunnyboardStore } from '../stores/bunnyboardStore'
 import { useGameStore } from '../stores/gameStore'
 import { teamSetInScene } from '../stores/loop/groups'
+import { houseTexts } from '../stores/loop/coach'
 import { forwardOpenOf, replyRowOfferOf, rewindOpenOf } from '../stores/loop/playback'
 import { displaySlotsOf, displaySpriteRef, wardrobeChanged } from '../stores/stageDisplay'
 import {
@@ -2152,9 +2153,17 @@ export function GameView(): JSX.Element {
               BID_HOUSES.map((house) => [house, rushEventsAttended(rushAttended, house)])
             )}
             theme={half}
-            onAnswer={(house) =>
-              useGameStore.getState().answerBid(house, globalSlotOf(date, time))
-            }
+            onAnswer={(house) => {
+              // The house's first text to its pledge is filed in the same write as the answer.
+              const game = useGameStore.getState()
+              game.answerBid(
+                house,
+                globalSlotOf(date, time),
+                house
+                  ? houseTexts(house, game.houseAgendas[house]?.sessions ?? [], [{ kind: 'intro' }])
+                  : undefined
+              )
+            }}
           />
         )}
       </AnimatePresence>

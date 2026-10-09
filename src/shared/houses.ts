@@ -113,9 +113,13 @@ export const HOUSE_INSIDE_BGS: readonly string[] = [
 /** Whether the reader is let in a house, or kept at its door. */
 export type HouseAccess = 'door' | 'inside'
 
-/** What the answer to "how far does he get" depends on: the event the scene is, if it is one. */
+/**
+ * What the answer to "how far does he get" depends on: the event the scene is, if it is one, and
+ * the house whose pledge meeting it is, if it is one.
+ */
 export interface HouseDoor {
   event?: string | null
+  meeting?: HouseId | null
 }
 
 /**
@@ -125,6 +129,7 @@ export interface HouseDoor {
  * else.
  */
 export function houseAccess(house: HouseId, door: HouseDoor = {}): HouseAccess {
+  if (door.meeting === house) return 'inside'
   return houseEventOf(door.event)?.host === house ? 'inside' : 'door'
 }
 
@@ -393,9 +398,15 @@ export function occasionHouses(occasion: Pick<Occasion, 'house' | 'id'>): HouseI
  * to one that is no house's, and only those who live in a house an occasion is of may ask him to
  * that one.
  */
-export function mayAskTo(occasion: Pick<Occasion, 'house' | 'id'>, house: HouseId | undefined): boolean {
+export function mayAskTo(
+  occasion: Pick<Occasion, 'house' | 'id'>,
+  house: HouseId | undefined,
+  dropped?: HouseId | null
+): boolean {
   const houses = occasionHouses(occasion)
-  return houses.length === 0 || (house !== undefined && houses.includes(house))
+  if (houses.length === 0) return true
+  // The house that put him out no longer asks him to its own events.
+  return house !== undefined && house !== dropped && houses.includes(house)
 }
 
 /** What the reader's bid on a house is kept as: the day it was decided, who bid and the answer. */
@@ -425,8 +436,46 @@ export interface RushSave {
 export interface HouseStanding {
   id: HouseId
   stage: 'pledge'
-  /** The slot id he said yes in. */
+  /** The slot id he said yes in; the first meeting judged is the slot after it. */
   since: number
+  /** The meetings he has missed. */
+  strikes: number
+  /** The last slot id judged; a meeting at or before it is never judged again. */
+  settledThrough: number
+  /** The slot ids of meetings he went to that are still to be judged. */
+  attendedSlots: number[]
+  /** The meetings the house has held since he said yes, judged. */
+  held: number
+  /** Of those, the ones he went to. */
+  attended: number
+}
+
+/** A standing as a save keeps it: a save from before meetings counted lacks the counters. */
+export type SavedHouseStanding = Pick<HouseStanding, 'id' | 'stage' | 'since'> &
+  Partial<HouseStanding>
+
+/**
+ * The standing a save describes, whole. A save from before meetings counted has no strikes and
+ * has judged nothing yet, so its first judgement is the slot the save stands on: he is not
+ * charged for the meetings nobody asked him to go to.
+ */
+export function standingOfSave(saved: SavedHouseStanding, standingSlot: number): HouseStanding {
+  return {
+    id: saved.id,
+    stage: saved.stage,
+    since: saved.since,
+    strikes: saved.strikes ?? 0,
+    settledThrough: saved.settledThrough ?? standingSlot - 1,
+    attendedSlots: saved.attendedSlots ?? [],
+    held: saved.held ?? 0,
+    attended: saved.attended ?? 0
+  }
+}
+
+/** The house that put him out of its pledge, and the day it did. */
+export interface DroppedHouse {
+  house: HouseId
+  day: number
 }
 
 /** The four offices of a house, the president first. */

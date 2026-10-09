@@ -21,6 +21,7 @@ import {
   WEEK_DAY_HEADERS,
   type JobDef
 } from '@shared/jobs'
+import { PLEDGE_LAST_DAY } from '@shared/groups'
 import { STAT_LABELS, tierOf, type StatKey, type StatTier } from '@shared/playerStats'
 import type { ShiftSlot } from '@shared/types'
 import { useModalShell } from '../components/useModalShell'
@@ -143,7 +144,16 @@ function Requirements({ def }: { def: JobDef }): JSX.Element {
 function usePracticeSlots(): readonly ShiftSlot[] {
   const team = useGameStore((s) => s.groupTeam)
   const agendas = useGameStore((s) => s.groups)
-  return team ? (agendas[team.id]?.sessions ?? []) : []
+  const meetings = useMeetingSlots()
+  return [...(team ? (agendas[team.id]?.sessions ?? []) : []), ...meetings]
+}
+
+/** The periods his house meets in while he pledges it, which no shift may take either. */
+function useMeetingSlots(): readonly ShiftSlot[] {
+  const house = useGameStore((s) => s.groupHouse)
+  const agendas = useGameStore((s) => s.houseAgendas)
+  const today = useGameStore((s) => s.date)
+  return house && today <= PLEDGE_LAST_DAY ? (agendas[house.id]?.sessions ?? []) : []
 }
 
 interface ShiftWeekProps {
@@ -168,6 +178,7 @@ function ShiftWeek({ shifts, offered, onToggle, disabled = false }: ShiftWeekPro
   const playerSchedule = useGameStore((s) => s.playerSchedule)
   const classes = useGameStore((s) => s.classes)
   const practice = usePracticeSlots()
+  const meetings = useMeetingSlots()
 
   return (
     <div className="vu-jobs-week">
@@ -205,7 +216,7 @@ function ShiftWeek({ shifts, offered, onToggle, disabled = false }: ShiftWeekPro
                 )}
                 {practicing && !entry && (
                   <span className="vu-code" data-group="pe">
-                    Practice
+                    {meetings.includes(slot) ? 'Meeting' : 'Practice'}
                   </span>
                 )}
               </>

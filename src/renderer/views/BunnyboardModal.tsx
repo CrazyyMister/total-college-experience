@@ -36,10 +36,21 @@ import {
 import { readerHolding, STARTING_HOME } from '@shared/homes'
 import type { NpcFriendship } from '@shared/npcRelationships'
 import { gpaOf, gradedCourses } from '@shared/academics'
-import { GROUPS, groupOfCoachChat } from '@shared/groups'
+import {
+  GROUPS,
+  groupOfCoachChat,
+  houseOfChatId,
+  PLEDGE_LAST_DAY
+} from '@shared/groups'
 import { HOUSES } from '@shared/houses'
 import { leaveTeamNow } from '../stores/loop/groups'
-import { globalSlotOf, jobDefForChat, shiftSlotFullLabel, shiftSlotOf } from '@shared/jobs'
+import {
+  globalSlotOf,
+  jobDefForChat,
+  MAX_STRIKES,
+  shiftSlotFullLabel,
+  shiftSlotOf
+} from '@shared/jobs'
 import { locationLabel, ROOM_LOCATION } from '@shared/locations'
 import { formatMoney } from '@shared/money'
 import { PROFILE_PICTURE_TYPES } from '@shared/profilePicture'
@@ -141,7 +152,15 @@ import {
   typingDot,
   veilIn
 } from './motion'
-import { BackIcon, BunnyMark, CloseIcon, HeartIcon, MapIcon, PlusIcon } from './screenIcons'
+import {
+  BackIcon,
+  BunnyMark,
+  CloseIcon,
+  HeartIcon,
+  HouseMark,
+  MapIcon,
+  PlusIcon
+} from './screenIcons'
 import { LettersFilter, lettersUrl } from '../components/LettersMark'
 import '../vu_styles/Bunnyboard.css'
 
@@ -157,8 +176,8 @@ export interface BunnyboardModalProps {
   onOpenJobs: () => void
 }
 
-/** The two app bots draw a mark where a person has a face; an employer keeps his emoji. */
-type BotMark = 'venus' | 'bunny'
+/** The two app bots and a house draw a mark where a person has a face; an employer keeps his emoji. */
+type BotMark = 'venus' | 'bunny' | 'house'
 
 /** Who a conversation key belongs to, as its card and its thread header show it. */
 interface ChatIdentity {
@@ -185,6 +204,17 @@ function chatIdentityOf(charId: string, character: Character | undefined): ChatI
       emoji: boss.boss.emoji,
       name: boss.boss.name,
       subtitle: boss.boss.title,
+      known: true
+    }
+  }
+  const houseId = houseOfChatId(charId)
+  if (houseId) {
+    return {
+      bot: true,
+      mark: 'house',
+      emoji: null,
+      name: HOUSES[houseId].nickname,
+      subtitle: 'Fraternity house',
       known: true
     }
   }
@@ -510,6 +540,8 @@ function Portrait({
           <img className="vu-bb-letters" src={lettersUrl} alt="" />
         ) : mark === 'bunny' ? (
           <BunnyMark />
+        ) : mark === 'house' ? (
+          <HouseMark />
         ) : (
           (emoji ?? '👤')
         )}
@@ -677,7 +709,9 @@ function ChatList(): JSX.Element {
                                 ? 'BOSS'
                                 : groupOfCoachChat(conversation.charId)
                                   ? 'COACH'
-                                  : 'BOT'}
+                                  : houseOfChatId(conversation.charId)
+                                    ? 'HOUSE'
+                                    : 'BOT'}
                             </span>
                           )}
                         </span>
@@ -1929,12 +1963,19 @@ function TeamCard({ theme }: { theme: 'day' | 'night' }): JSX.Element {
  */
 function HouseCard(): JSX.Element | null {
   const house = useGameStore((s) => s.groupHouse)
+  const agendas = useGameStore((s) => s.houseAgendas)
+  const today = useGameStore((s) => s.date)
   if (!house) return null
+  const hours = (agendas[house.id]?.sessions ?? []).map(shiftSlotFullLabel).join(' and ')
+  const meetings =
+    today > PLEDGE_LAST_DAY ? 'Meetings are over' : hours ? `Meetings: ${hours}` : 'No meeting hours'
   return (
     <div className="vu-bb-team">
       <span className="vu-bb-team-main">
         <span className="vu-bb-team-name">{HOUSES[house.id].nickname}</span>
-        <span className="vu-bb-team-hours">Pledge</span>
+        <span className="vu-bb-team-hours">
+          {`Pledge · ${house.strikes} of ${MAX_STRIKES} misses · ${meetings}`}
+        </span>
       </span>
     </div>
   )

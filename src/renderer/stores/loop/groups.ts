@@ -40,12 +40,13 @@ import {
   charTeamSessionNow,
   charUnavailableNow,
   groupEventAt,
+  houseMeetingHeldAt,
   playerGroupNow,
   practiceHeldAt
 } from '../timetable'
 import type { Verdict } from './classify'
 import { resolveLocationId } from './casting'
-import { coachTexts } from './coach'
+import { coachTexts, houseTexts } from './coach'
 
 /**
  * The impure edge of the groups: who is free for an event, how it ended, and the scene it
@@ -221,6 +222,68 @@ export function settleSessions(): void {
   game.settleTeam(settled, coachTexts(GROUPS[team.id], sessions, sends))
 }
 
+/**
+ * Judges every pledge meeting the clock has passed since the last sweep: a meeting his house held
+ * in a slot he did not go to is a strike, and the house texts for each. The strikes, the slot
+ * judged through, the texts and, when the third puts him out, the house's mark are filed by one
+ * store write, so a save never holds one without the others and a replayed boundary finds the
+ * slots already judged. Nobody of the house is told anything: a pledge put out leaves no memory.
+ */
+export function settlePledge(): void {
+  const game = useGameStore.getState()
+  const house = game.groupHouse
+  if (!house) return
+
+  // The slot that just ended — the current one has not been spent yet. Past the last day of the
+  // pledge nothing is held, so the pass only moves its mark.
+  const throughSlot = globalSlotOf(game.date, game.time) - 1
+  const settled = settleSessions_(house, throughSlot, houseMeetingHeldAt)
+  if (settled.settledThrough === house.settledThrough) return
+
+  let strikes = house.strikes
+  const sends = settled.strikes.map(({ kind }) => ({ kind, strikes: ++strikes }))
+  for (const { slotId, kind } of settled.strikes) {
+    console.log(`[groups] ${house.id}: missed pledge meeting at slot ${slotId} (${kind}).`)
+  }
+  const sessions = game.houseAgendas[house.id]?.sessions ?? []
+  game.settleHouse(settled, houseTexts(house.id, sessions, sends), game.date)
+}
+
+/** What the pledge meeting button answers when his house is not meeting now. */
+export const NO_MEETING_MESSAGE = "You don't have a pledge meeting right now."
+
+/** The action type of the pledge meeting button, which opens a meeting scene. */
+export const MEETING_ACTION = 'meeting'
+
+/**
+ * Whether a verdict is going to his pledge meeting: its own button, or a Go from the map to his
+ * house while it meets. A phrase he typed is never one.
+ */
+export function isMeetingVerdict(verdict: Verdict): boolean {
+  if (verdict.actionType === MEETING_ACTION) return true
+  const meeting = playerGroupNow()
+  return (
+    verdict.actionType === MAP_ACTION &&
+    meeting?.kind === 'house' &&
+    resolveLocationId(verdict.sceneLocation) === meeting.location
+  )
+}
+
+/** The scene his pledge meeting opens now, or null: the house's free people, up to three of them. */
+export function planMeeting(): { cast: string[]; scene: SceneKind } | null {
+  const game = useGameStore.getState()
+  const meeting = playerGroupNow()
+  if (meeting?.kind !== 'house' || !meeting.house) return null
+  const house = meeting.house
+  const cast = shuffle(
+    game.chars.filter(
+      (charId) =>
+        game.charInfo[charId]?.house === house && memberFreeAt(charId, game.date, game.time)
+    )
+  ).slice(0, PORTRAIT_SLOTS)
+  return { cast, scene: { houseMeeting: house } }
+}
+
 /** What the practice button answers when his team is not practicing now. */
 export const NO_PRACTICE_MESSAGE = "You don't have practice right now."
 
@@ -239,8 +302,8 @@ export function isPracticeVerdict(verdict: Verdict): boolean {
   const practice = playerGroupNow()
   return (
     verdict.actionType === MAP_ACTION &&
-    practice !== null &&
-    resolveLocationId(verdict.sceneLocation) === practice.group.location
+    practice?.kind === 'team' &&
+    resolveLocationId(verdict.sceneLocation) === practice.location
   )
 }
 
@@ -248,7 +311,7 @@ export function isPracticeVerdict(verdict: Verdict): boolean {
 export function planPractice(): { cast: string[]; scene: SceneKind; slotId: number } | null {
   const game = useGameStore.getState()
   const practice = playerGroupNow()
-  if (!practice) return null
+  if (practice?.kind !== 'team' || !practice.group) return null
   const cast = shuffle(
     groupMembersOf(practice.group.id).filter((charId) => memberFreeAt(charId, game.date, game.time))
   ).slice(0, PORTRAIT_SLOTS)

@@ -131,17 +131,29 @@ function houseEventPhrase(event: HouseEvent): string {
 export function houseDoorLines(
   location: string | null | undefined,
   offices: HouseOffices | undefined,
-  event?: string | null
+  event?: string | null,
+  meeting?: HouseId | null,
+  dropped?: HouseId | null
 ): string[] {
   const id = houseAtPlace(location)
   if (!id) return []
   const def = HOUSES[id]
   const found = houseEventOf(event)
+  const inside = houseAccess(id, { event, meeting }) === 'inside'
+  const where = `this scene may take place ${def.kind === 'fraternity' ? 'on the porch, in the living room and in the party space' : 'on the porch and in the living room'}. The bedrooms stay shut: nothing in this scene takes place in a bedroom.`
   const lines = [
-    found && houseAccess(id, { event }) === 'inside'
-      ? `The reader is at ${houseEventPhrase(found)}, at the ${def.kind} house on Laurel Row, and the door is open to him for this event: this scene may take place ${def.kind === 'fraternity' ? 'on the porch, in the living room and in the party space' : 'on the porch and in the living room'}. The bedrooms stay shut: nothing in this scene takes place in a bedroom.`
-      : `The reader is outside ${def.nickname}, the ${def.kind} house on Laurel Row: this scene stays on the porch or in the street, and he does not go inside. Nothing in this scene takes place in the living room, the party space or the bedrooms.`
+    inside && meeting === id
+      ? `The reader is at one of ${def.nickname}'s pledge meetings, at the ${def.kind} house on Laurel Row, and the door is open to him for this meeting: ${where}`
+      : found && inside
+        ? `The reader is at ${houseEventPhrase(found)}, at the ${def.kind} house on Laurel Row, and the door is open to him for this event: ${where}`
+        : `The reader is outside ${def.nickname}, the ${def.kind} house on Laurel Row: this scene stays on the porch or in the street, and he does not go inside. Nothing in this scene takes place in the living room, the party space or the bedrooms.`
   ]
+  // The house that put him out of its pledge says so wherever a scene is set at it.
+  if (dropped === id) {
+    lines.push(
+      `The reader was a pledge of ${def.nickname} and was put out for missing its meetings. Nothing in this scene makes him a pledge again.`
+    )
+  }
   const unnamed = offices?.[id] ?? []
   if (unnamed.length > 0) {
     lines.push(
@@ -149,6 +161,20 @@ export function houseDoorLines(
     )
   }
   return [...lines, '']
+}
+
+/**
+ * What a pledge meeting tells the writer, with its blank line, or nothing for any other scene:
+ * what the meeting is, the one light bit of pledge tradition it may carry, and that the count of
+ * the meetings he has missed and whatever else pledging asks are the game's alone.
+ */
+export function houseMeetingLines(meeting: HouseId | null | undefined): string[] {
+  if (!meeting) return []
+  return [
+    'PLEDGE MEETING',
+    `The reader is a pledge of ${HOUSES[meeting].nickname}, not yet a member, and this is one of its meetings: the brothers run it and the pledges sit with him. Give it one light, harmless bit of pledge tradition, said in a single line. It sets him no task for later, no penalty and no test, it is not counted or scored, and nothing in it makes him a member or says how he stands: whatever pledging asks of him is decided by the game, and nothing in this scene says how many meetings he has missed.`,
+    ''
+  ]
 }
 
 /** The line saying which team the reader is on, or nothing where he is on none. */

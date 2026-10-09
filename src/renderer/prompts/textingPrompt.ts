@@ -130,7 +130,7 @@ export interface TextingPromptState {
   /** The part-time job the reader holds, or null — the rest of his week. */
   playerJob: JobState | null
   /** His team's practice periods while it practices, or null. */
-  playerPractice?: PracticeWeek | null
+  playerPractice?: readonly PracticeWeek[]
   /** The save's generated occasions; the fixed calendar is merged in on read. */
   occasions: readonly Occasion[]
   /** How each group event ended, by occasion id; absent reads as none. */

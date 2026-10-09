@@ -421,8 +421,12 @@ export function CalendarModal({ theme, onClose }: CalendarModalProps): JSX.Eleme
         {practice && (
           <Card
             kind="work"
-            title={`${practice.group.practice.charAt(0).toUpperCase()}${practice.group.practice.slice(1)}`}
-            text={`Your team practices at ${locationLabel(practice.group.location)}.`}
+            title={`${practice.label.charAt(0).toUpperCase()}${practice.label.slice(1)}`}
+            text={
+              practice.kind === 'house'
+                ? `Your house meets at ${locationLabel(practice.location)}.`
+                : `Your team practices at ${locationLabel(practice.location)}.`
+            }
           />
         )}
         {entry && (
@@ -582,7 +586,12 @@ export function CalendarModal({ theme, onClose }: CalendarModalProps): JSX.Eleme
                       <Chip key={`shift-${time}`} kind="work" label="Shift" time={time} />
                     ))}
                     {practicesOn(date).map((time) => (
-                      <Chip key={`practice-${time}`} kind="work" label="Practice" time={time} />
+                      <Chip
+                        key={`practice-${time}`}
+                        kind="work"
+                        label={playerGroupNow(date, time)?.kind === 'house' ? 'Meeting' : 'Practice'}
+                        time={time}
+                      />
                     ))}
                     {plansOn(date).map((plan) => (
                       <Chip
