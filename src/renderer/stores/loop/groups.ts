@@ -1,6 +1,14 @@
 import { affectionFor } from '@shared/relationship'
+import {
+  greekResult,
+  greekWeekEventOf,
+  GREEK_WEEK_TIME,
+  type GreekReader,
+  type GreekResult
+} from '@shared/greekWeek'
 import { homeOf, READER, STARTING_HOME, type HomeId } from '@shared/homes'
 import {
+  HOUSE_IDS,
   HOUSES,
   houseEventOf,
   leftHouseDesc,
@@ -160,17 +168,68 @@ export function resultOfEvent(occasion: Occasion, playing = false): GroupResult 
 }
 
 /**
+ * How a night of Greek Week ended: the order already filed, or the one its night decides now and
+ * files. The seed is the playthrough and the night, and a house's weight counts the share of its
+ * roster free that night. `playing` is the reader opening the scene: only then, and only as a
+ * member, does he compete for his house, with the tiers he has as the scene opens; the boundary
+ * decides a night he did not go to without him. The nights before it are decided first, so a
+ * scoreboard never reads a night that has no result.
+ */
+export function greekResultOf(occasion: Occasion, playing = false): GreekResult | null {
+  const game = useGameStore.getState()
+  const prova = greekWeekEventOf(occasion.id)
+  if (!prova) return null
+  const filed = game.groupGreek[occasion.id]
+  if (filed) return filed
+  for (const earlier of game.occasions
+    .filter((entry) => greekWeekEventOf(entry.id) && entry.startDate < occasion.startDate)
+    .sort((a, b) => a.startDate - b.startDate)) {
+    greekResultOf(earlier)
+  }
+
+  const half = occasion.time ?? GREEK_WEEK_TIME
+  const shares = Object.fromEntries(
+    HOUSE_IDS.map((house) => {
+      const people = game.chars.filter((charId) => game.charInfo[charId]?.house === house)
+      const free = people.filter((charId) => memberFreeAt(charId, occasion.startDate, half))
+      return [house, people.length === 0 ? 1 : free.length / people.length]
+    })
+  ) as Record<(typeof HOUSE_IDS)[number], number>
+  const standing = game.groupHouse
+  const reader: GreekReader | undefined =
+    playing && standing?.stage === 'member'
+      ? {
+          house: standing.id,
+          tiers: {
+            brain: tierOf(game.stats.brain),
+            body: tierOf(game.stats.body),
+            heart: tierOf(game.stats.heart)
+          }
+        }
+      : undefined
+  const result = greekResult(prova, shares, reader, `${game.playthroughId ?? 'game'}:${occasion.id}`)
+  console.log(
+    `[groups] ${occasion.id}: ${reader ? `reader competes for ${HOUSES[reader.house].nickname}, tiers brain ${reader.tiers.brain} body ${reader.tiers.body} heart ${reader.tiers.heart}` : 'reader not competing'}, free ${HOUSE_IDS.map((house) => `${HOUSES[house].nickname} ${shares[house].toFixed(2)}`).join(', ')}, order ${result.order.map((house) => HOUSES[house].nickname).join(' > ')}.`
+  )
+  game.setGreekResult(occasion.id, result)
+  return useGameStore.getState().groupGreek[occasion.id] ?? result
+}
+
+/**
  * The boundary's pass: every event that is over and has no result gets the one its night
  * decides. Idempotent, and it fills only what is missing.
  */
 export function settleGroupResults(): void {
   const game = useGameStore.getState()
   for (const occasion of game.occasions) {
-    if (!occasion.group) continue
+    const greek = greekWeekEventOf(occasion.id) !== undefined
+    if (!occasion.group && !greek) continue
     const last = occasion.time ?? GROUP_EVENT_TIME
     const over =
       occasion.endDate < game.date || (occasion.endDate === game.date && last < game.time)
-    if (over) resultOfEvent(occasion)
+    if (!over) continue
+    if (greek) greekResultOf(occasion)
+    else resultOfEvent(occasion)
   }
 }
 
@@ -628,6 +687,28 @@ export function planGroupEvent(eventId: string, required?: string): GroupEventPl
             game.charInfo[charId]?.house === house && memberFreeAt(charId, game.date, game.time)
         )
       )
+    )
+    const turns = Array.from({ length: Math.max(0, ...homes.map((home) => home.length)) }, (_, at) =>
+      homes.flatMap((home) => (at < home.length ? [home[at]] : []))
+    ).flat()
+    const cast = [...new Set([...(required ? [required] : []), ...turns])].slice(0, PORTRAIT_SLOTS)
+    return { cast, scene: { groupEvent: occasion.id } }
+  }
+  if (greekWeekEventOf(eventId)) {
+    // A night of Greek Week: the free residents of the four houses, his own first and the others
+    // in turns, and the order of the night decided now if the boundary has not decided it.
+    if (!occasion || occasion.startDate !== game.date) return null
+    if ((occasion.time ?? GREEK_WEEK_TIME) !== game.time) return null
+    if (!greekResultOf(occasion, true)) return null
+    const own = game.groupHouse?.stage === 'member' ? game.groupHouse.id : undefined
+    const homes = [...(own ? [own] : []), ...shuffle(HOUSE_IDS.filter((house) => house !== own))].map(
+      (house) =>
+        shuffle(
+          game.chars.filter(
+            (charId) =>
+              game.charInfo[charId]?.house === house && memberFreeAt(charId, game.date, game.time)
+          )
+        )
     )
     const turns = Array.from({ length: Math.max(0, ...homes.map((home) => home.length)) }, (_, at) =>
       homes.flatMap((home) => (at < home.length ? [home[at]] : []))

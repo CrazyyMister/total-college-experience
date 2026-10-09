@@ -50,6 +50,7 @@ import {
 import { encounterLines } from './encounters'
 import { factLines } from './facts'
 import { groupFigurantLine, groupNewsClause, groupsInPlay, readerTeamLines } from './groupPrompt'
+import type { GreekResult } from '@shared/greekWeek'
 import type { GroupId, GroupResult } from '@shared/groups'
 import { occasionLoreLines } from './occasions'
 import { objectSchema } from './schema'
@@ -135,6 +136,8 @@ export interface TextingPromptState {
   occasions: readonly Occasion[]
   /** How each group event ended, by occasion id; absent reads as none. */
   groupResults?: Readonly<Record<string, GroupResult>>
+  /** How each night of Greek Week ended, by occasion id; absent reads as none. */
+  groupGreek?: Readonly<Record<string, GreekResult>>
   /** The team the reader is on, or null. */
   playerTeam?: GroupId | null
   /**
@@ -437,7 +440,7 @@ export function buildTextingPrompt(
           info,
           character.gender,
           homeOf(state, character.charId),
-          groupNewsClause(info.groups, state)
+          groupNewsClause(info.groups, state, info.house)
         )] : []),
     // The phone takes the one-character budget.
     ...profileLines(character, info?.flags ?? emptyFlags(), 1, state.ex),

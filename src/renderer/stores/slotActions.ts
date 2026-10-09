@@ -1,5 +1,6 @@
 import { kindOf } from '@shared/academics'
 import { groupEventButton, groupEventOf, tryoutButton, tryoutOf } from '@shared/groups'
+import { greekWeekEventOf } from '@shared/greekWeek'
 import { houseEventOf, occasionHouses } from '@shared/houses'
 import { jobDefOf } from '@shared/jobs'
 import { LOWRISE_LOCATION } from '@shared/locations'
@@ -106,7 +107,7 @@ function commitments(): SlotAction[] {
   const found = meet ? groupEventOf(meet.id) : undefined
   const tryout = meet ? tryoutOf(meet.id) : undefined
   const house = meet ? houseEventOf(meet.id) : undefined
-  if (meet && house) {
+  if (meet && (house || greekWeekEventOf(meet.id))) {
     actions.push({
       key: `group:${meet.id}`,
       text: `Go to the ${meet.title}`,

@@ -92,6 +92,9 @@ import {
 import { farewellNowLines, graduationCastLines } from './graduation'
 import { encounterLines } from './encounters'
 import {
+  greekEventLines,
+  greekFigurantLine,
+  greekWeekLore,
   groupEventLines,
   groupEventLore,
   groupOfEvent,
@@ -107,6 +110,7 @@ import {
   readerTeamLines
 } from './groupPrompt'
 import { factLines } from './facts'
+import { greekWeekEventOf, type GreekResult } from '@shared/greekWeek'
 import {
   houseEventOf,
   withoutClosedHouseBgs,
@@ -330,6 +334,8 @@ export interface PromptState {
   groupResults?: Readonly<Record<string, GroupResult>>
   /** How each tryout the reader went to ended, by occasion id. */
   groupTryouts?: Readonly<Record<string, TryoutResult>>
+  /** How each night of Greek Week ended, by occasion id. */
+  groupGreek?: Readonly<Record<string, GreekResult>>
   /** The offices of each Greek house nobody of the roster holds. */
   houseOffices?: HouseOffices
   /** The team the reader is on, or null. */
@@ -595,7 +601,7 @@ function castBlock(cast: readonly Character[], state: PromptState): string[] {
           info,
           character.gender,
           homeOf(state, character.charId),
-          groupNewsClause(info.groups, state)
+          groupNewsClause(info.groups, state, info.house)
         )
       )
     }
@@ -1127,6 +1133,7 @@ function whoBlock(cast: readonly Character[], state: PromptState, reader: string
     '',
     ...figurantLines(cast, state),
     ...groupEventLines(state.groupEvent, state),
+    ...greekEventLines(state.groupEvent, state),
     ...houseMeetingLines(state.houseMeeting),
     ...houseInitiationLines(state.houseInitiation)
   ]
@@ -1141,7 +1148,9 @@ function figurantLines(cast: readonly Character[], state: PromptState): string[]
       state.playerTeam
     )
   )
-  const house = houseFigurantLine(state.sceneLocation, state.groupEvent)
+  const house = greekWeekEventOf(state.groupEvent)
+    ? greekFigurantLine()
+    : houseFigurantLine(state.sceneLocation, state.groupEvent)
   const door = houseDoorLines(state.sceneLocation, state.houseOffices, doorOf(state), state.houseDropped)
   return [...door, ...(line ? [line] : []), ...(house ? [house] : []), ...(line || house ? [''] : [])]
 }
@@ -1373,6 +1382,7 @@ function alwaysLore(state: PromptState): string[] {
     ...projectLore(state),
     ...workplaceLore(state),
     ...groupEventLore(state.groupEvent),
+    ...greekWeekLore(state.groupEvent),
     ...giftLore(state)
   ]
 }
@@ -1592,13 +1602,17 @@ export function buildSoloPrompt(
   const inPlay = groupsInPlay([], state.sceneLocation)
   // A house's event (rush, party or mixer) or its pledge meeting is its own, with brothers and
   // sisters nobody names.
+  const greekScene = greekWeekEventOf(state.groupEvent) !== undefined
   const houseScene =
     houseEventOf(state.groupEvent) !== undefined ||
+    greekScene ||
     Boolean(state.houseMeeting) ||
     Boolean(state.houseInitiation)
   const figurant = [
     groupFigurantLine(eventGroup && !inPlay.includes(eventGroup) ? [eventGroup, ...inPlay] : inPlay),
-    ...(houseScene ? [houseFigurantLine(state.sceneLocation, state.groupEvent)] : [])
+    ...(houseScene
+      ? [greekScene ? greekFigurantLine() : houseFigurantLine(state.sceneLocation, state.groupEvent)]
+      : [])
   ]
     .filter((line) => line !== '')
     .join('\n')
@@ -1612,6 +1626,7 @@ export function buildSoloPrompt(
     ...readerTeamLines(state.playerTeam),
     '',
     ...groupEventLines(state.groupEvent, state),
+    ...greekEventLines(state.groupEvent, state),
     ...houseMeetingLines(state.houseMeeting),
     ...houseInitiationLines(state.houseInitiation),
     ...houseDoorLines(state.sceneLocation, state.houseOffices, doorOf(state), state.houseDropped),

@@ -13,7 +13,14 @@ import type { GossipPost, GossipTopic, NpcGossip } from './npcRomanceGossip'
 import type { PromptKind } from './promptKinds'
 import type { RumorPassOutcome } from './rumors'
 import type { DormId } from './dorms'
-import type { GroupAgenda, GroupId, GroupsRecord, GroupsSave, TeamsChoice } from './groups'
+import type {
+  GroupAgenda,
+  GroupId,
+  GroupsRecord,
+  GroupsSave,
+  LeftOutEvent,
+  TeamsChoice
+} from './groups'
 import type { BidOffer, HouseId, HouseMembers, HouseOffices, HousesChoice, OfficeId } from './houses'
 import type { HomeId } from './homes'
 import type { AudioGroup } from './audio'
@@ -1947,6 +1954,8 @@ export interface PlaythroughRecord {
   houseOffices?: HouseOffices
   /** When each fraternity meets, keyed by house id; absent where New Game dealt none. */
   houseAgendas?: Partial<Record<HouseId, GroupAgenda>>
+  /** The nights of Greek Week no half-day could hold; absent where every one found a day. */
+  greekWeekLeftOut?: LeftOutEvent[]
 }
 
 /** The record as New Game hands it over; `saveService` stamps the version. */

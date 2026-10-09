@@ -1,8 +1,15 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { greekWeekEventOf, type GreekResult } from '@shared/greekWeek'
 import { gameResult, GROUPS, placeGroupEvents, tryoutVerdict, type GroupResult } from '@shared/groups'
 import { classSlotForShift, globalSlotOf, JOB_CATALOG, newJobState } from '@shared/jobs'
 import { homeOf, READER, STARTING_HOME } from '@shared/homes'
-import { mixerOccasion, partyOccasion, rushOccasion, RUSH_EVENTS } from '@shared/houses'
+import {
+  mixerOccasion,
+  partyOccasion,
+  rushOccasion,
+  RUSH_EVENTS,
+  standingOfSave
+} from '@shared/houses'
 import type { GameSave, Occasion, ShiftSlot } from '@shared/types'
 import { groupNewsClause } from '../src/renderer/prompts/groupPrompt'
 import { SPRING_BREAK } from '../src/renderer/prompts/occasions'
@@ -13,6 +20,7 @@ import { settleShifts } from '../src/renderer/stores/loop/jobs'
 import {
   applyLeaving,
   canTryOut,
+  greekResultOf,
   leaveTeamNow,
   planGroupEvent,
   resultOfEvent,
@@ -1025,5 +1033,63 @@ describe('the initiation, the move into the house and leaving it', () => {
     expect(old.groups?.dropped).toEqual({ house: 'kappa_row', day: 22 })
     useGameStore.setState({ groupDropped: { house: 'kappa_row', day: 50, reason: 'quit' } })
     expect(saved().groups?.dropped).toEqual({ house: 'kappa_row', day: 50, reason: 'quit' })
+  })
+})
+
+describe('a night of Greek Week', () => {
+  let nights: Occasion[]
+  beforeEach(() => {
+    useGameStore.getState().reset()
+    nights = placeGroupEvents({
+      members: {},
+      occasions: [],
+      avoid: [],
+      freeCount: () => 0
+    }).placed.filter((o) => greekWeekEventOf(o.id))
+    useGameStore.setState({
+      playthroughId: 'p1',
+      date: nights[1].startDate,
+      time: NIGHT,
+      occasions: nights,
+      groupHouse: standingOfSave({ id: 'kappa_row', stage: 'member', since: 0 }, 0)
+    })
+  })
+
+  it('is decided by the scene or by the boundary, whichever comes first, and kept', () => {
+    const fromScene = greekResultOf(nights[1], true) as GreekResult
+    expect(fromScene.reader).toBe('kappa_row')
+    expect(useGameStore.getState().groupGreek[nights[1].id]).toEqual(fromScene)
+
+    useGameStore.setState({ date: nights[1].startDate + 1, time: 0 })
+    settleGroupResults()
+    expect(useGameStore.getState().groupGreek[nights[1].id]).toEqual(fromScene)
+  })
+
+  it('is decided without him when the boundary comes first, and the nights before it first', () => {
+    useGameStore.setState({ date: nights[2].startDate + 1, time: 0 })
+    settleGroupResults()
+    const filed = useGameStore.getState().groupGreek
+    expect(Object.keys(filed).sort()).toEqual(nights.slice(0, 3).map((o) => o.id).sort())
+    expect(Object.values(filed).every((result) => result.reader === undefined)).toBe(true)
+  })
+
+  it('goes through the save and back, and an older save reads as none decided', () => {
+    const result = greekResultOf(nights[1], true) as GreekResult
+    const save = JSON.parse(JSON.stringify(useGameStore.getState().toGameSave())) as GameSave
+    // The night before it was decided first, and is kept beside it.
+    expect(Object.keys(save.groups?.greekWeek ?? {}).sort()).toEqual([nights[0].id, nights[1].id])
+    expect(save.groups?.greekWeek?.[nights[1].id]).toEqual(result)
+
+    useGameStore.getState().reset()
+    useGameStore
+      .getState()
+      .loadSave(save, playthroughRecord({ greekWeekLeftOut: [{ id: nights[3].id, reason: 'no_date' }] }), {})
+    expect(useGameStore.getState().groupGreek).toEqual(save.groups?.greekWeek)
+    expect(useGameStore.getState().greekLeftOut).toEqual([{ id: nights[3].id, reason: 'no_date' }])
+
+    delete save.groups
+    useGameStore.getState().loadSave(save, playthroughRecord(), {})
+    expect(useGameStore.getState().groupGreek).toEqual({})
+    expect(useGameStore.getState().greekLeftOut).toEqual([])
   })
 })

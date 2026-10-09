@@ -1137,6 +1137,9 @@ export function NewGameView(): JSX.Element {
         console.warn(`[groups] ${id}: ${event.id} left out (${event.reason}).`)
       }
     }
+    for (const event of eventDeal.greekLeftOut) {
+      console.warn(`[groups] greek week: ${event.id} left out (${event.reason}).`)
+    }
 
     // Who already knows whom; after the schedules, since it reads the year off them.
     const npcRelationships = rollInitialNpcRelationships(
@@ -1209,6 +1212,7 @@ export function NewGameView(): JSX.Element {
         ...(Object.keys(groupAgendas).length > 0 ? { groups: groupAgendas } : {}),
         ...(Object.keys(officeDeal.unnamed).length > 0 ? { houseOffices: officeDeal.unnamed } : {}),
         ...(Object.keys(houseAgendas).length > 0 ? { houseAgendas } : {}),
+        ...(eventDeal.greekLeftOut.length > 0 ? { greekWeekLeftOut: eventDeal.greekLeftOut } : {}),
         ...(exSeed && activeEx ? { ex: activeEx } : {}),
         ...(courseChoice ? { playerCourse: courseChoice } : {})
       },

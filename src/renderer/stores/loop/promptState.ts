@@ -388,6 +388,7 @@ export function promptState(): PromptState {
     groupResults: game.groupResults,
     houseOffices: game.houseOffices,
     groupTryouts: game.groupTryouts,
+    groupGreek: game.groupGreek,
     playerTeam: game.groupTeam?.id ?? null,
     playerHouse: game.groupHouse,
     // Whoever the action named without bringing along, and where it set the scene — both scanned

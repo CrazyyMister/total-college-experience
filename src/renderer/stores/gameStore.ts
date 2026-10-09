@@ -56,6 +56,7 @@ import {
   type ReaderTallies
 } from '@shared/tallies'
 import { FALLBACK_DORM } from '@shared/dorms'
+import type { GreekResult } from '@shared/greekWeek'
 import {
   coachChatIdOf,
   houseChatIdOf,
@@ -65,6 +66,7 @@ import {
   type GroupResult,
   type GroupsRecord,
   type GroupTeam,
+  type LeftOutEvent,
   type SavedTeam,
   type SessionSettle,
   type TryoutResult
@@ -400,6 +402,10 @@ interface GameStoreState {
   groupResults: Record<string, GroupResult>
   /** How each tryout he went to ended, by event id; one is never judged twice. Persisted. */
   groupTryouts: Record<string, TryoutResult>
+  /** How each night of Greek Week ended, by contest id; one is never decided twice. Persisted. */
+  groupGreek: Record<string, GreekResult>
+  /** The nights of Greek Week no half-day could hold, from the record. */
+  greekLeftOut: LeftOutEvent[]
   /** The team he is on, or null. Persisted. */
   groupTeam: GroupTeam | null
   /** The rush events he went to and the bid they led to. Persisted. */
@@ -1051,6 +1057,8 @@ interface GameStoreState {
   markOccasionDeclined: (occasionId: string) => void
   /** Files how a group event ended; an event that already has a result keeps it. */
   setGroupResult: (eventId: string, result: GroupResult) => void
+  /** Files how a night of Greek Week ended; a night that already has a result keeps it. */
+  setGreekResult: (eventId: string, result: GreekResult) => void
   /**
    * Files how a tryout ended and, when he made the team, puts him on it from `since` and files
    * his coach's welcome, in one write. Filing the same tryout again leaves the first.
@@ -1608,6 +1616,8 @@ const initialState = {
   homeMoves: {} as Record<string, HomeId>,
   groupResults: {} as Record<string, GroupResult>,
   groupTryouts: {} as Record<string, TryoutResult>,
+  groupGreek: {} as Record<string, GreekResult>,
+  greekLeftOut: [] as LeftOutEvent[],
   groupTeam: null as GroupTeam | null,
   groupRush: { attended: [] } as RushSave,
   groupHouse: null as HouseStanding | null,
@@ -1753,6 +1763,8 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       homeMoves: save.homeMoves ?? {},
       groupResults: save.groups?.results ?? {},
       groupTryouts: save.groups?.tryouts ?? {},
+      groupGreek: save.groups?.greekWeek ?? {},
+      greekLeftOut: record.greekWeekLeftOut ?? [],
       groupRush: save.groups?.rush ?? { attended: [] },
       groupHouse: save.groups?.house
         ? standingOfSave(save.groups.house, globalSlotOf(save.date, save.time))
@@ -3201,6 +3213,18 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
         : { groupResults: { ...state.groupResults, [eventId]: { ...result } } }
     ),
 
+  setGreekResult: (eventId, result) =>
+    set((state) =>
+      state.groupGreek[eventId]
+        ? {}
+        : {
+            groupGreek: {
+              ...state.groupGreek,
+              [eventId]: { order: [...result.order], ...(result.reader ? { reader: result.reader } : {}) }
+            }
+          }
+    ),
+
   fileTryout: (eventId, result, team, welcome) =>
     set((state) =>
       state.groupTryouts[eventId]
@@ -3519,6 +3543,7 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
       ...(Object.keys(state.homeMoves).length > 0 ? { homeMoves: state.homeMoves } : {}),
       ...(Object.keys(state.groupResults).length > 0 ||
       Object.keys(state.groupTryouts).length > 0 ||
+      Object.keys(state.groupGreek).length > 0 ||
       state.groupTeam ||
       state.groupRush.attended.length > 0 ||
       state.groupRush.bid ||
@@ -3529,6 +3554,9 @@ export const useGameStore = create<GameStoreState>((set, get) => ({
               results: state.groupResults,
               ...(Object.keys(state.groupTryouts).length > 0
                 ? { tryouts: state.groupTryouts }
+                : {}),
+              ...(Object.keys(state.groupGreek).length > 0
+                ? { greekWeek: state.groupGreek }
                 : {}),
               ...(state.groupTeam ? { team: state.groupTeam } : {}),
               ...(state.groupRush.attended.length > 0 || state.groupRush.bid

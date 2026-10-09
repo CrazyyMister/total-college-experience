@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { motion } from 'motion/react'
 import { breakthroughMeterNow, lastBreakthroughUse, METER_MAX } from '@shared/breakthrough'
 import { factsKnownBy } from '@shared/facts'
+import { GREEK_POINTS, GREEK_PROVAS, greekStandings } from '@shared/greekWeek'
 import { GROUP_IDS, GROUPS } from '@shared/groups'
 import {
   HOUSE_IDS,
@@ -287,6 +288,42 @@ function sectionsOf(): DebugSection[] {
               : 'Put out of a pledge',
       facts: `${HOUSES[game.groupDropped.house].nickname}, on day ${game.groupDropped.day}`
     })
+  }
+  // Greek Week: each night's date, place and stat, how it ended and whether he competed, then the scoreboard.
+  const greekNights = GREEK_PROVAS.map((prova) => ({
+    prova,
+    occasion: game.occasions.find((entry) => entry.id === prova.id),
+    left: game.greekLeftOut.find((entry) => entry.id === prova.id)
+  }))
+  if (greekNights.some(({ occasion, left }) => occasion || left)) {
+    for (const { prova, occasion, left } of greekNights) {
+      const result = game.groupGreek[prova.id]
+      const ended = result
+        ? ` · ${result.order.map((house, place) => `${HOUSES[house].nickname} ${GREEK_POINTS[place]}`).join(', ')} · ${result.reader ? `he competed for ${HOUSES[result.reader].nickname}` : 'decided without him'}`
+        : ' · not decided'
+      groupRows.push({
+        key: prova.id,
+        who: occasion?.title ?? prova.title,
+        facts: occasion
+          ? `${dated(occasion.startDate)}, night · ${locationLabel(prova.where)} · ${prova.stat}${ended}`
+          : left
+            ? `left out: ${left.reason === 'too_few_free' ? 'too few members free' : 'no free night'}`
+            : 'no record'
+      })
+    }
+    const held = greekNights.flatMap(({ occasion }) => (occasion ? [occasion] : []))
+    if (held.some((entry) => game.groupGreek[entry.id])) {
+      groupRows.push({
+        key: 'greek-standings',
+        who: 'Greek Week scoreboard',
+        facts: greekStandings(
+          [...held].sort((a, b) => a.startDate - b.startDate),
+          game.groupGreek
+        )
+          .map(({ house, points }) => `${HOUSES[house].nickname} ${points}`)
+          .join(', ')
+      })
+    }
   }
   const bid = game.groupRush.bid
   if (bid) {

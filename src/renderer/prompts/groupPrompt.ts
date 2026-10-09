@@ -11,6 +11,12 @@ import {
   type TryoutResult
 } from '@shared/groups'
 import {
+  GREEK_POINTS,
+  greekStandings,
+  greekWeekEventOf,
+  type GreekResult
+} from '@shared/greekWeek'
+import {
   HOUSE_IDS,
   HOUSES,
   houseAccess,
@@ -244,6 +250,10 @@ export interface GroupNewsState {
   groupResults?: Readonly<Record<string, GroupResult>>
   /** How each tryout the reader went to ended, by occasion id. */
   groupTryouts?: Readonly<Record<string, TryoutResult>>
+  /** How each night of Greek Week ended, by occasion id. */
+  groupGreek?: Readonly<Record<string, GreekResult>>
+  /** The house that put him out or that he left, which a night of Greek Week says. */
+  houseDropped?: DroppedHouse | null
   /** The team the reader is on, which decides whether he plays in a game or watches it. */
   playerTeam?: GroupId | null
   /** The house he has said yes to, which decides whether he is a guest at its nights, a pledge or a member. */
@@ -269,7 +279,8 @@ function resultSentence(eventId: string, result: GroupResult, date: number): str
  */
 export function groupNewsClause(
   ids: readonly string[] | undefined,
-  state: GroupNewsState
+  state: GroupNewsState,
+  house?: HouseId
 ): string {
   const done = groupsOfChar(ids)
     .flatMap((def) => def.events.map((event) => event.id))
@@ -283,12 +294,13 @@ export function groupNewsClause(
       return over ? [{ occasion, result }] : []
     })
     .sort((a, b) => a.occasion.startDate - b.occasion.startDate)
-  return done
+  const team = done
     .flatMap(({ occasion, result }) => {
       const sentence = resultSentence(occasion.id, result, occasion.endDate)
       return sentence ? [` | ${sentence}`] : []
     })
     .join('')
+  return `${team}${house ? greekNewsClause(house, state) : ''}`
 }
 
 /**
@@ -361,5 +373,121 @@ export function groupEventLines(eventId: string | null | undefined, state: Group
 export function groupEventLore(eventId: string | null | undefined): string[] {
   const found = eventId ? groupEventOf(eventId) : undefined
   const text = found ? loreTextForKey(found.school.short) : null
+  return text ? [text] : []
+}
+
+const PLACES = ['first', 'second', 'third', 'fourth']
+
+/** The nights of Greek Week the calendar holds, in the order they fall. */
+function greekNights(state: Pick<GroupNewsState, 'occasions'>): Occasion[] {
+  return state.occasions
+    .filter((entry) => greekWeekEventOf(entry.id))
+    .sort((a, b) => a.startDate - b.startDate)
+}
+
+/** A night's name without the week's: "Pool Relay". */
+function greekNightName(occasion: Occasion): string {
+  return occasion.title.replace(/^Greek Week: /, '')
+}
+
+/** A scoreboard in a line: "Kappa Row 7, Xi Delt 6, …". */
+function standingsLine(standings: readonly { house: HouseId; points: number }[]): string {
+  return standings.map(({ house, points }) => `${HOUSES[house].nickname} ${points}`).join(', ')
+}
+
+/**
+ * What a resident of a house knows of Greek Week once a night is over: where her house finished
+ * in it, and, when the closing night is over, who won the week. Nothing before the night is done.
+ */
+export function greekNewsClause(house: HouseId, state: GroupNewsState): string {
+  const nights = greekNights(state)
+  const done = nights.filter((occasion) => {
+    const last = occasion.time ?? GROUP_EVENT_TIME
+    return (
+      state.groupGreek?.[occasion.id] !== undefined &&
+      (occasion.endDate < state.date || (occasion.endDate === state.date && last < state.time))
+    )
+  })
+  const lines = done.map((occasion) => {
+    const place = state.groupGreek?.[occasion.id]?.order.indexOf(house) ?? 0
+    return ` | ${HOUSES[house].nickname} finished ${PLACES[place]} in Greek Week's ${greekNightName(occasion)} on ${formatGameDate(occasion.endDate)}.`
+  })
+  const closing = nights[nights.length - 1]
+  if (closing && done.includes(closing) && state.groupGreek) {
+    const standings = greekStandings(nights, state.groupGreek)
+    const at = standings.findIndex((entry) => entry.house === house)
+    lines.push(
+      at === 0
+        ? ` | ${HOUSES[house].nickname} won Greek Week.`
+        : ` | ${HOUSES[standings[0].house].nickname} won Greek Week, and ${HOUSES[house].nickname} finished ${PLACES[at]}.`
+    )
+  }
+  return lines.join('')
+}
+
+/**
+ * The line that keeps the people of the four houses and the judges of Greek Week nameless. A
+ * defence in the prompt alone, like the team's.
+ */
+export function greekFigurantLine(): string {
+  const brothers = HOUSE_IDS.filter((id) => HOUSES[id].kind === 'fraternity').map(
+    (id) => HOUSES[id].nickname
+  )
+  const sisters = HOUSE_IDS.filter((id) => HOUSES[id].kind === 'sorority').map(
+    (id) => HOUSES[id].nickname
+  )
+  return `Every brother of ${andList(brothers)} and every sister of ${andList(sisters)} who has not been named above, and every judge and organizer of Greek Week, is unnamed background: never give any of them a name, only "a brother of ${brothers[0]}", "a sister of ${sisters[0]}" or "a judge".`
+}
+
+/**
+ * The block that tells a scene it is a night of Greek Week and how it ends: the order the four
+ * houses finish in, the scoreboard before and after, who wins the week on the closing night, and
+ * what the reader is to it. All of it is the game's: the writer shows the night, and never decides it.
+ */
+export function greekEventLines(
+  eventId: string | null | undefined,
+  state: GroupNewsState
+): string[] {
+  const prova = greekWeekEventOf(eventId)
+  const occasion = state.occasions.find((entry) => entry.id === eventId)
+  const result = eventId ? state.groupGreek?.[eventId] : undefined
+  if (!prova || !occasion || !result) return []
+  const nights = greekNights(state)
+  const at = nights.findIndex((entry) => entry.id === prova.id)
+  const results = state.groupGreek ?? {}
+  const finish = result.order
+    .map((house, place) => `${HOUSES[house].nickname} ${PLACES[place]} (${GREEK_POINTS[place]} point${GREEK_POINTS[place] === 1 ? '' : 's'})`)
+    .join(', ')
+  const after = greekStandings(nights.slice(0, at + 1), results)
+  const lines = [
+    'GROUP EVENT',
+    `${occasion.title}: ${occasion.description}`,
+    `The result is already decided and is not the writer's to change: the four houses finish tonight's contest in this order: ${finish}. The night can be shown whole or in part, but nothing in the scene may contradict that order or leave it open.`
+  ]
+  if (at > 0) {
+    lines.push(
+      `The scoreboard before tonight: ${standingsLine(greekStandings(nights.slice(0, at), results))}.`
+    )
+  }
+  lines.push(
+    at === nights.length - 1
+      ? `This is the closing night, so the week ends here: ${HOUSES[after[0].house].nickname} wins Greek Week. The final scoreboard: ${standingsLine(after)}. The scene may show the trophy handed over, and nothing in it may name another winner.`
+      : `The scoreboard after tonight: ${standingsLine(after)}. The week is not over, and nothing in the scene may say who wins it.`
+  )
+  const member = state.playerHouse?.stage === 'member' ? HOUSES[state.playerHouse.id] : undefined
+  lines.push(
+    member && result.reader === member.id
+      ? `The reader is a member of ${member.nickname} and competes for it tonight: show him taking part for his house. What he does in it does not change the result.`
+      : `The reader does not compete in this contest: he watches it from the crowd and takes no part in it${member ? `, though he is a member of ${member.nickname}` : ', and he belongs to no house that competes'}.`
+  )
+  if (!member && state.houseDropped) {
+    lines.push(houseMarkLine(HOUSES[state.houseDropped.house], state.houseDropped))
+  }
+  return [...lines, '']
+}
+
+/** The lore of Greek Week, to be stated outright on its nights rather than matched. */
+export function greekWeekLore(eventId: string | null | undefined): string[] {
+  const text = greekWeekEventOf(eventId) ? loreTextForKey('Greek Week') : null
   return text ? [text] : []
 }

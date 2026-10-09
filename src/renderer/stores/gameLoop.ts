@@ -3,7 +3,8 @@ import { checkFacts } from '@shared/facts'
 import { gameOverLines, gameOverReasonOf } from '@shared/gameOver'
 import { GAME_GAIN, GROUPS, PRACTICE_GAIN } from '@shared/groups'
 import { homeOf, READER, withHomeMove } from '@shared/homes'
-import { HOUSES, houseEventOf, mayAskTo, rushEventOf } from '@shared/houses'
+import { mayAskToOccasion } from '@shared/greekWeek'
+import { HOUSES, houseEventOf, rushEventOf } from '@shared/houses'
 import { settleOccasionAskers } from './slotAskers'
 import { locationLabel } from '@shared/locations'
 import { earnLine, spendLine, spentOf } from '@shared/money'
@@ -787,7 +788,7 @@ async function fetchSlotIntro(
   // is asked by.
   const mayCarry = (charKey: string): boolean =>
     occasion === null ||
-    mayAskTo(occasion, view.charInfo[game.charKeyToId[charKey]]?.house, game.groupDropped?.house)
+    mayAskToOccasion(occasion, view.charInfo[game.charKeyToId[charKey]]?.house, game.groupDropped?.house)
   const askerKeys = occasion
     ? settleOccasionAskers(pickSlotAskers(date, time, view, occasion), mayCarry, () =>
         pickOccasionAsker(date, time, view, npcOverlay, occasion)

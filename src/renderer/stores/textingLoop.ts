@@ -4,7 +4,8 @@
  * turns an agreed hangout into a real scene.
  */
 
-import { houseEventOf, mayAskTo } from '@shared/houses'
+import { greekWeekEventOf, mayAskToOccasion } from '@shared/greekWeek'
+import { houseEventOf } from '@shared/houses'
 import { pronounsOf } from '@shared/pronouns'
 import { formatDateBanner, prevSlot } from '../prompts/gameDate'
 import type { CalendarEvent, CharInfo, EventCancellation, Gender, Occasion } from '@shared/types'
@@ -760,6 +761,7 @@ function textingRequestOf(
       roster: others,
       homeMoves: game.homeMoves,
       groupResults: game.groupResults,
+      groupGreek: game.groupGreek,
       playerTeam: game.groupTeam?.id ?? null,
       charInfo: game.charInfo,
       npcRelationships: game.npcRelationships,
@@ -1089,7 +1091,13 @@ function groupEventPreset(occasionId: string | undefined): Verdict | undefined {
   if (!occasionId) return undefined
   const game = useGameStore.getState()
   const occasion = game.occasions.find((entry) => entry.id === occasionId)
-  if (!(occasion?.group || occasion?.house) || occasion.startDate !== game.date) return undefined
+  if (
+    !occasion ||
+    !(occasion.group || occasion.house || greekWeekEventOf(occasion.id)) ||
+    occasion.startDate !== game.date
+  ) {
+    return undefined
+  }
   if ((occasion.time ?? GROUP_EVENT_TIME) !== game.time) return undefined
   return groupEventVerdict(occasion)
 }
@@ -1458,7 +1466,7 @@ export function pickOccasionAsker(
     if (charUnavailableNow(charId, day, half)) continue
     // A group's event is asked by one of its members, and a house's by one who lives in it.
     if (occasion?.group && !game.charInfo[charId]?.groups?.includes(occasion.group)) continue
-    if (occasion && !mayAskTo(occasion, game.charInfo[charId]?.house, game.groupDropped?.house)) {
+    if (occasion && !mayAskToOccasion(occasion, game.charInfo[charId]?.house, game.groupDropped?.house)) {
       continue
     }
     // She is already asking him something else.

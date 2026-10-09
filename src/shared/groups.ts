@@ -5,6 +5,13 @@
  */
 
 import { LAST_CLASS_DATE } from './classes'
+import {
+  greekCandidates,
+  GREEK_PROVAS,
+  greekWeekOccasion,
+  GREEK_WEEK_TIME,
+  type GreekResult
+} from './greekWeek'
 import { seededRand } from './hash'
 import { MAX_STRIKES, SHIFT_SLOTS, shiftSlotFullLabel, shiftSlotOf } from './jobs'
 import { isLocationOpen, locationLabel } from './locations'
@@ -416,6 +423,8 @@ export interface GroupsSave {
   house?: SavedHouseStanding
   /** The house that put him out of its pledge, kept so that its scenes and its people know. */
   dropped?: DroppedHouse
+  /** How each night of Greek Week ended, by contest id. */
+  greekWeek?: Record<string, GreekResult>
 }
 
 /** Every group's agenda in a playthrough, keyed by group id. */
@@ -937,10 +946,13 @@ export function placeGroupEvents(input: EventPlacementInput): {
   leftOut: Partial<Record<GroupId, LeftOutEvent[]>>
   /** The rush events no half-day could hold, by house. */
   houseLeftOut: Partial<Record<HouseId, LeftOutEvent[]>>
+  /** The nights of Greek Week no half-day could hold. */
+  greekLeftOut: LeftOutEvent[]
 } {
   const placed: Occasion[] = []
   const leftOut: Partial<Record<GroupId, LeftOutEvent[]>> = {}
   const houseLeftOut: Partial<Record<HouseId, LeftOutEvent[]>> = {}
+  const greekLeftOut: LeftOutEvent[] = []
 
   const dayFor = (
     candidates: readonly number[],
@@ -1003,13 +1015,24 @@ export function placeGroupEvents(input: EventPlacementInput): {
       else leave(id, event.id, found.reason)
     }
   }
+  // Greek Week comes before the parties and the mixers: it has four nights in one week, and a
+  // mixer of that week is the least harm.
+  for (const prova of GREEK_PROVAS) {
+    const day = greekCandidates(prova).find(
+      (date) =>
+        !input.avoid.some((range) => date >= range.startDate && date <= range.endDate) &&
+        ![...input.occasions, ...placed].some((occasion) => occupies(occasion, date, GREEK_WEEK_TIME))
+    )
+    if (day !== undefined) placed.push(greekWeekOccasion(prova, day))
+    else greekLeftOut.push({ id: prova.id, reason: 'no_date' })
+  }
   // The parties and the mixers come last: there are many of them, and losing one is the least harm.
   const nights = placeHouseNights(input, placed)
   placed.push(...nights.placed)
   for (const [house, left] of Object.entries(nights.leftOut)) {
     houseLeftOut[house as HouseId] = [...(houseLeftOut[house as HouseId] ?? []), ...(left ?? [])]
   }
-  return { placed, leftOut, houseLeftOut }
+  return { placed, leftOut, houseLeftOut, greekLeftOut }
 }
 
 /**

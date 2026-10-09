@@ -11,6 +11,7 @@ import {
   type PracticeContext
 } from '@shared/groups'
 import { homeOf, type HomeId } from '@shared/homes'
+import { greekWeekEventOf } from '@shared/greekWeek'
 import { occasionHouses, type HouseId } from '@shared/houses'
 import { globalSlotOf, shiftSlotOf, slotFromId } from '@shared/jobs'
 import { ROOM_LOCATION } from '@shared/locations'
@@ -72,8 +73,10 @@ function eventAtTeamPlace(groupId: GroupId, slotId: number): boolean {
     .getState()
     .occasions.some(
       (occasion) =>
-        occasion.group !== undefined &&
-        (occasion.group === groupId || occasion.where === GROUPS[groupId].location) &&
+        ((occasion.group !== undefined &&
+          (occasion.group === groupId || occasion.where === GROUPS[groupId].location)) ||
+          (greekWeekEventOf(occasion.id) !== undefined &&
+            occasion.where === GROUPS[groupId].location)) &&
         date >= occasion.startDate &&
         date <= occasion.endDate &&
         (occasion.time === null || occasion.time === time)
@@ -292,7 +295,9 @@ export function groupEventAt(date: number, time: TimeSlot): Occasion | undefined
     .getState()
     .occasions.find(
       (occasion) =>
-        (occasion.group !== undefined || occasion.house !== undefined) &&
+        (occasion.group !== undefined ||
+          occasion.house !== undefined ||
+          greekWeekEventOf(occasion.id) !== undefined) &&
         occasion.where !== undefined &&
         date >= occasion.startDate &&
         date <= occasion.endDate &&
@@ -319,17 +324,23 @@ export function charStandingHauntAt(charId: string, date: number, time: TimeSlot
     event.where !== undefined &&
     houseOfChar !== undefined &&
     occasionHouses(event).includes(houseOfChar)
+  // A night of Greek Week: whoever lives in any of the four houses is at it.
+  const inGreekWeek =
+    event !== undefined &&
+    greekWeekEventOf(event.id) !== undefined &&
+    event.where !== undefined &&
+    houseOfChar !== undefined
   // His pledge meeting or his initiation: whoever lives in the house he pledges is at it while it is held.
   const slotId = globalSlotOf(date, time)
   const inMeeting =
     game.groupHouse !== null && houseOfChar === game.groupHouse.id && houseMeetingHeldAt(slotId)
   const inInitiation =
     game.groupHouse !== null && houseOfChar === game.groupHouse.id && initiationAt(slotId)
-  const inEvent = inTeamEvent || inHouseEvent || inInitiation
+  const inEvent = inTeamEvent || inHouseEvent || inGreekWeek || inInitiation
   const haunt: Haunt | undefined = inInitiation
     ? { location: game.groupHouse?.id as string, kind: 'event', doing: 'at the initiation' }
-    : inHouseEvent
-    ? { location: event.where as string, kind: 'event', doing: `at the ${event.title}` }
+    : inHouseEvent || inGreekWeek
+    ? { location: event?.where as string, kind: 'event', doing: `at the ${event?.title}` }
     : inTeamEvent
       ? { location: event.where as string, kind: 'team' }
       : inMeeting

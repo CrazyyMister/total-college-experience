@@ -146,6 +146,10 @@ export const LOREBOOK: readonly LoreEntry[] = [
     text: `Pi Theta, formally Pi Theta Eta, is the academic and philanthropic sorority house on Laurel Row, upper middle class and known for its charity events; it prizes Brain. Its tradition is the charity auction of the fall, and it holds its mixers with Xi Delt. Its members each have a room of their own in the house. bg for the front of the house: pi_theta_front.`
   },
   {
+    keys: ['Greek Week'],
+    text: `Greek Week is the week at the end of April when the four houses of Laurel Row, Kappa Row, Xi Delt, Sig Lam and Pi Theta, compete for a trophy in contests that are silly on purpose: a scavenger hunt on the Quad, a relay in the Palaestra pool, a field day on the Palaestra field and a closing night of songs on the Quad, with every house cheering for its own.`
+  },
+  {
     id: 'elysium_village',
     keys: ['Elysium Village', 'elysium', 'townhouse', 'senior housing', 'senior living'],
     text: `Elysium Village is the row of west-edge townhouses with spacious rooms, private patios, and surrounding woodland, claimed almost entirely by upperclassmen through a housing lottery, so an invite to a party there feels like being knighted. Residents keep a porch light code: on means visitors welcome, off means do not perceive me.`
