@@ -217,6 +217,10 @@ You will need externally kept data for testing:
 - [ ] Once put out, verify the house's members no longer ask you to its events and a scene at the house carries the put-out line in data/app.log.
 - [ ] Pledge until day 41 and verify the house texts the initiation night, the card, the calendar and the job board show it, the initiation makes you a member at the next boundary and you wake up in the house's room; skipping it puts you out.
 - [ ] Leave the house from the Profile, as a pledge and as a member, and verify it asks first, sends you to Lowrise 4 and leaves a disliked memory only on the house's cast members.
+- [ ] On a Greek Week night as a house member, verify the standings are stated from the first turn, you compete for your house, and the score is the same after reloading mid-scene.
+- [ ] On a Greek Week night with no house, and again after leaving one, verify the scene says you watch from the crowd.
+- [ ] Skip a Greek Week night and verify F9's Groups section shows it decided without you after the boundary.
+- [ ] In a new game, verify F9 lists the week-14 mixer as left out and the calendar holds the four Greek Week nights.
 
 ### Second Week
 - [ ] Attend class and verify that a fact is learned. 
