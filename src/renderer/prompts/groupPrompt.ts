@@ -10,12 +10,12 @@ import {
   type GroupResult,
   type TryoutResult
 } from '@shared/groups'
-import { HOUSES, isHouse } from '@shared/houses'
+import { HOUSE_IDS, HOUSES, isHouse, type HouseId } from '@shared/houses'
 import { locationLabel } from '@shared/locations'
 import { andList } from '@shared/sentences'
 import type { Occasion, TimeSlot } from '@shared/types'
 import { formatGameDate } from './gameDate'
-import { loreEntryById, loreTextForKey } from './lorebook'
+import { keyPattern, loreEntryById, loreTextForKey } from './lorebook'
 
 /** What the prompts say about the groups a call touches. */
 
@@ -63,12 +63,29 @@ export function groupFigurantLine(groups: readonly GroupDef[]): string {
 }
 
 /**
+ * The Greek house the place a scene is set at names: its id, as the map's Go and the classifier's
+ * list of occupied places give it, or its own words ("the Kappa Row house") where the classifier
+ * left the place in plain words. Only that place is read, never the reader's action: a house
+ * named in passing somewhere else is not the scene's place.
+ */
+export function houseAtPlace(location: string | null | undefined): HouseId | undefined {
+  const words = location?.trim()
+  if (!words) return undefined
+  const id = loreEntryById(words)?.id ?? words
+  if (isHouse(id)) return id
+  return HOUSE_IDS.find((house) => {
+    const keys = loreEntryById(house)?.keys ?? []
+    return keys.length > 0 && new RegExp(keys.map((key) => keyPattern(key)).join('|'), 'iu').test(words)
+  })
+}
+
+/**
  * The line that keeps the members of a Greek house nameless when the scene is set at the house,
  * or an empty string anywhere else. A defence in the prompt alone, like the team's.
  */
 export function houseFigurantLine(location: string | null | undefined): string {
-  const id = location ? (loreEntryById(location)?.id ?? location) : undefined
-  if (!id || !isHouse(id)) return ''
+  const id = houseAtPlace(location)
+  if (!id) return ''
   const def = HOUSES[id]
   const member = def.kind === 'fraternity' ? 'brother' : 'sister'
   return `Every ${member} of ${def.nickname} who has not been named above is unnamed background: never give any of them a name, only "a ${member}".`
