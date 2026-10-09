@@ -290,12 +290,14 @@ export function settleInitiation(): void {
   }
   if (game.date < PLEDGE_LAST_DAY) return
 
-  // What holds one of his nights: a class (an exam is the class's meeting), a shift, his practice.
+  // What holds one of his nights: a class (an exam is the class's meeting), a shift, his practice
+  // or a plan he has already made.
   const busyAt = (slotId: number): string | null => {
     const { date, time } = slotFromId(slotId)
     if (playerClassNow(date, time) !== null) return 'a class'
     if (shiftNow(date, time) !== null) return 'a shift'
-    return practiceHeldAt(slotId) ? 'his practice' : null
+    if (practiceHeldAt(slotId)) return 'his practice'
+    return game.events.some((event) => event.date === date && event.time === time) ? 'a plan' : null
   }
   const pick = initiationSlot({
     fromSlot: now,
