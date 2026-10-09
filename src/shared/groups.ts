@@ -1100,11 +1100,12 @@ export function bidScore(input: BidHouseInput): number {
     input.affections.length === 0
       ? 0
       : input.affections.reduce((sum, value) => sum + likingOf(value), 0) / input.affections.length
-  return (
+  const score =
     BID_WEIGHT_EVENTS * Math.min(input.events / BID_EVENTS_FOR_FULL, 1) +
     BID_WEIGHT_LIKING * liking +
     BID_WEIGHT_STAT * ((input.tier - 1) / (MAX_TIER - 1))
-  )
+  // To two places, so that a score on the line itself is on it however the sum was reached.
+  return Math.round(score * 100) / 100
 }
 
 /**
@@ -1121,7 +1122,7 @@ export function bidVerdict(
   const verdict: BidVerdict = { invited: [], clashed: [], scores: {} }
   for (const input of houses) {
     const score = bidScore(input)
-    verdict.scores[input.house] = Math.round(score * 1000) / 1000
+    verdict.scores[input.house] = score
     const needed = input.affections.length === 0 ? BID_THRESHOLD_UNNAMED : BID_THRESHOLD_CAST
     if (input.events < 1 || score < needed) continue
     if (input.sessions.some((slot) => teamSessions.includes(slot))) verdict.clashed.push(input.house)

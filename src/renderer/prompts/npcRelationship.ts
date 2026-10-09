@@ -178,7 +178,7 @@ export function hauntActivity(
   const label = locationLabel(location)
   if (haunt.kind === 'study') return `studying at ${label}`
   if (haunt.kind === 'meal') return `having ${time === 1 ? 'dinner' : 'lunch'} at ${label}`
-  if (haunt.kind === 'activity') return haunt.doing || null
+  if (haunt.kind === 'activity' || haunt.kind === 'event') return haunt.doing || null
   if (haunt.kind === 'team') {
     // Two teams may share a place, and a haunt does not say which one is hers.
     const teams = groupsAtPlace(location)

@@ -234,6 +234,21 @@ export function rushOccasion(event: RushEventDef, half: HalfDay): Occasion {
   }
 }
 
+/** The houses an occasion is of, whose people alone may ask the reader along to it. */
+export function occasionHouses(occasion: Pick<Occasion, 'house'>): HouseId[] {
+  return occasion.house ? [occasion.house] : []
+}
+
+/**
+ * Whether somebody of `house` (or of none) may ask the reader to an occasion: anybody may ask him
+ * to one that is no house's, and only those who live in a house an occasion is of may ask him to
+ * that one.
+ */
+export function mayAskTo(occasion: Pick<Occasion, 'house'>, house: HouseId | undefined): boolean {
+  const houses = occasionHouses(occasion)
+  return houses.length === 0 || (house !== undefined && houses.includes(house))
+}
+
 /** What the reader's bid on a house is kept as: the day it was decided, who bid and the answer. */
 export interface BidOffer {
   /** The day the bid was decided on, the last night of rush. */

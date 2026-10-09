@@ -10,6 +10,7 @@ import {
   type PracticeContext
 } from '@shared/groups'
 import { homeOf, type HomeId } from '@shared/homes'
+import { occasionHouses } from '@shared/houses'
 import { globalSlotOf, shiftSlotOf, slotFromId } from '@shared/jobs'
 import { ROOM_LOCATION } from '@shared/locations'
 import { classSlotOf, hauntClosedOn, jobClosedOn } from '../prompts/occasions'
@@ -198,13 +199,23 @@ export function groupEventAt(date: number, time: TimeSlot): Occasion | undefined
 export function charStandingHauntAt(charId: string, date: number, time: TimeSlot): Haunt | null {
   const game = useGameStore.getState()
   const event = groupEventAt(date, time)
-  const inEvent =
+  const inTeamEvent =
     event?.group !== undefined &&
     event.where !== undefined &&
     game.charInfo[charId]?.groups?.includes(event.group) === true
-  const haunt = inEvent
-    ? { location: event.where as string, kind: 'team' as const }
-    : game.charInfo[charId]?.hiddenSchedule?.[shiftSlotOf(shiftWeekdayOf(date), time)]
+  // A house's event: whoever lives in the house is at it, as the week would have her elsewhere.
+  const houseOfChar = game.charInfo[charId]?.house
+  const inHouseEvent =
+    event?.house !== undefined &&
+    event.where !== undefined &&
+    houseOfChar !== undefined &&
+    occasionHouses(event).includes(houseOfChar)
+  const inEvent = inTeamEvent || inHouseEvent
+  const haunt: Haunt | undefined = inHouseEvent
+    ? { location: event.where as string, kind: 'event', doing: `at the ${event.title}` }
+    : inTeamEvent
+      ? { location: event.where as string, kind: 'team' }
+      : game.charInfo[charId]?.hiddenSchedule?.[shiftSlotOf(shiftWeekdayOf(date), time)]
   if (!haunt) return null
   // A group's event takes its place over: another team's session there that half-day is not held.
   if (!inEvent && event?.where !== undefined && haunt.kind === 'team' && haunt.location === event.where) {

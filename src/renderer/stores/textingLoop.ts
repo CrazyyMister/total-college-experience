@@ -4,6 +4,7 @@
  * turns an agreed hangout into a real scene.
  */
 
+import { mayAskTo } from '@shared/houses'
 import { pronounsOf } from '@shared/pronouns'
 import { formatDateBanner, prevSlot } from '../prompts/gameDate'
 import type { CalendarEvent, CharInfo, EventCancellation, Gender, Occasion } from '@shared/types'
@@ -1453,7 +1454,7 @@ export function pickOccasionAsker(
     if (charUnavailableNow(charId, day, half)) continue
     // A group's event is asked by one of its members, and a house's by one who lives in it.
     if (occasion?.group && !game.charInfo[charId]?.groups?.includes(occasion.group)) continue
-    if (occasion?.house && game.charInfo[charId]?.house !== occasion.house) continue
+    if (occasion && !mayAskTo(occasion, game.charInfo[charId]?.house)) continue
     // She is already asking him something else.
     if (conversations[charId]?.pendingHangout) continue
     // Her own backoff still counts; the roster's spell of quiet does not.

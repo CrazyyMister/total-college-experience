@@ -159,3 +159,31 @@ export function drawOccasionAsker(
   const index = Math.min(pool.length - 1, Math.floor(rand() * pool.length))
   return pool[index].charId
 }
+
+/** The most askers one slot has. */
+export const MAX_SLOT_ASKERS = MAX_ASKERS
+
+/**
+ * Who asks him on a slot with an occasion on it, given who the dice picked. If none of them may
+ * ask him to it (a house's occasion is asked by the people who live in the house) the fallback
+ * is asked for one who may, and she joins them; a slot never has more than two askers, and the
+ * ones who may not are the ones given up.
+ */
+export function settleOccasionAskers(
+  picked: readonly string[],
+  mayCarry: (charKey: string) => boolean,
+  fallback: () => string | null
+): string[] {
+  const askers = [...picked]
+  if (askers.some(mayCarry)) return askers
+  const extra = fallback()
+  if (extra === null) return askers
+  askers.push(extra)
+  while (askers.length > MAX_SLOT_ASKERS) {
+    askers.splice(
+      askers.findIndex((key) => !mayCarry(key)),
+      1
+    )
+  }
+  return askers
+}

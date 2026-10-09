@@ -728,8 +728,11 @@ export interface CharJob {
  */
 export type CrushHint = { stat: StatKey; tier: StatTier } | { met: true }
 
-/** What a standing haunt is for: the menu it was dealt from. */
-export type HauntKind = 'fun' | 'study' | 'activity' | 'meal' | 'grocery' | 'room' | 'team'
+/**
+ * What a standing haunt is for: the menu it was dealt from. `'event'` is the exception: it is never
+ * dealt or kept, only answered, on the half-day of a house's event, to those who live in the house.
+ */
+export type HauntKind = 'fun' | 'study' | 'activity' | 'meal' | 'grocery' | 'room' | 'team' | 'event'
 
 /** Why the weekly deal could not place something: no free period of hers, the place shut in all of them, or the place full in all of them. */
 export type LeftOutReason = 'busy' | 'closed' | 'full' | 'no_shift' | 'short_shifts' | 'nowhere'
@@ -748,7 +751,7 @@ export interface Haunt {
   /** A location id (`shared/locations.ts`) or `'room'`. */
   location: string
   kind: HauntKind
-  /** Activity only: what she does there, as the profile call wrote it — "sketching at the Whitman Greenhouse". */
+  /** Activity and event only: what she does there — as the profile call wrote it, "sketching at the Whitman Greenhouse", or "at the Kappa Row Open House". */
   doing?: string
 }
 

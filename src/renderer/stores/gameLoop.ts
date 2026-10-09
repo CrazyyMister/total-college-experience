@@ -3,7 +3,8 @@ import { checkFacts } from '@shared/facts'
 import { gameOverLines, gameOverReasonOf } from '@shared/gameOver'
 import { GAME_GAIN, GROUPS, PRACTICE_GAIN } from '@shared/groups'
 import { homeOf, READER, withHomeMove } from '@shared/homes'
-import { rushEventOf } from '@shared/houses'
+import { mayAskTo, rushEventOf } from '@shared/houses'
+import { settleOccasionAskers } from './slotAskers'
 import { locationLabel } from '@shared/locations'
 import { earnLine, spendLine, spentOf } from '@shared/money'
 import {
@@ -763,13 +764,16 @@ async function fetchSlotIntro(
   // What is on this slot that somebody could ask him along to, and that he is free to go to.
   const occasion = askOccasionFor(date, time, view)
 
-  // Who is texting the reader an invitation this slot.
-  const askerKeys = pickSlotAskers(date, time, view)
-  // Somebody asks him to the occasion even on a slot the dice picked nobody for.
-  if (occasion && askerKeys.length === 0) {
-    const fallback = pickOccasionAsker(date, time, view, npcOverlay, occasion)
-    if (fallback) askerKeys.push(fallback)
-  }
+  // Who is texting the reader an invitation this slot. Somebody asks him to the occasion even on a
+  // slot the dice picked nobody for, or picked only people who are not the ones a house's occasion
+  // is asked by.
+  const mayCarry = (charKey: string): boolean =>
+    occasion === null || mayAskTo(occasion, view.charInfo[game.charKeyToId[charKey]]?.house)
+  const askerKeys = occasion
+    ? settleOccasionAskers(pickSlotAskers(date, time, view), mayCarry, () =>
+        pickOccasionAsker(date, time, view, npcOverlay, occasion)
+      )
+    : pickSlotAskers(date, time, view)
 
   const askers: IntroAsker[] = []
   for (const charKey of askerKeys) {
@@ -789,7 +793,7 @@ async function fetchSlotIntro(
       texted: hasTexted(game.bunnyboard.conversations[charId]),
       ...(plan ? { plan } : {}),
       // A girl with a plan is writing about that; anybody else is asking him to the occasion.
-      ...(occasion && !plan ? { occasion } : {}),
+      ...(occasion && !plan && mayCarry(charKey) ? { occasion } : {}),
       ...(whereabouts
         ? {
             whereabouts: {

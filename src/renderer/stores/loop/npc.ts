@@ -82,7 +82,7 @@ export function rollNpcOverlayNow(
       // The standing haunt, not `charHiddenLocationNow`, which reads the overlay this call is
       // producing and would deal a replay a second evening.
       haunt: charStandingHauntAt(charId, date, time)?.location ?? null,
-      fixed: charStandingHauntAt(charId, date, time)?.kind === 'team',
+      fixed: ['team', 'event'].includes(charStandingHauntAt(charId, date, time)?.kind ?? ''),
       // Off campus takes her out of all three passes at once.
       busy: charUnavailableNow(charId, date, time),
       moodHomebound: isMoodHomebound(
