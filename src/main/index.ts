@@ -103,6 +103,9 @@ function isOpenableExternally(url: string): boolean {
   }
 }
 
+/** How long a window may stay hidden waiting for the renderer's first paint. */
+const SHOW_FALLBACK_MS = 8000
+
 /** Creates and shows the single main application window. */
 function createWindow(): void {
   const display = screen.getPrimaryDisplay().size
@@ -134,6 +137,16 @@ function createWindow(): void {
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
   })
+
+  // Chromium has been seen not to announce ready-to-show, which would leave the window hidden for
+  // good; past this wait it is shown anyway, in front of the cover the renderer already draws.
+  const showFallback = setTimeout(() => {
+    if (mainWindow.isDestroyed() || mainWindow.isVisible()) return
+    console.warn(`[window] shown after ${SHOW_FALLBACK_MS / 1000} s without ready-to-show`)
+    mainWindow.show()
+  }, SHOW_FALLBACK_MS)
+  mainWindow.once('show', () => clearTimeout(showFallback))
+  mainWindow.once('closed', () => clearTimeout(showFallback))
 
   // Main owns the zoom, at every size and from every source — including the player's Ctrl+wheel.
   mainWindow.webContents.on('did-finish-load', () => applyStageZoom(mainWindow))
@@ -194,6 +207,8 @@ app.on('second-instance', () => {
   const win = BrowserWindow.getAllWindows()[0]
   if (!win) return
   if (win.isMinimized()) win.restore()
+  // A window still hidden is shown, so a second launch is never a click that does nothing.
+  if (!win.isVisible()) win.show()
   win.focus()
 })
 
