@@ -135,6 +135,14 @@ describe('buildSchedules invariants', () => {
       // A class nobody takes is not saved, and every saved class has a student.
       for (const code of Object.keys(classes)) expect(enrollment.get(code) ?? 0).toBeGreaterThan(0)
 
+      // Her interest and PE classes are seated first and can hold two slots, so a major dealt
+      // into fewer than three would leave a student of it with no class of her own subject.
+      for (const entry of cast) {
+        const major = draft(cast).characters[charKeyOf(entry.firstName, entry.lastName)].major
+        const taken = Object.values(perChar[entry.charId].schedule)
+        expect(taken.some((code) => classes[code].major === major)).toBe(true)
+      }
+
       // The catalog always admits a legal player schedule: the registrar's rule is the one
       // gate before a timetable is saved, and a catalog that cannot pass it strands him there.
       expect(scheduleComplaint(legalPick(classes), classes)).toBeNull()

@@ -60,6 +60,45 @@ function seatRank(count: number): number {
   return count === 1 ? -1 : count
 }
 
+/** How many deals are tried before the last one stands. */
+const MAX_DEALS = 50
+
+/**
+ * Deals every class into the slot holding the fewest so far, ties at random. A character's
+ * interest class and PE class are seated before her major, so a major whose classes sit in
+ * fewer than three slots can be left with none she can attend; such a deal is thrown back.
+ */
+function dealSlots(draft: DecoratedClassGenDraft): ClassEntry[] {
+  let slotted: ClassEntry[] = []
+  for (let attempt = 0; attempt < MAX_DEALS; attempt++) {
+    const load = CLASS_SLOTS.map(() => 0)
+    slotted = shuffle(draft.classes).map((draftEntry) => {
+      const fewest = Math.min(...load)
+      const slot = shuffle(CLASS_SLOTS.filter((s) => load[s] === fewest))[0] as ClassSlot
+      load[slot]++
+      // `owner` is a scheduling detail, not save state.
+      const { owner: _owner, ...entry } = draftEntry
+      return { ...entry, slot }
+    })
+    if (majorsSpreadOut(slotted)) break
+  }
+  return slotted
+}
+
+/** Whether every major's classes reach three slots, or as many as it has classes. */
+function majorsSpreadOut(classes: readonly ClassEntry[]): boolean {
+  const slotsOf = new Map<string, { count: number; slots: Set<number> }>()
+  for (const entry of classes) {
+    if (entry.category !== 'major') continue
+    const major = entry.major ?? ''
+    const seen = slotsOf.get(major) ?? { count: 0, slots: new Set<number>() }
+    seen.count++
+    seen.slots.add(entry.slot)
+    slotsOf.set(major, seen)
+  }
+  return [...slotsOf.values()].every(({ count, slots }) => slots.size >= Math.min(3, count))
+}
+
 /**
  * Slots the decorated catalog and seats every character; pure and randomised. The classes of
  * the reader's own course are kept whether or not anybody takes them, and any character may be
@@ -70,16 +109,7 @@ export function buildSchedules(
   roster: readonly Character[],
   playerCourse?: string
 ): ScheduleResult {
-  // Deal every class into the slot holding the fewest so far, ties at random.
-  const load = CLASS_SLOTS.map(() => 0)
-  const slotted: ClassEntry[] = shuffle(draft.classes).map((draftEntry) => {
-    const fewest = Math.min(...load)
-    const slot = shuffle(CLASS_SLOTS.filter((s) => load[s] === fewest))[0] as ClassSlot
-    load[slot]++
-    // `owner` is a scheduling detail, not save state.
-    const { owner: _owner, ...entry } = draftEntry
-    return { ...entry, slot }
-  })
+  const slotted = dealSlots(draft)
 
   const byCode = new Map(slotted.map((entry) => [entry.code, entry]))
   const enrollment = new Map<string, number>(slotted.map((entry) => [entry.code, 0]))
