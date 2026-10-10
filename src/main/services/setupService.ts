@@ -15,12 +15,14 @@ import {
   type PinnedRuntime
 } from '@shared/setupManifest'
 import type {
+  ComfyLocation,
   InstallProgress,
   InstallResult,
   SetupComponent,
   SetupStatus
 } from '@shared/types'
 import {
+  getBorrowedComfyPath,
   getComfyCustomNodePath,
   getComfyCustomNodesPath,
   getComfyModelDirPath,
@@ -32,6 +34,7 @@ import {
 } from '../paths'
 import { extract7z, extractZip, renameExtractedDir, stripWrapperDir } from './archiveService'
 import { stop as stopComfy } from './comfyService'
+import { describeComfyRoot } from './comfyRoot'
 import { downloadFile, hashFile } from './downloadService'
 import { resolveComfyGpu } from './gpuService'
 import { getSettings } from './settingsService'
@@ -63,6 +66,17 @@ async function fileSize(path: string): Promise<number | null> {
 
 /** How each build is named on the runtime row and in what that row says. */
 const GPU_LABELS: Readonly<Record<ComfyGpu, string>> = { nvidia: 'NVIDIA', amd: 'AMD ROCm' }
+
+/** Installing, repairing and adopting files write into the tree, which another game's is not for. */
+function refuseIfBorrowed(): void {
+  const borrowed = getBorrowedComfyPath()
+  if (borrowed === null) return
+  throw appError(
+    'COMFY_BORROWED',
+    "Total College Experience never installs into another game's folder.",
+    borrowed
+  )
+}
 
 /**
  * The vendor the installed build was compiled for, read off torch's own version file: the
@@ -97,6 +111,8 @@ function patchRemoverForCpu(source: string): string | null {
  * are all left as they are. Keyed off the build on disk, not the vendor the machine resolves to.
  */
 export async function ensureAmdNodePatches(): Promise<void> {
+  // A ComfyUI that is another game's is not ours to patch.
+  if (getBorrowedComfyPath() !== null) return
   if ((await installedComfyGpu()) !== 'amd') return
   const node = PINNED_NODES.find((n) => n.id === 'inspyrenetRembg')
   if (!node) return
@@ -159,7 +175,9 @@ async function checkComfyRuntime(gpu: ComfyGpu): Promise<SetupComponent> {
       state: 'invalid',
       detail:
         `Installed for ${GPU_LABELS[installed]}; this machine needs the ${GPU_LABELS[gpu]} ` +
-        'build. Installing replaces it, and the nodes and models under it.'
+        (getBorrowedComfyPath() === null
+          ? 'build. Installing replaces it, and the nodes and models under it.'
+          : "build. Install it from that game's Setup, which replaces it.")
     }
   }
   console.log(`[verify] comfyRuntime: ok (${installed})`)
@@ -282,9 +300,14 @@ export async function getSetupStatus(): Promise<SetupStatus> {
   const allOk = (group: SetupComponent['group']): boolean =>
     components.filter((c) => c.group === group).every((c) => c.state === 'ok')
 
+  const borrowed = getBorrowedComfyPath()
+  const location: ComfyLocation =
+    borrowed === null ? { kind: 'own' } : { kind: 'borrowed', ...describeComfyRoot(borrowed) }
+
   const status: SetupStatus = {
     components,
-    comfyReady: allOk('comfyui')
+    comfyReady: allOk('comfyui'),
+    location
   }
   console.log(
     `[verify] done — comfyReady=${status.comfyReady} ` +
@@ -419,6 +442,7 @@ export async function getModelFolder(componentId: string): Promise<string> {
  * and, on a match, adopts it.
  */
 export async function verifyModel(componentId: string, report: Report): Promise<SetupStatus> {
+  refuseIfBorrowed()
   const model = modelOrThrow(componentId)
   const destPath = getComfyModelFilePath(model.destDir, model.destFile)
   const sourcePath = getComfyModelFilePath(model.destDir, model.sourceFile)
@@ -470,6 +494,7 @@ export async function runInstall(
   jobId: string,
   emit: (progress: InstallProgress) => void
 ): Promise<InstallResult> {
+  refuseIfBorrowed()
   const errors: InstallResult['errors'] = []
   let status = await getSetupStatus()
   const stateOf = (id: string): SetupComponent['state'] | undefined =>

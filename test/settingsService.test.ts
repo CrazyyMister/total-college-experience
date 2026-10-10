@@ -304,3 +304,34 @@ describe('the removed shipped cast', () => {
     expect((await settingsService.getSettings()).removedDefaults).toEqual(['shipped-1'])
   })
 })
+
+describe("another game's ComfyUI", () => {
+  const OTHER = join('C:', 'Games', 'Venus University', 'data', 'services', 'comfyui')
+
+  it('is written by its own setter, kept through a renderer save, and never handed to the renderer', async () => {
+    await settingsService.setComfyRoot(OTHER)
+    expect((await fileOnDisk()).comfyRoot).toBe(OTHER)
+
+    await settingsService.applySettingsPatch(patch())
+    expect((await fileOnDisk()).comfyRoot).toBe(OTHER)
+    expect('comfyRoot' in (await settingsService.getRendererSettings())).toBe(false)
+  })
+
+  it('leaves no key behind once the game is back on its own, and the paths follow it', async () => {
+    const paths = await import('../src/main/paths')
+    await settingsService.setComfyRoot(OTHER)
+    expect(paths.getComfyUiPath()).toBe(OTHER)
+
+    await settingsService.setComfyRoot(null)
+    expect('comfyRoot' in (await fileOnDisk())).toBe(false)
+    expect(paths.getComfyUiPath()).toBe(paths.getOwnComfyUiPath())
+  })
+
+  it('is applied from the file at startup', async () => {
+    const paths = await import('../src/main/paths')
+    await seed(stored({ comfyRoot: OTHER }))
+    await settingsService.applyComfyRoot()
+    expect(paths.getComfyUiPath()).toBe(OTHER)
+    paths.setBorrowedComfyPath(null)
+  })
+})

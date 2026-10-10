@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'child_process'
 import { randomUUID } from 'crypto'
-import { closeSync, openSync } from 'fs'
+import { closeSync, mkdirSync, openSync } from 'fs'
 import { copyFile, mkdir, readdir, readFile, rename, rm, writeFile } from 'fs/promises'
 import { dirname, join } from 'path'
 import { nativeImage } from 'electron'
@@ -34,11 +34,15 @@ import {
   getCharacterFacePath,
   getCharacterOutfitPath,
   getComfyAppPath,
+  getComfyDatabaseUrl,
   getComfyInputPath,
   getComfyLogPath,
   getComfyOutputFilePath,
+  getComfyOutputPath,
   getComfyPythonPath,
+  getComfyTempPath,
   getComfyUiPath,
+  getComfyUserPath,
   getExpressionBasePath,
   getOutfitBasePath,
   getPoseSkeletonPath,
@@ -51,7 +55,7 @@ import { getPoseTags } from './assetService'
 import { assertSafeCharId } from './characterService'
 import { dropImageTwins, findImage } from './imageFiles'
 import { imageTypeOf, isRgbaPng } from '@shared/imageBytes'
-import { gameListeningOn, killStrayProcesses, killTree, listProcessIds } from './processTree'
+import { gameListeningOn, killOwnedProcesses, killTree, listOwnedProcessIds } from './processTree'
 import { tryCutProfile } from './profileService'
 import { sleep } from '@shared/retry'
 
@@ -224,12 +228,22 @@ export async function isRunning(): Promise<boolean> {
 }
 
 /**
- * Refuses whatever is answering on the port unless a process is running from the app's own
- * interpreter: an adopted server is sent prompts and trusted with the files it names back.
+ * What a server of this game has on its command line: the output folder it was pointed at, which
+ * no other run's is. One interpreter can serve several games and several runs of this one, and a
+ * server of another would be sent images staged where it does not read them.
+ */
+function ownershipMarker(): string {
+  return getComfyOutputPath()
+}
+
+/**
+ * Refuses whatever is answering on the port unless a process of this game's own is running it,
+ * which its interpreter and its command line say: an adopted server is sent prompts and trusted
+ * with the files it names back.
  */
 function assertOwnServer(): void {
   const python = getComfyPythonPath()
-  const pids = listProcessIds([python])
+  const pids = listOwnedProcessIds(python, ownershipMarker())
   if (pids !== null && pids.length > 0) return
 
   const game = pids === null ? null : gameListeningOn(Number(PORT))
@@ -289,6 +303,13 @@ async function startOnce(onProgress?: (step: string) => void): Promise<void> {
   emit('starting')
   const python = getComfyPythonPath()
 
+  // The server reads and writes only these, so a ComfyUI that is another game's is never
+  // written to. They are made here because ComfyUI will not start with a user folder that is
+  // not there.
+  for (const dir of [getComfyInputPath(), getComfyOutputPath(), getComfyTempPath(), getComfyUserPath()]) {
+    mkdirSync(dir, { recursive: true })
+  }
+
   // Both streams go to the log file through one descriptor: a file has no pipe to fill, and
   // the tail is the detail when a boot dies. A log that will not open does not stop the boot.
   let logFd: number | null = null
@@ -302,12 +323,24 @@ async function startOnce(onProgress?: (step: string) => void): Promise<void> {
   const child = spawn(
     python,
     [
+      // No compiled bytecode written into a tree that may not be ours.
+      '-B',
       '-s',
       join(getComfyAppPath(), 'main.py'),
       '--windows-standalone-build',
       '--port',
       PORT,
-      '--disable-auto-launch'
+      '--disable-auto-launch',
+      '--input-directory',
+      getComfyInputPath(),
+      '--output-directory',
+      getComfyOutputPath(),
+      '--temp-directory',
+      getComfyTempPath(),
+      '--user-directory',
+      getComfyUserPath(),
+      '--database-url',
+      getComfyDatabaseUrl()
     ],
     {
       cwd: getComfyUiPath(),
@@ -467,9 +500,12 @@ export async function stopByHand(): Promise<void> {
   killStray()
 }
 
-/** Kills a ComfyUI left over from a previous run, before this one claims the port. */
+/**
+ * Kills a ComfyUI of this game left over from a previous run, before this one claims the port.
+ * Another game's or another run's, which may run the same interpreter, is left alone.
+ */
 export function killStray(): void {
-  killStrayProcesses([getComfyPythonPath()])
+  killOwnedProcesses(getComfyPythonPath(), ownershipMarker())
 }
 
 /** API-format workflow: node id to class + inputs. */

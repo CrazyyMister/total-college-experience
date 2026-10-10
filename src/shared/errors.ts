@@ -91,6 +91,8 @@ const PERMANENT_CODES = new Set([
   'COMFY_VIEW_NOT_IMAGE',
   // The port is held by a program we did not start; only closing it changes that.
   'COMFY_PORT_TAKEN',
+  // A ComfyUI that is another game's is read, never installed into or repaired.
+  'COMFY_BORROWED',
   // A prompt that outlived the wall-clock wait.
   'COMFY_WAIT_TIMEOUT',
   'POSE_UNAVAILABLE',

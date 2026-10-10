@@ -88,6 +88,39 @@
   max-width: 560px;
 }
 
+/* Whose ComfyUI is in use: a mono label, the line saying so, and the pills that change it. */
+.vu-setup-where {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding-top: 6px;
+}
+
+.vu-setup-where-label {
+  color: var(--vu-text-muted);
+  font: 700 13px var(--font-mono);
+  letter-spacing: 0.2em;
+}
+
+.vu-setup-where-line {
+  margin: 0;
+  max-width: 360px;
+  color: var(--vu-text-body);
+  font: 500 15px/1.5 var(--font-body);
+}
+
+.vu-setup-where-line--warn {
+  color: var(--vu-warn);
+}
+
+.vu-setup-where-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+
 .vu-setup-kicker {
   color: var(--vu-accent);
   font: 700 15px var(--font-mono);

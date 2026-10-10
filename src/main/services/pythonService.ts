@@ -164,7 +164,7 @@ export async function findMissingModules(modules: readonly string[]): Promise<st
   const python = getComfyPythonPath()
 
   return new Promise<string[]>((resolve, reject) => {
-    const child = spawn(python, ['-s', '-c', PROBE_SCRIPT, ...modules], { windowsHide: true })
+    const child = spawn(python, ['-B', '-s', '-c', PROBE_SCRIPT, ...modules], { windowsHide: true })
     let out = ''
     let err = ''
 

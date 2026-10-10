@@ -2151,6 +2151,12 @@ export interface Settings {
    */
   comfyGpu?: ComfyGpu
   /**
+   * The ComfyUI of another game this one runs instead of its own: the absolute path of that
+   * game's `data/services/comfyui`. Written by the Setup screen's picker only, never by the
+   * settings form, and absent meaning this game's own.
+   */
+  comfyRoot?: string
+  /**
    * Whether interjecting during a scene's ending warns first. Optional on disk, absent meaning
    * it does.
    */
@@ -2234,6 +2240,7 @@ export type SettingsPatch = Omit<
   | 'serviceTier'
   | 'streamResponses'
   | 'comfyGpu'
+  | 'comfyRoot'
 > & {
   apiKey?: string
   endpointApiKey?: string
@@ -2447,7 +2454,20 @@ export interface SetupStatus {
   components: SetupComponent[]
   /** Every ComfyUI-group component is `ok` — gates every play path. */
   comfyReady: boolean
+  /** Whose ComfyUI the rows above describe. */
+  location: ComfyLocation
 }
+
+/**
+ * Where the ComfyUI in use lives: this game's own, or another game's it only reads. A borrowed
+ * one names the game it belongs to where the folder beside it says, and whether it is there.
+ */
+export type ComfyLocation =
+  | { kind: 'own' }
+  | { kind: 'borrowed'; game: string | null; folder: string; present: boolean }
+
+/** What picking another game's ComfyUI came to: nothing picked, a folder that is not one, or one in use. */
+export type ComfyPickOutcome = 'canceled' | 'invalid' | 'chosen'
 
 /** Progress event from `setup:runInstall` on `setup:installProgress`. */
 export interface InstallProgress {

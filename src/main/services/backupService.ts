@@ -387,6 +387,7 @@ export async function importBackup(archivePath: string): Promise<void> {
       serviceTier: _tier,
       streamResponses: _stream,
       comfyGpu: _gpu,
+      comfyRoot: _root,
       ...patch
     } = upgradeSettings(record.settings).settings
 

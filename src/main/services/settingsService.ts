@@ -11,7 +11,7 @@ import {
   upgradeSettings
 } from '@shared/settingsRules'
 import type { RendererSettings, Settings, SettingsPatch } from '@shared/types'
-import { getDataPath, getSettingsPath } from '../paths'
+import { getDataPath, getSettingsPath, setBorrowedComfyPath } from '../paths'
 import { readValidatedJson, writeAtomicJson } from './jsonFile'
 
 /**
@@ -136,6 +136,21 @@ export async function getSettings(): Promise<Settings> {
 export async function setRemovedDefaults(charIds: readonly string[]): Promise<void> {
   const current = await getSettings()
   await writeSettingsFile({ ...current, removedDefaults: [...charIds] })
+}
+
+/** Points the ComfyUI paths at the folder the settings name, or at this game's own where they name none. */
+export async function applyComfyRoot(): Promise<void> {
+  setBorrowedComfyPath((await getSettings()).comfyRoot ?? null)
+}
+
+/**
+ * Records which ComfyUI this game runs: another game's by the root of its `data/services/comfyui`,
+ * or its own with `null`, and points the paths at it from now on.
+ */
+export async function setComfyRoot(root: string | null): Promise<void> {
+  const { comfyRoot: _previous, ...current } = await getSettings()
+  await writeSettingsFile(root === null ? current : { ...current, comfyRoot: root })
+  setBorrowedComfyPath(root)
 }
 
 /** `settings:get` — settings as the renderer sees them, with no key in them. */

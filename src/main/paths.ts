@@ -112,14 +112,42 @@ export function getWorkflowPath(name: string): string {
   return join(getWorkflowsPath(), name)
 }
 
-/** `.../ComfyUI/input` — the only folder ComfyUI's `LoadImage` node reads from. */
-export function getComfyInputPath(): string {
-  return join(getComfyAppPath(), 'input')
+/**
+ * `/data/comfy-work` — what a ComfyUI run of this game reads and writes beside its own tree: its
+ * input, output, temp and user folders and its log. The server is started pointed at these, so
+ * a ComfyUI that belongs to another game is never written to, and nothing sweeps it.
+ */
+export function getComfyWorkPath(): string {
+  return join(getDataPath(), 'comfy-work')
 }
 
-/** `.../ComfyUI/output` — `SaveImage` writes here; ComfyUI never prunes it. */
+/** `/data/comfy-work/input` — the only folder ComfyUI's `LoadImage` node reads from. */
+export function getComfyInputPath(): string {
+  return join(getComfyWorkPath(), 'input')
+}
+
+/** `/data/comfy-work/output` — `SaveImage` writes here; ComfyUI never prunes it. */
 export function getComfyOutputPath(): string {
-  return join(getComfyAppPath(), 'output')
+  return join(getComfyWorkPath(), 'output')
+}
+
+/** `/data/comfy-work/temp` — ComfyUI keeps its `temp` folder inside whatever it is given. */
+export function getComfyTempPath(): string {
+  return join(getComfyWorkPath(), 'temp')
+}
+
+/** `/data/comfy-work/user` — where ComfyUI keeps its own database and settings. */
+export function getComfyUserPath(): string {
+  return join(getComfyWorkPath(), 'user')
+}
+
+/**
+ * The database ComfyUI is told to use. Without it, a ComfyUI started on another user folder
+ * renames the database it finds in its own tree to make a copy for the new one, which is a
+ * write into the tree.
+ */
+export function getComfyDatabaseUrl(): string {
+  return `sqlite:///${join(getComfyUserPath(), 'comfyui.db')}`
 }
 
 /**
@@ -334,8 +362,26 @@ export function getPhotoTempPath(): string {
   return join(getTempPath(), 'photos')
 }
 
-/** `/data/services/comfyui` — flattened portable build root. */
+/** The ComfyUI of another game the player chose to run instead of this game's own, if any. */
+let borrowedComfyPath: string | null = null
+
+/** Points the ComfyUI paths at another game's tree, or back at this game's own with `null`. */
+export function setBorrowedComfyPath(path: string | null): void {
+  borrowedComfyPath = path
+}
+
+/** The other game's ComfyUI root in use, or `null` when this game runs its own. */
+export function getBorrowedComfyPath(): string | null {
+  return borrowedComfyPath
+}
+
+/** `/data/services/comfyui` — flattened portable build root — or the one borrowed in its place. */
 export function getComfyUiPath(): string {
+  return borrowedComfyPath ?? join(getServicesPath(), 'comfyui')
+}
+
+/** This game's own ComfyUI root, whichever one is in use. */
+export function getOwnComfyUiPath(): string {
   return join(getServicesPath(), 'comfyui')
 }
 
@@ -349,9 +395,9 @@ export function getComfyTorchVersionPath(): string {
   return join(getComfyUiPath(), 'python_embeded', 'Lib', 'site-packages', 'torch', 'version.py')
 }
 
-/** `/data/services/comfyui/comfyui.log` — the server's output, rewritten each boot. */
+/** `/data/comfy-work/comfyui.log` — the server's output, rewritten each boot. */
 export function getComfyLogPath(): string {
-  return join(getComfyUiPath(), 'comfyui.log')
+  return join(getComfyWorkPath(), 'comfyui.log')
 }
 
 /** `/data/services/comfyui/ComfyUI` — the application itself. */

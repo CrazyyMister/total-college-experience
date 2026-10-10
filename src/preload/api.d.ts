@@ -6,6 +6,7 @@ import type {
   Character,
   CharacterBrief,
   CharacterIdentity,
+  ComfyPickOutcome,
   ComfyStatus,
   CreatedEnrollment,
   CustomOutfitSlot,
@@ -438,6 +439,13 @@ export interface VenusUniversityApi {
   }
   setup: {
     getStatus: () => Promise<Result<SetupStatus>>
+    /**
+     * Opens the folder picker for another game's ComfyUI, and answers what came of it: nothing
+     * picked, a folder that is not a game this one knows, or one now in use.
+     */
+    chooseComfyRoot: () => Promise<Result<ComfyPickOutcome>>
+    /** Goes back to this game's own ComfyUI. */
+    useOwnComfy: () => Promise<Result<void>>
     runInstall: () => Promise<Result<InstallResult>>
     /** Reveals the models folder one pinned weight belongs in. */
     openModelFolder: (componentId: string) => Promise<Result<void>>

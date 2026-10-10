@@ -9,7 +9,7 @@ import { redact } from './redact'
 import { sweepStaging } from './services/characterService'
 import { killStray as killStrayComfy, stop as stopComfy } from './services/comfyService'
 import { ensureAmdNodePatches } from './services/setupService'
-import { ensureDataDir } from './services/settingsService'
+import { applyComfyRoot, ensureDataDir } from './services/settingsService'
 import { APP_ID } from '@shared/appId'
 import { toAppError } from '@shared/errors'
 import { zoomFor } from '@shared/stageZoom'
@@ -216,6 +216,12 @@ app
 
     // Services expect /data to exist; create it here once before they run.
     await ensureDataDir()
+
+    // Which ComfyUI this run uses, before anything asks where it is. A settings file that will
+    // not read is reported where it is read next, so it is no reason to stop here.
+    await applyComfyRoot().catch((err) => {
+      console.warn('[setup] could not read which ComfyUI to use:', toAppError(err).message)
+    })
 
     // Clear an orphaned managed server before this run can adopt an unowned port.
     killStrayComfy()

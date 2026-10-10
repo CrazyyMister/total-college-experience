@@ -17,6 +17,7 @@ import type {
   Character,
   CharacterBrief,
   CharacterIdentity,
+  ComfyPickOutcome,
   ComfyStatus,
   CustomOutfitSlot,
   Emotion,
@@ -111,8 +112,10 @@ import {
   isRunning as comfyAnswers,
   setStateSink as setComfyStateSink,
   start as startComfy,
+  stop as stopComfy,
   stopByHand as stopComfyByHand
 } from './services/comfyService'
+import { resolveComfyPick } from './services/comfyRoot'
 import {
   clearLabPhotos,
   labPhotoFolder,
@@ -155,7 +158,12 @@ import {
   renderTextPhoto
 } from './services/photoService'
 import { generateRoomImage } from './services/roomService'
-import { applySettingsPatch, getRendererSettings, getSettings } from './services/settingsService'
+import {
+  applySettingsPatch,
+  getRendererSettings,
+  getSettings,
+  setComfyRoot
+} from './services/settingsService'
 import { getGrabBags, setGrabBags } from './services/grabBagService'
 import {
   getModelFolder,
@@ -752,6 +760,25 @@ export function registerIpcHandlers(): void {
       ...result,
       errors: result.errors.map((failure) => ({ ...failure, error: redactError(failure.error) }))
     }
+  })
+
+  // Whose ComfyUI this game runs. A server of the one being left is stopped first, since the
+  // paths it was started on are about to change.
+  handle('setup:chooseComfyRoot', async (event): Promise<ComfyPickOutcome> => {
+    const { canceled, filePaths } = await showOpenDialogFor(event, {
+      title: "Pick the official game's folder",
+      properties: ['openDirectory']
+    })
+    if (canceled || filePaths.length === 0) return 'canceled'
+    const pick = resolveComfyPick(filePaths[0])
+    if (pick.kind === 'invalid') return 'invalid'
+    stopComfy()
+    await setComfyRoot(pick.kind === 'own' ? null : pick.comfyPath)
+    return 'chosen'
+  })
+  handle('setup:useOwnComfy', async () => {
+    stopComfy()
+    await setComfyRoot(null)
   })
 
   // The manual-placement pair; `setup:verifyModel` reports on the install's push channel.

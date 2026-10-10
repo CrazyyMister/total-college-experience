@@ -10,7 +10,7 @@ import {
 import { writerReady } from '@shared/settingsRules'
 import { modelForComponentId } from '@shared/setupManifest'
 import type { ProviderApi } from '@shared/providers'
-import type { SetupComponent, SettingsPatch } from '@shared/types'
+import type { ComfyPickOutcome, SetupComponent, SetupStatus, SettingsPatch } from '@shared/types'
 import { ComboField } from '../components/ComboField'
 import { SelectField } from '../components/SelectField'
 import { TitleTab } from '../components/TitleTab'
@@ -343,8 +343,56 @@ export function SetupView({ mode }: { mode: SetupMode }): JSX.Element {
 }
 
 /** The install checklist with per-item progress and retry state. */
+/** A borrowed ComfyUI's owner as a sentence names it: the official game's, or another game's. */
+function ownerOf(game: string | null): string {
+  if (game === 'Venus University') return "the official game's"
+  return game === null ? "that game's" : `${game}'s`
+}
+
+/** The line under WHERE COMFYUI LIVES: whose ComfyUI is in use and what is wrong with it, if anything. */
+function whereLine(
+  status: SetupStatus | null,
+  pickOutcome: ComfyPickOutcome | null
+): { line: string; warn: boolean } {
+  if (pickOutcome === 'invalid') {
+    return {
+      line: "That folder has no Venus University ComfyUI. Pick the official game's folder, the one with Venus University.exe.",
+      warn: true
+    }
+  }
+  const location = status?.location
+  if (location === undefined || location.kind === 'own') {
+    return { line: "TCE's own copy, in its data folder.", warn: false }
+  }
+  if (!location.present) {
+    return {
+      line: `The folder you chose is not there any more: ${location.folder}. Pick it again or use TCE's own.`,
+      warn: true
+    }
+  }
+  // The checklist beside it names every row; the line names the first few, without their asides.
+  const missing = (status?.components ?? [])
+    .filter((c) => c.state !== 'ok')
+    .map((c) => c.label.replace(/\s*\(.*\)$/, ''))
+  const named = missing.length > 4 ? `${missing.slice(0, 3).join(', ')} and ${missing.length - 3} more` : missing.join(', ')
+  if (status?.comfyReady || missing.length === 0) {
+    return {
+      line: `Using the ComfyUI of ${location.game ?? 'another game'} in ${location.folder}. TCE only reads from it; nothing in that folder is changed.`,
+      warn: false
+    }
+  }
+  const owner = ownerOf(location.game)
+  return {
+    line: `${owner.charAt(0).toUpperCase()}${owner.slice(1)} ComfyUI is missing: ${named}. Install it from ${owner} Setup; TCE never installs into another game's folder.`,
+    warn: true
+  }
+}
+
 function ImageGenStage({ onDone, last }: { onDone: () => void; last: boolean }): JSX.Element {
   const status = useSetupStore((s) => s.status)
+  const pickOutcome = useSetupStore((s) => s.pickOutcome)
+  const chooseComfyRoot = useSetupStore((s) => s.chooseComfyRoot)
+  const useOwnComfy = useSetupStore((s) => s.useOwnComfy)
   const checking = useSetupStore((s) => s.checking)
   const installing = useSetupStore((s) => s.installing)
   const progress = useSetupStore((s) => s.progress)
@@ -354,6 +402,17 @@ function ImageGenStage({ onDone, last }: { onDone: () => void; last: boolean }):
   const ensureComfyStarted = useComfyStore((s) => s.ensureStarted)
 
   const complete = Boolean(status?.comfyReady)
+  const borrowed = status?.location.kind === 'borrowed'
+  // A chosen folder that is gone is picked again from here, whatever else the line offers.
+  const lost = status?.location.kind === 'borrowed' && !status.location.present
+  const where = whereLine(status, pickOutcome)
+
+  /** A ComfyUI that is whole once chosen ends a deferral, as an install that finishes it does. */
+  function choose(): void {
+    void chooseComfyRoot().then(() => {
+      if (useSetupStore.getState().status?.comfyReady) void setComfyDeferred(false)
+    })
+  }
 
   // A deferred boot skips `setup:getStatus`, so this stage asks for it.
   useEffect(() => {
@@ -383,15 +442,50 @@ function ImageGenStage({ onDone, last }: { onDone: () => void; last: boolean }):
           <strong>create new characters</strong>. You can still play with pre-genned characters.
           
         </p>
-        <p className="vu-setup-body">
-          An NVIDIA GPU (GeForce 20 series or newer) with more than 8GB of VRAM is recommended.
-        </p>
-        <p className="vu-setup-body">
-          AMD support is experimental and only lightly tested: please reach out if you encounter issues.
-        </p>
-        <p className="vu-setup-body">
-          Your GPU is automatically detected when deciding which ComfyUI version to install.
-        </p>
+        {/* What follows is about installing, which a borrowed ComfyUI never is. */}
+        {!borrowed && (
+          <>
+            <p className="vu-setup-body">
+              An NVIDIA GPU (GeForce 20 series or newer) with more than 8GB of VRAM is recommended.
+            </p>
+            <p className="vu-setup-body">
+              AMD support is experimental and only lightly tested: please reach out if you encounter issues.
+            </p>
+            <p className="vu-setup-body">
+              Your GPU is automatically detected when deciding which ComfyUI version to install.
+            </p>
+          </>
+        )}
+        <div className="vu-setup-where">
+          <span className="vu-setup-where-label">WHERE COMFYUI LIVES</span>
+          <p className={`vu-setup-where-line${where.warn ? ' vu-setup-where-line--warn' : ''}`}>
+            {where.line}
+          </p>
+          <div className="vu-setup-where-row">
+            {(!borrowed || lost) && (
+              <motion.button
+                id="setup-borrow"
+                className="vu-pill"
+                {...gestures(checking || installing, quietLift, quietPress)}
+                disabled={checking || installing}
+                onClick={choose}
+              >
+                Use the official game&apos;s ComfyUI
+              </motion.button>
+            )}
+            {borrowed && (
+              <motion.button
+                id="setup-own"
+                className="vu-pill"
+                {...gestures(checking || installing, quietLift, quietPress)}
+                disabled={checking || installing}
+                onClick={() => void useOwnComfy()}
+              >
+                Use TCE&apos;s own
+              </motion.button>
+            )}
+          </div>
+        </div>
       </motion.div>
 
       <motion.div
@@ -460,7 +554,9 @@ function ImageGenStage({ onDone, last }: { onDone: () => void; last: boolean }):
 
         <div className="vu-setup-foot">
           <span className="vu-setup-hint">
-            You can return to this setup from the main menu if you skip for now.
+            {borrowed
+              ? "TCE never installs into another game's folder."
+              : 'You can return to this setup from the main menu if you skip for now.'}
           </span>
           {/* Two direct children, so `.vu-foot > button` reaches both and an answer swells
               in place rather than lunging at the one beside it. */}
@@ -481,8 +577,8 @@ function ImageGenStage({ onDone, last }: { onDone: () => void; last: boolean }):
             <motion.button
               id="setup-install"
               className="vu-btn vu-btn--primary vu-btn--panel vu-paper"
-              {...gestures(installing || checking || complete, lift, press)}
-              disabled={installing || checking || complete}
+              {...gestures(installing || checking || complete || borrowed, lift, press)}
+              disabled={installing || checking || complete || borrowed}
               onClick={() => {
                 void install().then(() => {
                   // A run that finishes the job un-defers and warms the server it installed.

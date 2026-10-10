@@ -20,16 +20,16 @@ export function killTree(pid: number | undefined): void {
 }
 
 /**
- * Every running process whose executable path is in `exePaths`, or `null` where Windows
- * would not answer — which is not the same as an empty listing.
+ * The running processes whose executable is `exePath` and whose command line carries `marker`
+ * — every one of them when there is no marker — or `null` where Windows would not answer,
+ * which is not the same as an empty listing. A marker is what tells this game's server from
+ * another game's where both run the same interpreter.
  */
-export function listProcessIds(exePaths: readonly string[]): number[] | null {
+export function listOwnedProcessIds(exePath: string, marker: string | null): number[] | null {
   if (process.platform !== 'win32') return null
 
   // Single-quoted PowerShell strings are literal; only an embedded quote needs doubling.
-  const filter = exePaths
-    .map((path) => `'${path.toLowerCase().replace(/'/g, "''")}'`)
-    .join(',')
+  const quoted = `'${exePath.toLowerCase().replace(/'/g, "''")}'`
 
   const result = spawnSync(
     'powershell',
@@ -37,17 +37,22 @@ export function listProcessIds(exePaths: readonly string[]): number[] | null {
       '-NoProfile',
       '-NonInteractive',
       '-Command',
-      `Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and (@(${filter}) -contains $_.ExecutablePath.ToLower()) } | ForEach-Object { $_.ProcessId }`
+      `Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.ToLower() -eq ${quoted} } | ForEach-Object { "$($_.ProcessId)|$($_.CommandLine)" }`
     ],
     { windowsHide: true, encoding: 'utf8', timeout: 15_000 }
   )
 
   if (result.error || result.status !== 0) return null
 
+  const wanted = marker === null ? null : marker.toLowerCase()
   const pids: number[] = []
   for (const line of (result.stdout ?? '').split('\n')) {
-    const pid = Number(line.trim())
-    if (Number.isInteger(pid) && pid > 0) pids.push(pid)
+    const split = line.indexOf('|')
+    if (split < 0) continue
+    const pid = Number(line.slice(0, split).trim())
+    const commandLine = line.slice(split + 1).toLowerCase()
+    if (!Number.isInteger(pid) || pid <= 0) continue
+    if (wanted === null || commandLine.includes(wanted)) pids.push(pid)
   }
   return pids
 }
@@ -88,11 +93,11 @@ export function gameListeningOn(port: number): { name: string; listener: string 
 }
 
 /**
- * Kills every running process whose executable path is in `exePaths`, tree and all; a
- * listing Windows would not answer leaves nothing to kill.
+ * Kills every process {@link listOwnedProcessIds} names, tree and all; a listing Windows would
+ * not answer leaves nothing to kill.
  */
-export function killStrayProcesses(exePaths: readonly string[]): void {
-  for (const pid of listProcessIds(exePaths) ?? []) {
+export function killOwnedProcesses(exePath: string, marker: string | null): void {
+  for (const pid of listOwnedProcessIds(exePath, marker) ?? []) {
     console.log(`[cleanup] killing stray process ${pid}`)
     killTree(pid)
   }

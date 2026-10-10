@@ -71,7 +71,7 @@ TCE uses generative AI. The text model you choose writes the scenes, and your lo
 1. Download the latest release from [RELEASE_URL](RELEASE_URL) and unzip it. The zip makes its own folder, `Total College Experience`. **Never unzip it into or over the official Venus University folder:** it would replace the official game's files.
 2. Run `Total College Experience.exe`. Windows may warn that the app is unrecognized, because it is not code-signed; choose **More info → Run anyway**.
 3. Enter your API key on the first screen, then set up image generation from the Setup screen. TCE downloads its own ComfyUI the same way the original does.
-4. If you already have the official Venus University installed, TCE can reuse its image-generation install instead of downloading it again. *(Coming in a later version.)*
+4. If you already have the official Venus University with its image generation installed, TCE can use that ComfyUI instead of downloading its own. On the Setup screen, under WHERE COMFYUI LIVES, choose **Use the official game's ComfyUI** and pick the official game's folder, the one with `Venus University.exe`. TCE only reads from it: it keeps its own images and files in its own `data` folder and never installs into the official game's. **Use it only while the official game is closed.** If the official game is open it takes the image generation TCE started for its own, and the two stop working together.
 
 TCE keeps its data in a `data` folder beside its own program and does not touch the official game's saves.
 

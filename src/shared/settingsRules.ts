@@ -29,6 +29,7 @@ const SETTINGS_REQUIRED: Record<
     | 'serviceTier'
     | 'streamResponses'
     | 'comfyGpu'
+    | 'comfyRoot'
     | 'warnEndingInterrupt'
     | 'warnEndingEdit'
     | 'textPhotos'
@@ -125,7 +126,8 @@ export function defaultSettings(): Settings {
 
 /** Strips both secrets, leaving only whether each is set — the renderer's view. */
 export function redactSettings(settings: Settings): RendererSettings {
-  const { apiKey, endpointApiKey, ...rest } = settings
+  // The other game's folder is a path on this machine, which no form needs and no backup carries.
+  const { apiKey, endpointApiKey, comfyRoot: _root, ...rest } = settings
   return { ...rest, apiKeySet: Boolean(apiKey), endpointApiKeySet: Boolean(endpointApiKey) }
 }
 

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { AppError, InstallProgress, SetupStatus } from '@shared/types'
+import type { AppError, ComfyPickOutcome, InstallProgress, SetupStatus } from '@shared/types'
 import { useUiStore } from './uiStore'
 
 /** Live per-component install state, keyed by `SetupComponent.id`. */
@@ -29,7 +29,13 @@ interface SetupStoreState {
   checking: boolean
   installing: boolean
   progress: Record<string, ComponentProgress>
+  /** What the last pick of another game's ComfyUI came to, until the next one; the screen words `invalid`. */
+  pickOutcome: ComfyPickOutcome | null
 
+  /** Asks for another game's folder, and uses its ComfyUI if it is one; verifies again after. */
+  chooseComfyRoot: () => Promise<void>
+  /** Goes back to this game's own ComfyUI, and verifies again. */
+  useOwnComfy: () => Promise<void>
   /** Runs the startup verify pipeline. Called on boot and on user refresh. */
   refresh: () => Promise<void>
   /** Runs the install pipeline; per-component failures surface in progress. */
@@ -51,6 +57,28 @@ export const useSetupStore = create<SetupStoreState>((set, get) => ({
   checking: false,
   installing: false,
   progress: {},
+  pickOutcome: null,
+
+  chooseComfyRoot: async () => {
+    const result = await window.api.setup.chooseComfyRoot()
+    if (!result.ok) {
+      useUiStore.getState().showError(result.error)
+      return
+    }
+    if (result.data === 'canceled') return
+    set({ pickOutcome: result.data })
+    if (result.data === 'chosen') await get().refresh()
+  },
+
+  useOwnComfy: async () => {
+    const result = await window.api.setup.useOwnComfy()
+    if (!result.ok) {
+      useUiStore.getState().showError(result.error)
+      return
+    }
+    set({ pickOutcome: null })
+    await get().refresh()
+  },
 
   refresh: async () => {
     set({ checking: true })

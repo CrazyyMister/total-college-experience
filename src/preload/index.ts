@@ -178,6 +178,8 @@ const api: VenusUniversityApi = {
   },
   setup: {
     getStatus: () => ipcRenderer.invoke('setup:getStatus'),
+    chooseComfyRoot: () => ipcRenderer.invoke('setup:chooseComfyRoot'),
+    useOwnComfy: () => ipcRenderer.invoke('setup:useOwnComfy'),
     runInstall: () => ipcRenderer.invoke('setup:runInstall'),
     openModelFolder: (componentId) => ipcRenderer.invoke('setup:openModelFolder', componentId),
     verifyModel: (componentId) => ipcRenderer.invoke('setup:verifyModel', componentId),
