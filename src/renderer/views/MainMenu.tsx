@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useRef, useState, type JSX } from 'react'
 import { motion } from 'motion/react'
 import { toAppError } from '@shared/errors'
-import { BASE_GAME_VERSION } from '@shared/modInfo'
+import {
+  BASE_GAME_VERSION,
+  GAME_NAME,
+  GAME_PAGE_URL,
+  KOFI_URL,
+  MOD_SOURCE_URL,
+  modVersionLabel,
+  X_URL
+} from '@shared/modInfo'
 import { writerReady } from '@shared/settingsRules'
 import { shuffle } from '@shared/shuffle'
 import type { Result } from '@shared/types'
@@ -45,6 +53,7 @@ import {
   rackIn,
   silhouetteIn
 } from './motion'
+import { HeartIcon } from './screenIcons'
 import '../vu_styles/MainMenu.css'
 
 /** One background on screen: the key is its place in the queue, and keeps its layer distinct. */
@@ -57,13 +66,23 @@ interface Shot {
 type Resumed = LoadedSave | ResolvedEnrollment
 
 /**
- * The version of the game as the menu prints it. A major of 0 is still early access and says so;
- * from 1.0.0 the number stands on its own.
+ * The original game's version as the menu prints it, under the original's name. A major of 0
+ * is still early access and says so; from 1.0.0 the number stands on its own.
  */
 function versionLine(version: string): string {
   const major = version.split('.')[0]
-  return major === '0' ? `v${version} · early access` : `v${version}`
+  return `venus university ${major === '0' ? `v${version} · early access` : `v${version}`}`
 }
+
+/** The pages of the original's developer the menu points at, under its one label. */
+const SUPPORT_LINKS = [
+  { id: 'kofi', label: 'Ko-fi', url: KOFI_URL },
+  { id: 'x', label: 'X', url: X_URL },
+  { id: 'itch', label: 'itch.io', url: GAME_PAGE_URL }
+] as const
+
+/** The marks {@link LinkIcon} draws: the pages above, this mod's source and the Feedback chip. */
+type LinkId = (typeof SUPPORT_LINKS)[number]['id'] | 'source' | 'feedback'
 
 /** Root menu, with each path gated by the dependencies it needs. */
 export function MainMenu(): JSX.Element {
@@ -414,7 +433,13 @@ export function MainMenu(): JSX.Element {
               Image generation isn&apos;t installed — open Setup
             </button>
           )}
-          <span className="vu-menu-version">{versionLine(BASE_GAME_VERSION)}</span>
+          <div className="vu-menu-versions">
+            <span className="vu-menu-version">{versionLine(BASE_GAME_VERSION)}</span>
+            <span className="vu-menu-version">
+              {GAME_NAME.toLowerCase()} {modVersionLabel(__APP_VERSION__)}
+            </span>
+            <span className="vu-menu-version">unofficial mod by CrazyyMister</span>
+          </div>
         </motion.div>
       </motion.aside>
 
@@ -424,16 +449,49 @@ export function MainMenu(): JSX.Element {
         initial="hidden"
         animate="shown"
       >
-        <motion.button
-          id="menu-feedback"
-          className="vu-chip vu-paper"
-          type="button"
-          {...gestures(false, chipLift, chipPress)}
-          onClick={() => openModal('feedback')}
-        >
-          <MailIcon />
-          Feedback
-        </motion.button>
+        <div className="vu-menu-support" role="group" aria-label="Support Venus Dev">
+          <span className="vu-sticker vu-menu-support-label">Support Venus Dev</span>
+          <div className="vu-menu-row">
+            {SUPPORT_LINKS.map((link) => (
+              <motion.a
+                key={link.id}
+                id={`menu-${link.id}`}
+                className="vu-chip vu-paper"
+                href={link.url}
+                target="_blank"
+                rel="noreferrer"
+                {...gestures(false, chipLift, chipPress)}
+              >
+                <LinkIcon id={link.id} />
+                {link.label}
+              </motion.a>
+            ))}
+          </div>
+        </div>
+        <div className="vu-menu-row">
+          {/* The source is what the licence asks the game to point at; it leaves the app like the rest. */}
+          <motion.a
+            id="menu-source"
+            className="vu-chip vu-paper"
+            href={MOD_SOURCE_URL}
+            target="_blank"
+            rel="noreferrer"
+            {...gestures(false, chipLift, chipPress)}
+          >
+            <LinkIcon id="source" />
+            TCE source on GitHub
+          </motion.a>
+          <motion.button
+            id="menu-feedback"
+            className="vu-chip vu-paper"
+            type="button"
+            {...gestures(false, chipLift, chipPress)}
+            onClick={() => openModal('feedback')}
+          >
+            <LinkIcon id="feedback" />
+            Feedback
+          </motion.button>
+        </div>
       </motion.nav>
     </div>
   )
@@ -445,8 +503,36 @@ function whereYouLeftOff(date: number): string {
   return `wk${week} · ${formatWeekday(date).slice(0, 3)} ${formatShortGameDate(date)}`.toLowerCase()
 }
 
-/** The Feedback chip's mark, drawn in `currentColor` so one rule tints it. */
-function MailIcon(): JSX.Element {
+/** The chip marks, drawn in `currentColor` so one rule tints them. */
+function LinkIcon({ id }: { id: LinkId }): JSX.Element {
+  if (id === 'kofi') return <HeartIcon className="vu-menu-heart" strokeWidth={3} />
+  if (id === 'x') {
+    return (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+        <path d="M4 4l16 16" />
+        <path d="M20 4 4 20" />
+      </svg>
+    )
+  }
+  if (id === 'itch') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M6 12h4" />
+        <path d="M8 10v4" />
+        <path d="M15 13h.01" />
+        <path d="M18 11h.01" />
+        <path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258A4 4 0 0 0 17.32 5z" />
+      </svg>
+    )
+  }
+  if (id === 'source') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.75" strokeLinecap="round" strokeLinejoin="round">
+        <path d="m16 18 6-6-6-6" />
+        <path d="m8 6-6 6 6 6" />
+      </svg>
+    )
+  }
   return (
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.75" strokeLinecap="round" strokeLinejoin="round">
       <rect x="2" y="4" width="20" height="16" rx="3" />

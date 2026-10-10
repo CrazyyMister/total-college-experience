@@ -1,6 +1,7 @@
 import { useState, type JSX } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'motion/react'
+import { newIssueUrl } from '@shared/modInfo'
 import { useModalShell } from '../components/useModalShell'
 import { TitleTab } from '../components/TitleTab'
 import { useUiStore } from '../stores/uiStore'
@@ -23,7 +24,7 @@ export interface FeedbackModalProps {
 
 /**
  * The Feedback modal, opened as Feedback from the Main Menu and as Report a bug from the
- * Game menu: a copy of the app log.
+ * Game menu: where a report goes, and a copy of the app log to attach to it.
  */
 export function FeedbackModal({ theme, onClose }: FeedbackModalProps): JSX.Element | null {
   const closeModal = useUiStore((s) => s.closeModal)
@@ -67,8 +68,10 @@ export function FeedbackModal({ theme, onClose }: FeedbackModalProps): JSX.Eleme
         <TitleTab>Feedback</TitleTab>
 
         <p className="vu-note-text">
-          The game log records what the app did and every error it hit. It may contain your text
-          choices and the LLM&apos;s responses.
+          Bugs and suggestions for Total College Experience go to its Issues page on GitHub, never
+          to Venus Dev. Download the log and attach it to your issue. The log records what the app
+          did and every error it hit. It may contain your text choices and the LLM&apos;s
+          responses.
         </p>
 
         <div className="vu-foot vu-note-foot">
@@ -83,13 +86,23 @@ export function FeedbackModal({ theme, onClose }: FeedbackModalProps): JSX.Eleme
           </motion.button>
           <motion.button
             id="feedback-download"
-            className="vu-btn vu-btn--primary vu-paper vu-btn--panel"
+            className="vu-btn vu-btn--outline vu-paper vu-btn--panel"
             type="button"
             disabled={busy}
             {...gestures(busy, lift, press)}
             onClick={() => void download()}
           >
             {busy ? 'Saving…' : 'Download log'}
+          </motion.button>
+          {/* `window.open` reaches main's window-open handler, which hands the address to the browser. */}
+          <motion.button
+            id="feedback-issues"
+            className="vu-btn vu-btn--primary vu-paper vu-btn--panel"
+            type="button"
+            {...gestures(false, lift, press)}
+            onClick={() => window.open(newIssueUrl(__APP_VERSION__))}
+          >
+            Open Issues
           </motion.button>
         </div>
       </motion.div>
