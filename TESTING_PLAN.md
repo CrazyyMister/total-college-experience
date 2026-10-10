@@ -19,30 +19,32 @@ You will need externally kept data for testing:
 
 
 ### Main Menu and Setup 
-- [ ] On the Set up text generation screen, click into Custom and enter `https://openrouter.ai/api/v1`. Verify that models show up.
-- [ ] Click back to Google AI Studio and enter an API key. Select Gemini 3.8 flash. Save.
+- [ ] In Settings, choose Custom, enter `https://openrouter.ai/api/v1` and verify models show up; enter the endpoint's key and pick a model, and enter the Gemini key for images; Save.
+- [ ] In Settings, choose Google AI Studio, enter the key, pick a Gemini model and Save; verify a scene plays.
 - [ ] Open logging by doing `Get-Content data/app.log -Wait -Tail 10` on the root
 - [ ] Install missing and verify that everything installs properly. Continue to main menu past NSFW modal.
 - [ ] Press F11 and make sure the window resizes, stopping at a minimum size and creating black bars when going past supported aspect ratio.
 - [ ] Verify the footer's version lines match `venus university v0.2.0 · early access` and `total college experience v1.0` (from package.json), and that the first line of data/app.log reads `Total College Experience 1.0.0 (based on Venus University 0.2.0) started`.
-- [ ] In the packaged .exe (not in npm run dev), open the main menu with network. Verify the footer shows the three lines (the original's name and version, the mod's name and version, and 'unofficial mod by CrazyyMister') and, if ComfyUI is missing (a test folder with no data\services), the image generation notice above them; none of them may overlap or touch the menu buttons or the foot of the window, at 1920×1080, 2560×1440, 1280×720 and 1440×1080, by day and by night. Verify that Settings has no "Ask to update on launch", and that the exe's data/app.log has no "[update]" lines and data/update does not exist.
+- [ ] In the packaged .exe, open the main menu with network. Verify the footer shows the three lines (the original's name and version, the mod's name and version, and 'unofficial mod by CrazyyMister') and, if ComfyUI is missing (a test folder with no data\services), the image generation notice above them; none of them may overlap or touch the menu buttons or the foot of the window, at 1920×1080, 2560×1440, 1280×720 and 1440×1080 (in the exe: fullscreen and a window dragged to roughly 16:9 and 4:3; the exact sizes with Ctrl+Alt+1–4 in npm run dev, where the notice shows by deferring the ComfyUI install), by day and by night. Verify that Settings has no "Ask to update on launch", and that the exe's data/app.log has no "[update]" lines and data/update does not exist.
 - [ ] Open credits and check the About this mod section (the original, the mod and Maestro's Community Mods with its sentence), that the supporters and testers are under 'Venus University Ko-Fi Supporters' and 'Venus University Playtesters', and that Music carries the note that the tracks are not included.
 - [ ] Verify the menu's corner: Ko-fi, X and itch.io under 'Support Venus Dev' open the original developer's pages in the browser, TCE source on GitHub opens the mod's repository, and there is no 'Support Development' chip and no email address. Feedback opens its modal, Download log works and Open Issues opens the mod's new-issue page with the version already written in.
 - [ ] With the game open, start "Total College Experience.exe" again and verify no second window opens.
-- [ ] Open Settings and click everything. Drag the music slider down to see that it still works.
+- [ ] Open Settings and click everything, and at 1920×1080, 2560×1440, 1280×720 and 1440×1080 verify Cancel and Save settings are fully visible, opened from the main menu and from inside a game. Drag the music slider down to see that it still works.
 - [ ] In Settings verify there is no "Remember my key" and that "Characters text photos" can be toggled.
 - [ ] Open Settings from the main menu and click "Clean up photos". Verify it says how many photos and how many MB, cancel and verify nothing is deleted, click again and confirm. Verify the photo files are gone and that every photo in a conversation is still there.
 - [ ] Open Settings inside a game and verify there is no "Clean up photos".
 - [ ] While a photo is sending, quit to the menu and click "Clean up photos". Verify it refuses and the photo still arrives.
+- [ ] Open Settings from the main menu at every window size and verify Back up, Restore and Clean up photos sit on one line, and that Back up reads "Backing up…" while its dialog is open without the row spilling out of the column.
 
 ### The executable folder
 - [ ] Open the exe and the official Venus University at the same time and verify neither closes the other; verify %APPDATA%\total-college-experience exists, the taskbar shows the TCE name and icon, and the exe's Properties → Details show Total College Experience, CrazyyMister and the copyright line.
-- [ ] In Settings, Back up game data and verify the suggested file name is `total-college-experience-backup-<date>.zip`; restoring a backup made by the old build still works.
+- [ ] In Settings, Back up and verify the suggested file name is `total-college-experience-backup-<date>.zip`; restoring a backup made by the old build still works.
 - [ ] Run `npm run exe:update -- --to "D:\Venus University" --dry-run` and the same with `exe:remove` and verify both are refused as the old build; run `npm run exe:remove -- --dry-run` with no `--to` and verify it only looks at `D:\Total College Experience`.
 - [ ] Music: open the packaged exe, verify the menu is silent and nothing breaks; copy the `music` and `ambient_music` folders from the official game's `resources\assets\sound` into the exe's `resources\assets\sound`, restart and verify the title music plays.
 - [ ] (After R4) With the official game's ComfyUI running, ask the exe for an image and verify the message names the official game and says to close it; with an unknown program on port 8188, verify it says another program is using it.
-- [ ] On the Setup screen, choose the official game's folder under WHERE COMFYUI LIVES: verify the line says it is in use, every row is installed, Install missing is dead, and a wrong folder says it has no Venus University ComfyUI.
-- [ ] Regenerate an expression with the borrowed ComfyUI and verify the official game's folder is byte-identical before and after (`data\comfy-work` holds the images).
+- [ ] On the Setup screen, choose the official game's folder under WHERE COMFYUI LIVES: verify the line says it is in use, every row is installed, Install missing is dead, and a wrong folder says it has no Venus University ComfyUI. Choose TCE's own folder and verify it says it already uses its own ComfyUI; with the official game's folder renamed so it is gone, choose TCE's own folder and verify it says TCE now uses its own ComfyUI again.
+- [ ] With the official game's ComfyUI chosen and ready, verify the main menu's footer says "Image generation uses Venus University's ComfyUI — open Setup" and opens Setup, where Use TCE's own goes back; with the official game's folder renamed so it is gone, verify the menu shows "Image generation isn't installed — open Setup" instead, never both.
+- [ ] Regenerate an expression and an outfit with the borrowed ComfyUI and verify the official game's folder is byte-identical before and after (`data\comfy-work` holds the images), with a pose that shows a hand so the hand detailer runs (comfyui.log has `2 hands` and `Detailer:` lines).
 
 ### Manage Characters
 - [ ] Open manage characters and import a character. Click it and open Edit Character. Click through all expressions on each outfit. Open NSFW CG and room BG.
@@ -256,4 +258,4 @@ You will need externally kept data for testing:
 ### Graduation and Goodbyes
 - [ ] Attend graduation, click through a goodbye, then go home.
 - [ ] Reach graduation with more than six friends, one of them your girlfriend. Verify the graduation picture holds at most six people, your girlfriend among them, and data/app.log has a [ending] graduation picture line naming who went in.
-- [ ] Back up game data. Close the game, run `npm run exe:remove -- --to "D:\Venus Teste"` and then `npm run exe:update -- --to "D:\Venus Teste"`, open the exe, enter an API key, restore the backup and verify that everything is there.
+- [ ] Back up. Close the game, run `npm run exe:remove -- --to "D:\Venus Teste"` and then `npm run exe:update -- --to "D:\Venus Teste"`, open the exe, enter an API key, restore the backup and verify that everything is there.
