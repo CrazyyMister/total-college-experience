@@ -148,6 +148,7 @@
   background: none;
   color: var(--vu-accent);
   font: italic 600 15px var(--font-body);
+  text-align: left;
   text-decoration: underline;
 }
 

@@ -96,6 +96,13 @@ export function MainMenu(): JSX.Element {
   const comfyInstalled = status?.comfyReady ?? false
   const comfyDeferred = useSettingsStore((s) => s.settings?.comfyDeferred ?? false)
 
+  // Another game's ComfyUI in use and ready has no way to Setup but this notice, and "Use
+  // TCE's own" lives there; it and the install notice never show together.
+  const borrowedFrom =
+    status?.location.kind === 'borrowed' && comfyInstalled && !comfyDeferred
+      ? status.location.game
+      : undefined
+
   // The writer being callable is the whole gate on playing: Gemini's key, or a custom
   // endpoint with a model named.
   const writerOk = useSettingsStore((s) =>
@@ -431,6 +438,12 @@ export function MainMenu(): JSX.Element {
           {(comfyDeferred || !comfyInstalled) && (
             <button className="vu-menu-notice" onClick={() => setView('setup')}>
               Image generation isn&apos;t installed — open Setup
+            </button>
+          )}
+          {borrowedFrom !== undefined && (
+            <button className="vu-menu-notice" onClick={() => setView('setup')}>
+              Image generation uses {borrowedFrom === null ? 'another game' : borrowedFrom}&apos;s
+              ComfyUI — open Setup
             </button>
           )}
           <div className="vu-menu-versions">
