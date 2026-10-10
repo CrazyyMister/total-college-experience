@@ -1,8 +1,8 @@
-# Venus University — Pre-release testing plan
+# Total College Experience — Pre-release testing plan
 
 Run this after `npm run release`, in a test folder, before updating the executable you play from.
 
-- **Desktop**: update a test folder with `npm run exe:update -- --to "D:\Venus Teste"` and start "Venus University.exe" from there; after everything passes, run `npm run exe:update` for the folder you play from.
+- **Desktop**: update a test folder with `npm run exe:update -- --to "D:\Venus Teste"` and start "Total College Experience.exe" from there; after everything passes, run `npm run exe:update` for the folder you play from.
 
 These tests are not intended to catch everything, it just runs over high traffic areas to get bang-for-testing-buck.
 
@@ -24,16 +24,23 @@ You will need externally kept data for testing:
 - [ ] Open logging by doing `Get-Content data/app.log -Wait -Tail 10` on the root
 - [ ] Install missing and verify that everything installs properly. Continue to main menu past NSFW modal.
 - [ ] Press F11 and make sure the window resizes, stopping at a minimum size and creating black bars when going past supported aspect ratio.
-- [ ] Verify that version matches.
-- [ ] In the packaged .exe (not in npm run dev), open the main menu with network. Verify the footer shows only the version (and the image generation notice if ComfyUI is missing), that Settings has no "Ask to update on launch", and that the exe's data/app.log has no "[update]" lines and data/update does not exist.
-- [ ] Open credits and check that all supporters/testers are there.
-- [ ] Verify the main menu has no X link and no "Support Development"; Feedback opens and Download log works; Credits lists the supporters.
-- [ ] With the game open, start "Venus University.exe" again and verify no second window opens.
+- [ ] Verify the footer's version lines match `venus university v0.2.0 · early access` and `total college experience v1.0` (from package.json), and that the first line of data/app.log reads `Total College Experience 1.0.0 (based on Venus University 0.2.0) started`.
+- [ ] In the packaged .exe (not in npm run dev), open the main menu with network. Verify the footer shows the three lines (the original's name and version, the mod's name and version, and 'unofficial mod by CrazyyMister') and, if ComfyUI is missing (a test folder with no data\services), the image generation notice above them; none of them may overlap or touch the menu buttons or the foot of the window, at 1920×1080, 2560×1440, 1280×720 and 1440×1080, by day and by night. Verify that Settings has no "Ask to update on launch", and that the exe's data/app.log has no "[update]" lines and data/update does not exist.
+- [ ] Open credits and check the About this mod section (the original, the mod and Maestro's Community Mods with its sentence), that the supporters and testers are under 'Venus University Ko-Fi Supporters' and 'Venus University Playtesters', and that Music carries the note that the tracks are not included.
+- [ ] Verify the menu's corner: Ko-fi, X and itch.io under 'Support Venus Dev' open the original developer's pages in the browser, TCE source on GitHub opens the mod's repository, and there is no 'Support Development' chip and no email address. Feedback opens its modal, Download log works and Open Issues opens the mod's new-issue page with the version already written in.
+- [ ] With the game open, start "Total College Experience.exe" again and verify no second window opens.
 - [ ] Open Settings and click everything. Drag the music slider down to see that it still works.
 - [ ] In Settings verify there is no "Remember my key" and that "Characters text photos" can be toggled.
 - [ ] Open Settings from the main menu and click "Clean up photos". Verify it says how many photos and how many MB, cancel and verify nothing is deleted, click again and confirm. Verify the photo files are gone and that every photo in a conversation is still there.
 - [ ] Open Settings inside a game and verify there is no "Clean up photos".
 - [ ] While a photo is sending, quit to the menu and click "Clean up photos". Verify it refuses and the photo still arrives.
+
+### The executable folder
+- [ ] Open the exe and the official Venus University at the same time and verify neither closes the other; verify %APPDATA%\total-college-experience exists, the taskbar shows the TCE name and icon, and the exe's Properties → Details show Total College Experience, CrazyyMister and the copyright line.
+- [ ] In Settings, Back up game data and verify the suggested file name is `total-college-experience-backup-<date>.zip`; restoring a backup made by the old build still works.
+- [ ] Run `npm run exe:update -- --to "D:\Venus University" --dry-run` and the same with `exe:remove` and verify both are refused as the old build; run `npm run exe:remove -- --dry-run` with no `--to` and verify it only looks at `D:\Total College Experience`.
+- [ ] Music: open the packaged exe, verify the menu is silent and nothing breaks; copy the `music` and `ambient_music` folders from the official game's `resources\assets\sound` into the exe's `resources\assets\sound`, restart and verify the title music plays.
+- [ ] (After R4) With the official game's ComfyUI running, ask the exe for an image and verify the message names the official game and says to close it; with an unknown program on port 8188, verify it says another program is using it.
 
 ### Manage Characters
 - [ ] Open manage characters and import a character. Click it and open Edit Character. Click through all expressions on each outfit. Open NSFW CG and room BG.
