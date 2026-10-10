@@ -1,4 +1,6 @@
 import { spawnSync } from 'child_process'
+import { existsSync, readdirSync } from 'fs'
+import { gameFolderOf, gameNamedBy } from '@shared/comfyPort'
 
 /**
  * Windows process-tree teardown for spawned servers; synchronous for `will-quit`
@@ -48,6 +50,41 @@ export function listProcessIds(exePaths: readonly string[]): number[] | null {
     if (Number.isInteger(pid) && pid > 0) pids.push(pid)
   }
   return pids
+}
+
+/**
+ * The executable path of whatever listens on `port`, or `null` where nothing does or Windows
+ * would not say.
+ */
+function listenerPathOn(port: number): string | null {
+  if (process.platform !== 'win32') return null
+
+  const result = spawnSync(
+    'powershell',
+    [
+      '-NoProfile',
+      '-NonInteractive',
+      '-Command',
+      `$c = Get-NetTCPConnection -LocalPort ${port} -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1; ` +
+        'if ($c) { (Get-CimInstance Win32_Process -Filter "ProcessId=$($c.OwningProcess)").ExecutablePath }'
+    ],
+    { windowsHide: true, encoding: 'utf8', timeout: 15_000 }
+  )
+  if (result.error || result.status !== 0) return null
+  const path = (result.stdout ?? '').trim()
+  return path === '' ? null : path
+}
+
+/**
+ * The game that is serving `port` from its own ComfyUI, named by the program file that stands
+ * beside that ComfyUI's `data` folder, or `null` where the listener is anything else.
+ */
+export function gameListeningOn(port: number): { name: string; listener: string } | null {
+  const listener = listenerPathOn(port)
+  const folder = listener === null ? null : gameFolderOf(listener)
+  if (listener === null || folder === null || !existsSync(folder)) return null
+  const name = gameNamedBy(readdirSync(folder))
+  return name === null ? null : { name, listener }
 }
 
 /**

@@ -58,7 +58,7 @@ export interface BackupFile {
 /** How a backup is checked once it has been read. */
 export const BACKUP_READ: ValidateRecordOptions<BackupFile> = {
   label: BACKUP_NAME,
-  malformed: { code: 'BACKUP_MALFORMED', message: 'That zip is not a Venus University backup.' },
+  malformed: { code: 'BACKUP_MALFORMED', message: 'That zip is not a backup this game can read.' },
   schemaVersion: { code: 'BACKUP_SCHEMA_VERSION' },
   expects: BACKUP_SCHEMA_VERSION,
   required: {
@@ -78,11 +78,11 @@ export const BACKUP_READ: ValidateRecordOptions<BackupFile> = {
  */
 export const BACKUP_ZIP_LIMITS = { maxEntries: 16384, maxTotalBytes: 8 * 1024 ** 3 }
 
-/** What a backup is called: `venus-university-backup-<local date>.zip`. */
+/** What a backup is called: `total-college-experience-backup-<local date>.zip`. */
 export function backupName(at = new Date()): string {
   const pad = (value: number): string => String(value).padStart(2, '0')
   const date = `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`
-  return `venus-university-backup-${date}.zip`
+  return `total-college-experience-backup-${date}.zip`
 }
 
 /** Where one of a character's images sits inside a backup. */

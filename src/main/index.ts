@@ -243,7 +243,7 @@ app
     console.error('[startup] failed:', err)
     const error = toAppError(err, 'STARTUP_FAILED')
     const body = error.detail ? `${error.message}\n\n${error.detail}` : error.message
-    dialog.showErrorBox('Venus University could not start', redact(body))
+    dialog.showErrorBox('Total College Experience could not start', redact(body))
     app.quit()
   })
 

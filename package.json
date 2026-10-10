@@ -1,9 +1,10 @@
 {
-  "name": "venus-university",
-  "version": "0.2.0",
-  "description": "Venus University is a dating sim where you can say and do anything.",
+  "name": "total-college-experience",
+  "version": "1.0.0",
+  "description": "Total College Experience, an unofficial mod of Venus University: a dating sim where you can say and do anything, with a whole college around it.",
   "main": "./out/main/index.js",
-  "author": "Venus Dev",
+  "author": "CrazyyMister",
+  "homepage": "https://github.com/CrazyyMister/total-college-experience",
   "private": true,
   "license": "AGPL-3.0-only",
   "scripts": {

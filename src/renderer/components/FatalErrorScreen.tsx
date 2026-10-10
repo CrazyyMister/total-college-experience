@@ -39,7 +39,7 @@ export function FatalErrorScreen({ error }: FatalErrorScreenProps): JSX.Element 
         </span>
 
         <div className="vu-dialog-head">
-          <h1 className="vu-dialog-title">Venus University can&apos;t continue</h1>
+          <h1 className="vu-dialog-title">Total College Experience can&apos;t continue</h1>
           <span className="vu-dialog-code">CODE: {error.code}</span>
         </div>
         <p className="vu-note-text">{error.message}</p>

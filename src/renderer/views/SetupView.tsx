@@ -607,7 +607,7 @@ function ApiKeyStage({ onDone }: { onDone: () => void }): JSX.Element {
         <span className="vu-setup-kicker">AI PROVIDER SETUP</span>
         <h1 className="vu-setup-title">Set up text generation</h1>
         <p className="vu-setup-body">
-          Venus University relies on external chat completions API to support emergent gameplay.
+          Total College Experience relies on external chat completions API to support emergent gameplay.
           Two options are supported for providers:
         </p>
         <div className="vu-setup-blurb">

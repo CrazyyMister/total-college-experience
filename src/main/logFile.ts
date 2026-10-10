@@ -10,6 +10,7 @@ import { copyFile } from 'fs/promises'
 import { format } from 'util'
 import { appError } from '@shared/errors'
 import { formatRecord, KEEP_BYTES, MAX_LOG_BYTES, trimToHalf } from '@shared/logRules'
+import { BASE_GAME_VERSION, GAME_NAME } from '@shared/modInfo'
 import type { LogLevel } from '@shared/types'
 import { getAppLogPath, getDataPath } from './paths'
 import { redact } from './redact'
@@ -132,5 +133,9 @@ export function installConsoleLog(): void {
   console.warn = wrap('WARN', original.warn)
   console.error = wrap('ERROR', original.error)
 
-  writeLogLine('main', 'LOG', `==== Venus University ${app.getVersion()} started ====`)
+  writeLogLine(
+    'main',
+    'LOG',
+    `==== ${GAME_NAME} ${app.getVersion()} (based on Venus University ${BASE_GAME_VERSION}) started ====`
+  )
 }

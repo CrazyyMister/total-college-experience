@@ -38,7 +38,7 @@ export async function ensureDataDir(): Promise<void> {
     if (UNWRITABLE_CODES.has((err as NodeJS.ErrnoException).code ?? '')) {
       throw appError(
         'DATA_DIR_UNWRITABLE',
-        'Venus University keeps its saves in a folder beside its own program file, and Windows will ' +
+        'Total College Experience keeps its saves in a folder beside its own program file, and Windows will ' +
           'not let it write there — move the whole game folder somewhere you can write to, ' +
           'such as Documents, and start it again.',
         detail

@@ -116,12 +116,22 @@ async function preflight() {
 /** Everything the packaged folder has to contain, and the things it must not. */
 async function assertDesktopPayload() {
   const required = [
-    'Venus University.exe',
+    'Total College Experience.exe',
+    'LICENSE',
+    'LICENSE-ASSETS.md',
+    'NOTICE',
+    'PERMISSION.md',
+    'README.md',
+    'docs/tce_logo.svg',
     'resources/app.asar',
     'resources/app.asar.unpacked/node_modules/7zip-bin/win/x64/7za.exe'
   ]
   for (const rel of required) {
     if (!existsSync(join(UNPACKED, rel))) throw new Error(`The build is missing ${rel}.`)
+  }
+  // The original's music is not ours to ship, and a player's data is never in the folder.
+  for (const rel of ['resources/assets/sound/music', 'resources/assets/sound/ambient_music', 'data']) {
+    if (existsSync(join(UNPACKED, rel))) throw new Error(`The build holds ${rel}, which it must not ship.`)
   }
 
   const shipped = (await readdir(join(REPO, 'assets/characters'))).sort()
@@ -200,7 +210,7 @@ async function main() {
 
   const unpackedBytes = await folderBytes(UNPACKED)
 
-  console.log(`\n=== Venus University ${version} (${sha})`)
+  console.log(`\n=== Total College Experience ${version} (${sha})`)
   const rows = [
     ['desktop folder', UNPACKED, `${mb(unpackedBytes)}, app.asar ${mb(asarBytes)}`],
     [

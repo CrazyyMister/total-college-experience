@@ -1,3 +1,9 @@
+/** What this game is called. */
+export const GAME_NAME = 'Total College Experience'
+
+/** The version of Venus University this mod is built from. */
+export const BASE_GAME_VERSION = '0.2.0'
+
 /** The original game's page, where its developer publishes it. */
 export const GAME_PAGE_URL = 'https://venus-dev.itch.io/venus-university'
 

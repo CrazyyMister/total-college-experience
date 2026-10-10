@@ -1,5 +1,6 @@
-appId: com.venusuniversity.app
-productName: Venus University
+appId: com.crazyymister.tce
+productName: Total College Experience
+copyright: Copyright (C) Venus Dev (Venus University); Copyright (C) CrazyyMister (Total College Experience)
 directories:
   output: release
   buildResources: build
@@ -26,6 +27,17 @@ asarUnpack:
 extraResources:
   - from: build/desktop-assets
     to: assets
+
+# The licence and permission texts and the README, beside the exe where a player unzipping the
+# folder finds them. The logo is the README's picture.
+extraFiles:
+  - LICENSE
+  - LICENSE-ASSETS.md
+  - NOTICE
+  - PERMISSION.md
+  - README.md
+  - from: docs/tce_logo.svg
+    to: docs/tce_logo.svg
 
 npmRebuild: false
 compression: normal

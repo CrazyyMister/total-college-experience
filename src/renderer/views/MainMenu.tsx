@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type JSX } from 'react'
 import { motion } from 'motion/react'
 import { toAppError } from '@shared/errors'
+import { BASE_GAME_VERSION } from '@shared/modInfo'
 import { writerReady } from '@shared/settingsRules'
 import { shuffle } from '@shared/shuffle'
 import type { Result } from '@shared/types'
@@ -56,8 +57,8 @@ interface Shot {
 type Resumed = LoadedSave | ResolvedEnrollment
 
 /**
- * The version as the menu prints it. A major of 0 is still early access and says so; from 1.0.0
- * the number stands on its own.
+ * The version of the game as the menu prints it. A major of 0 is still early access and says so;
+ * from 1.0.0 the number stands on its own.
  */
 function versionLine(version: string): string {
   const major = version.split('.')[0]
@@ -413,7 +414,7 @@ export function MainMenu(): JSX.Element {
               Image generation isn&apos;t installed — open Setup
             </button>
           )}
-          <span className="vu-menu-version">{versionLine(__APP_VERSION__)}</span>
+          <span className="vu-menu-version">{versionLine(BASE_GAME_VERSION)}</span>
         </motion.div>
       </motion.aside>
 

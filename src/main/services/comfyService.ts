@@ -12,6 +12,7 @@ import {
   type PhotoPrompts,
   type PromptEdit
 } from '@shared/imagePrompt'
+import { GAME_NAME } from '@shared/modInfo'
 import { COMFY_HOST } from '@shared/setupManifest'
 import { appError, isAppError, messageOf, tailOf, toAppError, truncate } from '@shared/errors'
 import { isEmotion } from '@shared/emotions'
@@ -50,7 +51,7 @@ import { getPoseTags } from './assetService'
 import { assertSafeCharId } from './characterService'
 import { dropImageTwins, findImage } from './imageFiles'
 import { imageTypeOf, isRgbaPng } from '@shared/imageBytes'
-import { killStrayProcesses, killTree, listProcessIds } from './processTree'
+import { gameListeningOn, killStrayProcesses, killTree, listProcessIds } from './processTree'
 import { tryCutProfile } from './profileService'
 import { sleep } from '@shared/retry'
 
@@ -231,12 +232,25 @@ function assertOwnServer(): void {
   const pids = listProcessIds([python])
   if (pids !== null && pids.length > 0) return
 
-  throw appError(
-    'COMFY_PORT_TAKEN',
-    `ComfyUI could not start: another program is using port ${PORT}.`,
+  const game = pids === null ? null : gameListeningOn(Number(PORT))
+  const detail =
     pids === null
       ? `Something answered on ${COMFY_HOST} and Windows would not say what is running.`
       : `Something answered on ${COMFY_HOST}, but nothing is running from ${python}.`
+  if (game === null) {
+    throw appError(
+      'COMFY_PORT_TAKEN',
+      `ComfyUI could not start: another program is using port ${PORT}.`,
+      detail
+    )
+  }
+  // A second copy of this very game is told apart from the other one.
+  const who = game.name === GAME_NAME ? `another copy of ${game.name}` : game.name
+  throw appError(
+    'COMFY_PORT_TAKEN',
+    `ComfyUI could not start: ${who} is using port ${PORT} for its image generation. ` +
+      `Close ${game.name} and try again.`,
+    `${detail} It is ${game.listener}.`
   )
 }
 

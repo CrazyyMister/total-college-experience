@@ -21,8 +21,11 @@ import { fileURLToPath } from 'node:url'
  */
 
 const REPO = resolve(fileURLToPath(new URL('..', import.meta.url)))
-const DEFAULT_TO = 'D:\\Venus University'
-const EXE = 'Venus University.exe'
+const DEFAULT_TO = 'D:\\Total College Experience'
+const EXE = 'Total College Experience.exe'
+/** The program file of the build this one replaced, and the name its folder went by. */
+const OLD_EXE = 'Venus University.exe'
+const OLD_FOLDER = 'Venus University'
 /** The folders of the project's `data` the played copy shares. */
 const SHARED = ['services', 'characters']
 /** What a finished build holds, relative to `release/win-unpacked`. */
@@ -115,6 +118,12 @@ function refuseIfGameOpen(ctx) {
 function checkTarget(ctx) {
   const { dst, repo } = ctx
   if (!isAbsolute(ctx.given)) refuse(`"${ctx.given}" is not a full path. Use one like ${DEFAULT_TO}.`)
+  if (same(basename(dst), OLD_FOLDER) || (existsSync(dst) && existsSync(join(dst, OLD_EXE)))) {
+    refuse(
+      `${dst} is the old Venus University build (a folder by that name, or one holding ${OLD_EXE}). ` +
+        'This script never touches it.'
+    )
+  }
   if (same(parse(dst).root, dst)) refuse(`${dst} is the root of a drive. Pick a folder.`)
   if (within(repo, dst) || within(dst, repo)) {
     refuse(`${dst} is inside the project or holds it. Pick a folder outside ${repo}.`)
@@ -328,7 +337,7 @@ export async function update(ctx, { dryRun }) {
     robocopy(ctx, ['/E'], false)
     mkdirSync(ctx.dataDir)
     for (const { target, link } of ctx.shared) symlinkSync(target, link, 'junction')
-    ctx.say('Done. Open Venus University.exe there; it should not ask to install ComfyUI.')
+    ctx.say(`Done. Open ${EXE} there; it should not ask to install ComfyUI.`)
     return
   }
 
