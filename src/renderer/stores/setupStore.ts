@@ -67,7 +67,7 @@ export const useSetupStore = create<SetupStoreState>((set, get) => ({
     }
     if (result.data === 'canceled') return
     set({ pickOutcome: result.data })
-    if (result.data === 'chosen') await get().refresh()
+    if (result.data === 'chosen' || result.data === 'ownAgain') await get().refresh()
   },
 
   useOwnComfy: async () => {

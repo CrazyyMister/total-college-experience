@@ -172,7 +172,7 @@ import {
   verifyModel
 } from './services/setupService'
 import { copyLogTo, writeLogLine } from './logFile'
-import { getCharacterPath } from './paths'
+import { getBorrowedComfyPath, getCharacterPath } from './paths'
 import { redactError } from './redact'
 
 /** The save dialog, parented on the asking window so it is window-modal. */
@@ -772,8 +772,15 @@ export function registerIpcHandlers(): void {
     if (canceled || filePaths.length === 0) return 'canceled'
     const pick = resolveComfyPick(filePaths[0])
     if (pick.kind === 'invalid') return 'invalid'
+    if (pick.kind === 'own') {
+      // Nothing changes while the game already runs its own, and its server is left alone.
+      if (getBorrowedComfyPath() === null) return 'own'
+      stopComfy()
+      await setComfyRoot(null)
+      return 'ownAgain'
+    }
     stopComfy()
-    await setComfyRoot(pick.kind === 'own' ? null : pick.comfyPath)
+    await setComfyRoot(pick.comfyPath)
     return 'chosen'
   })
   handle('setup:useOwnComfy', async () => {

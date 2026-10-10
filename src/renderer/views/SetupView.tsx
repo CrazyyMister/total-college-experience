@@ -360,6 +360,12 @@ function whereLine(
       warn: true
     }
   }
+  if (pickOutcome === 'own') {
+    return { line: "That is TCE's own folder; it already uses its own ComfyUI.", warn: false }
+  }
+  if (pickOutcome === 'ownAgain') {
+    return { line: "That is TCE's own folder; TCE now uses its own ComfyUI again.", warn: false }
+  }
   const location = status?.location
   if (location === undefined || location.kind === 'own') {
     return { line: "TCE's own copy, in its data folder.", warn: false }

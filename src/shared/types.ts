@@ -2466,8 +2466,11 @@ export type ComfyLocation =
   | { kind: 'own' }
   | { kind: 'borrowed'; game: string | null; folder: string; present: boolean }
 
-/** What picking another game's ComfyUI came to: nothing picked, a folder that is not one, or one in use. */
-export type ComfyPickOutcome = 'canceled' | 'invalid' | 'chosen'
+/**
+ * What picking another game's ComfyUI came to: nothing picked, a folder that is not one, one in
+ * use, or this game's own folder — already in use, or back in use after another game's.
+ */
+export type ComfyPickOutcome = 'canceled' | 'invalid' | 'chosen' | 'own' | 'ownAgain'
 
 /** Progress event from `setup:runInstall` on `setup:installProgress`. */
 export interface InstallProgress {
