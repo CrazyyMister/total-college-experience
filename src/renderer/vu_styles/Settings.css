@@ -129,8 +129,12 @@
 
 .vu-settings-data-actions {
   display: flex;
-  flex-wrap: wrap;
   gap: 12px;
+}
+
+/* Three pills, and the busy label of the first, share the column's 430px on one line. */
+.vu-settings-data-actions .vu-pill {
+  padding-inline: 14px;
 }
 
 /* The answers, and any line standing over them, sit at the foot of the column, whatever the

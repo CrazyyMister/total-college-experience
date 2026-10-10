@@ -734,7 +734,7 @@ export function AppSettingsModal({ theme, onClose }: AppSettingsModalProps): JSX
                     void exportBackup().finally(() => setBackingUp(false))
                   }}
                 >
-                  {backingUp ? 'Backing up…' : 'Back up game data'}
+                  {backingUp ? 'Backing up…' : 'Back up'}
                 </motion.button>
                 <motion.button
                   id="settings-backup-import"
@@ -744,7 +744,7 @@ export function AppSettingsModal({ theme, onClose }: AppSettingsModalProps): JSX
                   {...gestures(dataBusy, quietLift, quietPress)}
                   onClick={() => setConfirmRestore(true)}
                 >
-                  {restoring ? 'Restoring…' : 'Restore from backup'}
+                  {restoring ? 'Restoring…' : 'Restore'}
                 </motion.button>
                 {noGameLoaded && (
                   <motion.button
@@ -769,7 +769,7 @@ export function AppSettingsModal({ theme, onClose }: AppSettingsModalProps): JSX
                 )}
               </div>
               <span className="vu-check-note">
-                Saves are stored on disk in the data folder. &quot;Back up game data&quot; exports them as a
+                Saves are stored on disk in the data folder. &quot;Back up&quot; exports them as a
                 portable zip file for transfer.
               </span>
             </div>

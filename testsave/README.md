@@ -43,7 +43,7 @@ saves, with factory settings (no key) and empty grab bags.
 
 - **Copy the folder**: put `1790392968199/` inside the `data/saves/` of the install under test (the dev
   app's own is this repo's `data/saves`). Do not copy over a folder of the same name.
-- **Restore the backup**: Settings → Restore from backup → `testsave/backup.zip`. A restore replaces
+- **Restore the backup**: Settings → Restore → `testsave/backup.zip`. A restore replaces
   every save and every setting the install holds, so do it in a fresh or throwaway install only.
 
 ## Frozen
