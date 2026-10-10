@@ -26,7 +26,7 @@ export interface GreekProva {
   day: number
 }
 
-/** The first day of Greek Week: the Monday of the last full week of April. */
+/** The first day of Greek Week: Monday, April 27. */
 export const GREEK_WEEK_FIRST_DAY = 98
 
 /** Greek Week is held at night. */

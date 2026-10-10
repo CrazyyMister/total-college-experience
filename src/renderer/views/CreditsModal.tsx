@@ -1,6 +1,7 @@
 import type { JSX } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'motion/react'
+import { GAME_PAGE_URL, MAESTRO_MODS_URL, MOD_SOURCE_URL } from '@shared/modInfo'
 import { DONORS, PLAYTESTERS } from '../prompts/supporters'
 import { useModalShell } from '../components/useModalShell'
 import { TitleTab } from '../components/TitleTab'
@@ -24,16 +25,54 @@ interface Credit {
 
 interface CreditSection {
   title: string
+  /** A sentence or two drawn above the list. */
+  note?: string
   credits: Credit[]
+  /** A sentence or two drawn below the list. */
+  after?: string
 }
 
 const FAIPL = 'https://freedevproject.org/faipl-1.0-sd/'
 const DOVA_LICENSE = 'https://dova-s.jp/en/help/articles/license/'
 
+/** What this build is and who made what, drawn above everybody it thanks. */
+const ABOUT: CreditSection = {
+  title: 'About this mod',
+  note:
+    'Total College Experience is an unofficial mod of Venus University 0.2.0 by CrazyyMister, ' +
+    "made with Venus Dev's permission. It is not made or supported by Venus Dev; problems with " +
+    "it go to its own Issues. The game's music is not included.",
+  credits: [
+    {
+      name: 'Venus University',
+      by: 'Venus Dev',
+      license: 'AGPL-3.0-only code; art, sound and characters © Venus Dev',
+      sourceUrl: GAME_PAGE_URL
+    },
+    {
+      name: 'Total College Experience',
+      by: 'CrazyyMister',
+      license: 'AGPL-3.0-only',
+      licenseUrl: 'https://www.gnu.org/licenses/agpl-3.0.html',
+      sourceUrl: MOD_SOURCE_URL
+    },
+    {
+      name: "Maestro's Community Mods",
+      by: 'maestroleeds',
+      license: 'Inspiration',
+      sourceUrl: MAESTRO_MODS_URL
+    }
+  ],
+  after:
+    "Breakthrough and the encounters-and-facts memory were inspired by maestroleeds' " +
+    "Maestro's Community Mods, which also had an ex feature first; TCE's ex was built separately."
+}
+
 /** The authoritative credit list. */
 const SECTIONS: readonly CreditSection[] = [
   {
     title: 'Music',
+    note: "The official game's tracks. They are not included in Total College Experience.",
     credits: [
       {
         name: '2:23 AM',
@@ -293,6 +332,22 @@ function CreditRow({ credit }: { credit: Credit }): JSX.Element {
   )
 }
 
+/** One titled section: its note, its credits, and the sentence under them. */
+function CreditSectionBlock({ section }: { section: CreditSection }): JSX.Element {
+  return (
+    <section className="vu-credits-section">
+      <h3 className="vu-credits-title">{section.title}</h3>
+      {section.note && <p className="vu-row vu-credits-names">{section.note}</p>}
+      <ul className="vu-credits-list">
+        {section.credits.map((credit) => (
+          <CreditRow key={credit.name} credit={credit} />
+        ))}
+      </ul>
+      {section.after && <p className="vu-row vu-credits-names">{section.after}</p>}
+    </section>
+  )
+}
+
 export interface CreditsModalProps {
   /** Drawn by whatever opened this — a portal inherits neither palette nor state rules. */
   theme: 'day' | 'night'
@@ -328,32 +383,26 @@ export function CreditsModal({ theme }: CreditsModalProps): JSX.Element | null {
 
         <div className="vu-scroll-box">
           <div className="vu-credits-body">
+            <CreditSectionBlock section={ABOUT} />
             {/* The people first: who gave, and who played it before it shipped. */}
             {(DONORS.length > 0 || PLAYTESTERS.length > 0) && (
               <div className="vu-credits-thanks">
                 {DONORS.length > 0 && (
                   <section className="vu-credits-section">
-                    <h3 className="vu-credits-title">Ko-Fi Supporters</h3>
+                    <h3 className="vu-credits-title">Venus University Ko-Fi Supporters</h3>
                     <p className="vu-row vu-credits-names">{DONORS.join(', ')}</p>
                   </section>
                 )}
                 {PLAYTESTERS.length > 0 && (
                   <section className="vu-credits-section">
-                    <h3 className="vu-credits-title">Playtesters</h3>
+                    <h3 className="vu-credits-title">Venus University Playtesters</h3>
                     <p className="vu-row vu-credits-names">{PLAYTESTERS.join(', ')}</p>
                   </section>
                 )}
               </div>
             )}
             {SECTIONS.map((section) => (
-              <section key={section.title} className="vu-credits-section">
-                <h3 className="vu-credits-title">{section.title}</h3>
-                <ul className="vu-credits-list">
-                  {section.credits.map((credit) => (
-                    <CreditRow key={credit.name} credit={credit} />
-                  ))}
-                </ul>
-              </section>
+              <CreditSectionBlock key={section.title} section={section} />
             ))}
           </div>
           <div className="vu-scroll-fade" />

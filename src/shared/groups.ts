@@ -313,7 +313,7 @@ export const TEAM_SESSIONS_PER_WEEK = 2
 /** How many meetings a fraternity holds in a week. */
 export const PLEDGE_SESSIONS_PER_WEEK = 2
 
-/** The last day of a pledge: the end of the fifth week. It runs from the slot after his answer. */
+/** The last day of a pledge: the end of the sixth week. It runs from the slot after his answer. */
 export const PLEDGE_LAST_DAY = 41
 
 /** The fewest members who must be free for a session to be held at all. */

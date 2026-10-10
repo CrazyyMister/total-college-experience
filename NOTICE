@@ -1,0 +1,62 @@
+Total College Experience (TCE)
+==============================
+
+TCE is an unofficial mod of Venus University 0.2.0, made by CrazyyMister. It is not made,
+supported or endorsed by Venus Dev. Problems with TCE go to TCE's own Issues, never to Venus
+Dev.
+
+  Original game:  Venus University by Venus Dev
+                  https://venus-dev.itch.io/venus-university
+                  https://github.com/venus-uni-dev/venus-university
+  This mod:       https://github.com/CrazyyMister/total-college-experience
+
+Copyright
+---------
+
+  Copyright (C) Venus Dev, for the original game.
+  Copyright (C) CrazyyMister, for the changes TCE makes to it.
+
+Licence of the code
+-------------------
+
+The code is licensed under the GNU Affero General Public License, version 3 only
+(AGPL-3.0-only); the text is in `LICENSE`. The original is under the same licence.
+
+TCE modifies the original. It starts from commit b56a990 of the original developer's public
+mirror (the game as of version 0.2.0, September 26, 2026), and the first change is dated
+September 29, 2026. The complete record of what was changed, file by file and with its date,
+is the Git history of the repository above, from that commit on.
+
+The Corresponding Source of each TCE release is the repository above at that release's tag.
+It includes the scripts that build the release.
+
+Art, sounds and characters
+--------------------------
+
+The images, sounds and characters of Venus University are (C) Venus Dev, all rights reserved,
+and are not covered by the AGPL (see `LICENSE-ASSETS.md`). TCE includes them with Venus Dev's
+permission, quoted in `PERMISSION.md`. That permission does not make them free to reuse.
+
+The images TCE adds (the Greek houses on Laurel Row) are by CrazyyMister, licensed under
+CC BY-NC 4.0 to the extent the law allows; `LICENSE-ASSETS.md` names them.
+
+The game's music
+----------------
+
+TCE does not include the music of Venus University. The tracks are OpenTracks / DOVA-SYNDROME
+downloads under their own licence and are credited in the game's Credits screen. If you have
+the official game, `README.md` says how to copy its music into TCE.
+
+Third parties
+-------------
+
+ComfyUI, its custom nodes and the image models are not distributed with TCE; they are fetched
+from their own projects at setup, as in the original. They are credited in the game's Credits
+screen with their licences.
+
+Inspiration
+-----------
+
+Breakthrough and the encounters-and-facts memory were inspired by maestroleeds' Maestro's
+Community Mods, which also had an ex feature first; TCE's ex was built separately.
+https://github.com/maestromods/maestros-community-mods
