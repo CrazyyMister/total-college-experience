@@ -142,6 +142,26 @@ export function getComfyUserPath(): string {
 }
 
 /**
+ * Where the caches of the tools a ComfyUI run uses are kept, by the variable that moves each:
+ * numba's compiled functions (the background cut writes them next to pymatting otherwise),
+ * bytecode, and the ones Python libraries put in a user or tree folder. Handed to a server that
+ * belongs to another game, whose tree must stay as it was found.
+ */
+export function getComfyCacheEnv(): Record<string, string> {
+  const cache = (name: string): string => join(getComfyWorkPath(), 'cache', name)
+  return {
+    NUMBA_CACHE_DIR: cache('numba'),
+    PYTHONPYCACHEPREFIX: cache('pycache'),
+    XDG_CACHE_HOME: cache('xdg'),
+    MPLCONFIGDIR: cache('matplotlib'),
+    TORCHINDUCTOR_CACHE_DIR: cache('torchinductor'),
+    TRITON_CACHE_DIR: cache('triton'),
+    HF_HOME: cache('huggingface'),
+    TORCH_HOME: cache('torch')
+  }
+}
+
+/**
  * The database ComfyUI is told to use. Without it, a ComfyUI started on another user folder
  * renames the database it finds in its own tree to make a copy for the new one, which is a
  * write into the tree.

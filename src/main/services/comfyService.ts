@@ -33,7 +33,9 @@ import {
   getCharacterExpressionPath,
   getCharacterFacePath,
   getCharacterOutfitPath,
+  getBorrowedComfyPath,
   getComfyAppPath,
+  getComfyCacheEnv,
   getComfyDatabaseUrl,
   getComfyInputPath,
   getComfyLogPath,
@@ -310,6 +312,12 @@ async function startOnce(onProgress?: (step: string) => void): Promise<void> {
     mkdirSync(dir, { recursive: true })
   }
 
+  // A server of another game's gets its caches here too, or they would land in that tree.
+  const cacheEnv = getBorrowedComfyPath() === null ? null : getComfyCacheEnv()
+  if (cacheEnv !== null) {
+    for (const dir of Object.values(cacheEnv)) mkdirSync(dir, { recursive: true })
+  }
+
   // Both streams go to the log file through one descriptor: a file has no pipe to fill, and
   // the tail is the detail when a boot dies. A log that will not open does not stop the boot.
   let logFd: number | null = null
@@ -345,6 +353,7 @@ async function startOnce(onProgress?: (step: string) => void): Promise<void> {
     {
       cwd: getComfyUiPath(),
       windowsHide: true,
+      env: cacheEnv === null ? process.env : { ...process.env, ...cacheEnv },
       stdio: ['ignore', logFd ?? 'ignore', logFd ?? 'ignore']
     }
   )
