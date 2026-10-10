@@ -41,6 +41,8 @@ You will need externally kept data for testing:
 - [ ] Run `npm run exe:update -- --to "D:\Venus University" --dry-run` and the same with `exe:remove` and verify both are refused as the old build; run `npm run exe:remove -- --dry-run` with no `--to` and verify it only looks at `D:\Total College Experience`.
 - [ ] Music: open the packaged exe, verify the menu is silent and nothing breaks; copy the `music` and `ambient_music` folders from the official game's `resources\assets\sound` into the exe's `resources\assets\sound`, restart and verify the title music plays.
 - [ ] (After R4) With the official game's ComfyUI running, ask the exe for an image and verify the message names the official game and says to close it; with an unknown program on port 8188, verify it says another program is using it.
+- [ ] On the Setup screen, choose the official game's folder under WHERE COMFYUI LIVES: verify the line says it is in use, every row is installed, Install missing is dead, and a wrong folder says it has no Venus University ComfyUI.
+- [ ] Regenerate an expression with the borrowed ComfyUI and verify the official game's folder is byte-identical before and after (`data\comfy-work` holds the images).
 
 ### Manage Characters
 - [ ] Open manage characters and import a character. Click it and open Edit Character. Click through all expressions on each outfit. Open NSFW CG and room BG.
