@@ -12,6 +12,20 @@ Total College Experience (TCE) turns Venus University into a fuller college sim:
 
 > **18+ only.** Like the original, TCE is an adult game, with explicit scenes. All characters are adults (18+).
 
+## A look
+
+![The April calendar, with the four nights of Greek Week, the houses' parties and mixers, the teams' games and the day's classes](docs/screenshots/greek-week-calendar.png)
+
+**The calendar in the last week of April:** the four nights of Greek Week, the houses' parties and mixers, the teams' games and the day's classes.
+
+![The registrar's list of available classes, with a class marked "Your course"](docs/screenshots/course-registrar.png)
+
+**The registrar:** the four classes of the course you picked at New Game are marked "Your course".
+
+![Game setup: the men's teams and the fraternities](docs/screenshots/game-setup-teams-houses.png)
+
+**Game setup:** the men's teams and the fraternities draw from the men on your roster. This roster has one, Dorian, a man made in the character editor on purpose, to show that male characters can be created; his files are not in this repository.
+
 ## Support the original developer
 
 Venus University is made by **Venus Dev** (venusdev), who gave permission for TCE to exist. TCE would not exist without their work. If you enjoy it, please support them:
@@ -68,8 +82,8 @@ TCE uses generative AI. The text model you choose writes the scenes, and your lo
 
 ## Installing
 
-1. Download the latest release from [RELEASE_URL](RELEASE_URL) and unzip it. The zip makes its own folder, `Total College Experience`. **Never unzip it into or over the official Venus University folder:** it would replace the official game's files.
-2. Run `Total College Experience.exe`. Windows may warn that the app is unrecognized, because it is not code-signed; choose **More info → Run anyway**.
+1. Download the latest release and unzip it. The first release is coming to itch.io; the link will be here when it is up. The zip makes its own folder, `Total College Experience`. **Never unzip it into or over the official Venus University folder:** it would replace the official game's files.
+2. Run `Total College Experience.exe`. Windows SmartScreen may say "Windows protected your PC" because TCE is not code-signed; choose **More info → Run anyway**. The source of every release is this repository, and you can build it yourself (see Building from source).
 3. Enter your API key on the first screen, then set up image generation from the Setup screen. TCE downloads its own ComfyUI the same way the original does.
 4. If you already have the official Venus University with its image generation installed, TCE can use that ComfyUI instead of downloading its own. On the Setup screen, under WHERE COMFYUI LIVES, choose **Use the official game's ComfyUI** and pick the official game's folder, the one with `Venus University.exe`. TCE only reads from it: it keeps its own images and files in its own `data` folder and never installs into the official game's. **Use it only while the official game is closed.** If the official game is open it takes the image generation TCE started for its own, and the two stop working together. Reusing the official game's ComfyUI was tested on an NVIDIA GPU; it has not been tested on AMD yet.
 
@@ -82,6 +96,19 @@ TCE keeps its data in a `data` folder beside its own program and does not touch 
 **One game at a time.** TCE and the official game can both be open, but only one of them can run image generation at a time, because both use port 8188 on your computer. If the other game has it, TCE says which game and does not touch it; close that game and try again.
 
 **Other mods.** TCE does not work together with other code mods, such as Maestro's Community Mods or the Photo Feature mod. It is a complete game on its own, not a patch for the official one. An update to the official game never changes TCE, and TCE does not update itself: a new version is a new download.
+
+## Building from source
+
+TCE is built from the `tce` branch of this repository, which is its default branch. You need Windows, Git and Node.js 22.
+
+1. Clone it: `git clone https://github.com/CrazyyMister/total-college-experience.git`, then open the folder.
+2. Unzip the cast. The characters the game ships with are stored as zips in `assets/characters`, zipped so that their adult images cannot be previewed on GitHub. Every zip unpacks to `assets/characters/<id>/`; in PowerShell, from the repository folder:
+   `Get-ChildItem assets\characters\*.zip | ForEach-Object { Expand-Archive -LiteralPath $_.FullName -DestinationPath assets\characters -Force }`
+3. Install the dependencies: `npm ci`.
+4. Check it: `npm run typecheck` and `npm test`.
+5. Run it from the source with `npm run dev`, or build the game folder with `npm run release`, which writes `release\win-unpacked` with `Total College Experience.exe` in it.
+
+The zips are the Venus University 0.2.0 cast, not the 0.3.0 cast of the official repository. The music is not in the repository; see **The music** above. The images, sounds and characters of Venus University are Venus Dev's and come with the conditions in [LICENSE-ASSETS.md](LICENSE-ASSETS.md) and [PERMISSION.md](PERMISSION.md).
 
 ## Reporting bugs
 
