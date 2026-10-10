@@ -22,6 +22,7 @@ reaches them depends on the country.
 - `assets/bg/interior/{kappa_row,xi_delt}_{common,party,room}_{day,night}.png`
 - `assets/bg/interior/sorority_common_{day,night}.png`
 - the thumbnails of those in `assets/bg_thumbs`, and every build of them the game ships.
+- `build/icon.ico` and `docs/tce_logo.svg`, the TCE icon and logo (the hare mark inside the logo is from Venus University, © Venus Dev).
 
 Venus Dev has agreed to Total College Experience including his own files; see
 `PERMISSION.md`. That does not change what the sentences above say about them.
