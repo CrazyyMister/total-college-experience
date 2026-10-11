@@ -8,7 +8,7 @@
 
 Total College Experience (TCE) turns Venus University into a fuller college sim: men on the roster, characters who fall for each other, a feed and a phone that answer back, teams, Greek life, housing, seasons, a bigger roster and a memory the writer can lean on, all on top of the original dating sim. It is a complete game with its own program and its own data folder, built from Venus University 0.2.0.
 
-> **This is not the official game.** Please report TCE bugs [here](https://github.com/CrazyyMister/total-college-experience/issues), not to the original developer. Saves do not move between TCE and the official game in either direction, and future TCE versions may not open saves from this one.
+> **This is not the official game.** Please report TCE bugs [here](https://github.com/CrazyyMister/total-college-experience/issues), not to the original developer. A backup made by the official Venus University 0.2.0 can be restored in TCE (Settings → Restore). TCE saves do not go back to the official game, and future TCE versions may not open saves from this one.
 
 > **18+ only.** Like the original, TCE is an adult game, with explicit scenes. All characters are adults (18+).
 
@@ -84,7 +84,7 @@ TCE uses generative AI. The text model you choose writes the scenes, and your lo
 
 1. Download the latest release and unzip it. The first release is coming to itch.io; the link will be here when it is up. The zip makes its own folder, `Total College Experience`. **Never unzip it into or over the official Venus University folder:** it would replace the official game's files.
 2. Run `Total College Experience.exe`. Windows SmartScreen may say "Windows protected your PC" because TCE is not code-signed; choose **More info → Run anyway**. The source of every release is this repository, and you can build it yourself (see Building from source).
-3. Enter your API key on the first screen, then set up image generation from the Setup screen. TCE downloads its own ComfyUI the same way the original does.
+3. Enter your API key on the first screen, then set up image generation from the Setup screen. TCE downloads its own ComfyUI the same way the original does; the download is about 14 GB.
 4. If you already have the official Venus University with its image generation installed, TCE can use that ComfyUI instead of downloading its own. On the Setup screen, under WHERE COMFYUI LIVES, choose **Use the official game's ComfyUI** and pick the official game's folder, the one with `Venus University.exe`. TCE only reads from it: it keeps its own images and files in its own `data` folder and never installs into the official game's. **Use it only while the official game is closed.** If the official game is open it takes the image generation TCE started for its own, and the two stop working together. Reusing the official game's ComfyUI was tested on an NVIDIA GPU; it has not been tested on AMD yet.
 
 TCE keeps its data in a `data` folder beside its own program and does not touch the official game's saves.
@@ -112,7 +112,7 @@ The zips are the Venus University 0.2.0 cast, not the 0.3.0 cast of the official
 
 ## Reporting bugs
 
-Open an issue at [github.com/CrazyyMister/total-college-experience/issues](https://github.com/CrazyyMister/total-college-experience/issues). The game's **Feedback** button lets you download your log file; attach it to the issue. Your folder paths are replaced with placeholders in the log and the app does not write your API key to it, but have a look before you post it.
+Open an issue at [github.com/CrazyyMister/total-college-experience/issues](https://github.com/CrazyyMister/total-college-experience/issues). The game's **Feedback** button lets you download your log file; attach it to the issue. The log shows the game's own folder, its `data` folder and your user folder as `<app>`, `<data>` and `<home>`, and the app does not write your API key to it, but a path anywhere else on your computer stays as it is, and the log may hold your text choices and the writer's replies. Have a look at it before you post it.
 
 ## Credits
 
