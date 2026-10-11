@@ -11,6 +11,9 @@ release
 # runtime data (getDataPath()) — see src/main/paths.ts
 /data
 
+# the shipped cast, unzipped from assets/characters/*.zip next to the zips
+/assets/characters/*/
+
 # editor/OS cruft
 .DS_Store
 *.log
