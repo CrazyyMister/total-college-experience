@@ -26,3 +26,7 @@ reaches them depends on the country.
 
 Venus Dev has agreed to Total College Experience including his own files; see
 `PERMISSION.md`. That does not change what the sentences above say about them.
+
+## Screenshots in the README
+
+`docs/screenshots/*.png` are captures of Total College Experience running. They show Venus University's interface, which is Venus Dev's, and are included only to show the mod in the README, with the permission recorded in `PERMISSION.md`. No right is granted to reuse them in any other work.
