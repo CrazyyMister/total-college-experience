@@ -134,7 +134,11 @@ async function assertDesktopPayload() {
     if (existsSync(join(UNPACKED, rel))) throw new Error(`The build holds ${rel}, which it must not ship.`)
   }
 
-  const shipped = (await readdir(join(REPO, 'assets/characters'))).sort()
+  // Only the unzipped folders ship; the zips beside them are the source archives, as packCharacters reads them.
+  const shipped = (await readdir(join(REPO, 'assets/characters'), { withFileTypes: true }))
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort()
   const cast = (await readdir(join(UNPACKED, 'resources/assets/characters'))).sort()
   if (cast.join('\n') !== shipped.join('\n')) {
     const missing = shipped.filter((id) => !cast.includes(id))
